@@ -1,0 +1,647 @@
+{% extends "base.html" %}
+
+{% block title %}Software Configuration & Multi-Company Hub - ZR-ERP{% endblock %}
+
+{% block content %}
+<div class="page-header no-print">
+    <div>
+        <h1 class="page-title">⚙️ Software Configuration & Multi-Company Hub</h1>
+        <p class="page-description">
+            Manage company profiles, profile password locks, inter-company data transfers, and security for
+            <strong style="color: var(--accent);">ZR-ERP</strong>.
+        </p>
+    </div>
+    <div class="header-actions">
+        <button type="button" class="btn btn-primary" onclick="openModal('newCompanyModal')">
+            ➕ Create New Company Profile
+        </button>
+    </div>
+</div>
+
+<!-- Active Company Summary Strip -->
+<div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); color: #ffffff; padding: 1.25rem 1.75rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <div style="font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.85; font-weight: 700;">
+                CURRENTLY ACTIVE WORKING COMPANY
+            </div>
+            <div style="font-size: 1.6rem; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 0.2rem; display: flex; align-items: center; gap: 0.75rem;">
+                🏢 {{ active_company.name }}
+                <span class="badge" style="background: rgba(255,255,255,0.2); color: #ffffff; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
+                    {{ active_company.code }}
+                </span>
+                {% if active_company.is_locked %}
+                <span class="badge" style="background: #ef4444; color: #ffffff; font-size: 0.75rem;">🔒 Locked by Admin Password</span>
+                {% else %}
+                <span class="badge" style="background: #10b981; color: #ffffff; font-size: 0.75rem;">🔓 Open Access</span>
+                {% endif %}
+            </div>
+            <div style="font-size: 0.85rem; opacity: 0.9; margin-top: 0.35rem;">
+                {{ active_company.description or 'All accounting ledgers, vouchers, payroll, and banking queries route to this company profile.' }}
+            </div>
+        </div>
+
+        <div style="text-align: right;">
+            <div style="font-size: 0.75rem; text-transform: uppercase; opacity: 0.8; font-weight: 700;">Total Registered Profiles</div>
+            <div style="font-size: 2rem; font-weight: 800; font-family: 'JetBrains Mono', monospace;">
+                {{ all_companies|length }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Configuration Tabs -->
+<div class="card" style="padding: 0; overflow: hidden; margin-bottom: 2rem;">
+    <div style="display: flex; border-bottom: 1px solid var(--border); background-color: #f8fafc; padding: 0 1rem; overflow-x: auto;">
+        <button class="tab-btn active" onclick="switchConfigTab(event, 'tab-companies')">🏢 Company Profiles ({{ all_companies|length }})</button>
+        <button class="tab-btn" onclick="switchConfigTab(event, 'tab-transfer')">🔄 Inter-Company Data Transfer</button>
+        <button class="tab-btn" onclick="switchConfigTab(event, 'tab-security')">🔐 Security & OTP Settings (jonybangla2@gmail.com)</button>
+        <button class="tab-btn" onclick="switchConfigTab(event, 'tab-branding')">🏷️ System Branding & Software Info</button>
+    </div>
+
+    <!-- TAB 1: COMPANY PROFILES -->
+    <div id="tab-companies" class="tab-content" style="padding: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div>
+                <h3 style="font-size: 1.1rem; color: var(--text-primary); margin: 0; font-family: 'Outfit', sans-serif;">
+                    Corporate Profiles Directory
+                </h3>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0.25rem 0 0 0;">
+                    Switch active profile, password-lock profiles as Admin, or add new corporate entities.
+                </p>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" onclick="openModal('newCompanyModal')">
+                + Add Company Profile
+            </button>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th style="width: 70px;">ID</th>
+                        <th style="width: 100px;">Code</th>
+                        <th>Company Name</th>
+                        <th>Database File</th>
+                        <th style="text-align: center; width: 140px;">Password Lock</th>
+                        <th style="width: 150px;">Created Date</th>
+                        <th style="text-align: center; width: 220px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for comp in all_companies %}
+                    <tr style="{% if active_company.id == comp.id %}background-color: #f0fdf4; font-weight: 500;{% endif %}">
+                        <td style="font-family: 'JetBrains Mono', monospace; color: var(--text-secondary);">
+                            #{{ comp.id }}
+                        </td>
+                        <td>
+                            <span class="badge" style="background-color: #dbeafe; color: #1e40af; font-family: 'JetBrains Mono', monospace; font-weight: 700;">
+                                {{ comp.code }}
+                            </span>
+                        </td>
+                        <td>
+                            <div style="font-weight: 700; color: var(--text-primary);">
+                                {{ comp.name }}
+                                {% if active_company.id == comp.id %}
+                                    <span class="badge" style="background-color: #10b981; color: #ffffff; font-size: 0.72rem; margin-left: 0.4rem;">
+                                        ✓ ACTIVE
+                                    </span>
+                                {% endif %}
+                            </div>
+                            <div style="font-size: 0.78rem; color: var(--text-secondary);">
+                                {{ comp.description or 'Corporate Profile' }}
+                            </div>
+                        </td>
+                        <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted);">
+                            {{ comp.db_file }}
+                        </td>
+                        <td style="text-align: center;">
+                            {% if comp.is_locked %}
+                                <span class="badge" style="background-color: #fee2e2; color: #b91c1c; font-size: 0.75rem;" title="Password protection enabled by Admin">
+                                    🔒 Locked (PW Set)
+                                </span>
+                            {% else %}
+                                <span class="badge" style="background-color: #f1f5f9; color: #475569; font-size: 0.75rem;">
+                                    🔓 Open Access
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td style="font-size: 0.82rem; color: var(--text-secondary);">
+                            {{ comp.created_at[:10] if comp.created_at else '' }}
+                        </td>
+                        <td style="text-align: center;">
+                            <div style="display: flex; gap: 0.35rem; justify-content: center; align-items: center;">
+                                {% if active_company.id != comp.id %}
+                                    <a href="{{ url_for('switch_company', cid=comp.id) }}" class="btn btn-primary btn-sm" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;">
+                                        👉 Switch
+                                    </a>
+                                {% else %}
+                                    <span style="font-size: 0.78rem; color: #059669; font-weight: 700; padding: 0.25rem 0.5rem;">
+                                        Current
+                                    </span>
+                                {% endif %}
+
+                                <button type="button" class="btn btn-outline btn-sm"
+                                    data-id="{{ comp.id }}"
+                                    data-name="{{ comp.name }}"
+                                    data-code="{{ comp.code }}"
+                                    data-desc="{{ comp.description or '' }}"
+                                    data-locked="{{ 'true' if comp.is_locked else 'false' }}"
+                                    onclick="handleEditCompany(this)"
+                                    title="Edit Profile & Password Lock" style="padding: 0.25rem 0.5rem; font-size: 0.78rem;">
+                                    ⚙️ Lock / Edit
+                                </button>
+
+                                {% if comp.id != 1 %}
+                                <form method="POST" action="{{ url_for('delete_company', cid=comp.id) }}" style="display: inline;" onsubmit="return confirm('WARNING: Are you sure you want to delete company profile \'{{ comp.name }}\'? This will remove the database permanently!')">
+                                    <button type="submit" class="btn btn-outline btn-sm" style="padding: 0.25rem 0.45rem; font-size: 0.78rem; color: #dc2626; border-color: #fecaca;" title="Delete Profile">
+                                        🗑
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- TAB 2: INTER-COMPANY DATA TRANSFER -->
+    <div id="tab-transfer" class="tab-content" style="padding: 1.5rem; display: none;">
+        <div style="max-width: 850px; margin: 0 auto;">
+            <div style="border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem;">
+                <h3 style="font-size: 1.2rem; color: var(--text-primary); margin: 0; font-family: 'Outfit', sans-serif;">
+                    🔄 Inter-Company Data Transfer Engine
+                </h3>
+                <p style="font-size: 0.88rem; color: var(--text-secondary); margin: 0.35rem 0 0 0;">
+                    Transfer full database records or select specific modules (Accounts, Vouchers, Employees, Bank Statements) from one company profile to another.
+                </p>
+            </div>
+
+            <form method="POST" action="{{ url_for('transfer_company_data') }}" id="transferForm">
+                <!-- Step 1: Companies -->
+                <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1.25rem; margin-bottom: 1.5rem;">
+                    <div style="font-weight: 700; font-size: 0.92rem; color: var(--text-primary); margin-bottom: 1rem;">
+                        1. Select Source & Destination Profiles
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 1rem; align-items: center;">
+                        <div>
+                            <label class="form-label" for="source_cid">Source Company (Transfer FROM) *</label>
+                            <select name="source_cid" id="source_cid" class="form-select" required>
+                                {% for c in all_companies %}
+                                <option value="{{ c.id }}" {% if active_company.id == c.id %}selected{% endif %}>
+                                    {{ c.code }} - {{ c.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div style="font-size: 1.5rem; color: var(--accent); padding-top: 1.2rem; text-align: center;">
+                            ➔
+                        </div>
+
+                        <div>
+                            <label class="form-label" for="dest_cid">Destination Company (Transfer TO) *</label>
+                            <select name="dest_cid" id="dest_cid" class="form-select" required>
+                                {% for c in all_companies %}
+                                <option value="{{ c.id }}" {% if all_companies|length > 1 and c.id != active_company.id %}selected{% endif %}>
+                                    {{ c.code }} - {{ c.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Transfer Mode -->
+                <div style="background: #ffffff; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1.25rem; margin-bottom: 1.5rem;">
+                    <div style="font-weight: 700; font-size: 0.92rem; color: var(--text-primary); margin-bottom: 0.75rem;">
+                        2. Choose Transfer Scope
+                    </div>
+                    <div style="display: flex; gap: 2rem; margin-bottom: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.95rem; font-weight: 600;">
+                            <input type="radio" name="transfer_mode" value="full" checked onchange="toggleTransferMode(this.value)">
+                            <span>📦 Full Data Transfer (Complete Mirror - All 13 Tables)</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.95rem; font-weight: 600;">
+                            <input type="radio" name="transfer_mode" value="selected" onchange="toggleTransferMode(this.value)">
+                            <span>🎯 Selected Specific Modules</span>
+                        </label>
+                    </div>
+
+                    <!-- Module Checkboxes -->
+                    <div id="selectiveModulesBox" style="display: none; background: #f8fafc; border: 1px dashed var(--border); border-radius: var(--radius-sm); padding: 1.25rem; margin-top: 1rem;">
+                        <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.75rem; text-transform: uppercase;">
+                            Select Modules to Transfer:
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; cursor: pointer;">
+                                <input type="checkbox" name="modules" value="accounts" checked>
+                                <span>📑 Chart of Accounts & Subledgers</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; cursor: pointer;">
+                                <input type="checkbox" name="modules" value="vouchers" checked>
+                                <span>📖 Vouchers, Journal Entries & Cash Book</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; cursor: pointer;">
+                                <input type="checkbox" name="modules" value="employees" checked>
+                                <span>👥 Employees, Payroll Runs & PF Contributions</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; cursor: pointer;">
+                                <input type="checkbox" name="modules" value="banking" checked>
+                                <span>🏛️ Bank Statements & Reconciliations</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; cursor: pointer;">
+                                <input type="checkbox" name="modules" value="users">
+                                <span>👤 System Users & Logins</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Conflict Strategy -->
+                <div style="background: #ffffff; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1.25rem; margin-bottom: 1.75rem;">
+                    <div style="font-weight: 700; font-size: 0.92rem; color: var(--text-primary); margin-bottom: 0.75rem;">
+                        3. Destination Conflict Handling Strategy
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.65rem;">
+                        <label style="display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; font-size: 0.88rem;">
+                            <input type="radio" name="strategy" value="replace" checked style="margin-top: 0.2rem;">
+                            <div>
+                                <strong>Replace / Overwrite Destination Tables:</strong>
+                                <span style="color: var(--text-secondary); display: block; font-size: 0.8rem;">
+                                    Clears the selected tables in destination and writes exact mirror records from source.
+                                </span>
+                            </div>
+                        </label>
+                        <label style="display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; font-size: 0.88rem;">
+                            <input type="radio" name="strategy" value="merge" style="margin-top: 0.2rem;">
+                            <div>
+                                <strong>Merge / Skip Duplicates:</strong>
+                                <span style="color: var(--text-secondary); display: block; font-size: 0.8rem;">
+                                    Inserts new records while preserving already existing records in destination without overwriting.
+                                </span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+                    <button type="submit" class="btn btn-primary" style="padding: 0.75rem 1.5rem; font-size: 1rem;" onclick="return confirmTransfer()">
+                        🚀 Execute Data Transfer Now
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TAB 3: SECURITY & ADMIN OTP SETTINGS -->
+    <div id="tab-security" class="tab-content" style="padding: 1.5rem; display: none;">
+        <div style="max-width: 750px; margin: 0 auto;">
+            <div style="border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem;">
+                <h3 style="font-size: 1.2rem; color: var(--text-primary); margin: 0; font-family: 'Outfit', sans-serif;">
+                    🔐 Security & Administrator Two-Factor Authentication
+                </h3>
+                <p style="font-size: 0.88rem; color: var(--text-secondary); margin: 0.35rem 0 0 0;">
+                    Every Administrator login triggers a one-time verification code (OTP) sent to <strong>jonybangla2@gmail.com</strong>.
+                </p>
+            </div>
+
+            <!-- Active Admin OTP Badge Card -->
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: var(--radius-sm); padding: 1.25rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem;">
+                <div style="font-size: 2.25rem;">🛡️</div>
+                <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <h4 style="margin: 0; font-size: 1.05rem; color: #166534;">Admin OTP Verification is ACTIVE</h4>
+                        <span class="badge" style="background-color: #10b981; color: #ffffff; font-size: 0.75rem;">Enforced</span>
+                    </div>
+                    <div style="font-size: 0.85rem; color: #15803d; margin-top: 0.25rem;">
+                        Admin Security Email: <strong>jonybangla2@gmail.com</strong> &bull; OTP Expiry: 10 minutes &bull; Cryptographic 6-digit generation.
+                    </div>
+                </div>
+            </div>
+
+            <!-- SMTP Server Settings Form -->
+            <div class="card" style="border: 1px solid var(--border);">
+                <div class="card-header">
+                    <h4 class="card-title" style="font-size: 1rem;">📧 SMTP Email Server Settings</h4>
+                    <span class="badge" style="background-color: #dbeafe; color: #1e40af;">Gmail / TLS Dispatcher</span>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('save_smtp_settings') }}">
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label class="form-label" for="smtp_server">SMTP Server Host *</label>
+                                <input type="text" id="smtp_server" name="smtp_server" class="form-control" value="{{ smtp_cfg.smtp_server or 'smtp.gmail.com' }}" required>
+                            </div>
+                            <div class="form-col" style="max-width: 140px;">
+                                <label class="form-label" for="smtp_port">Port *</label>
+                                <input type="number" id="smtp_port" name="smtp_port" class="form-control" value="{{ smtp_cfg.smtp_port or 587 }}" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row" style="margin-top: 1rem;">
+                            <div class="form-col">
+                                <label class="form-label" for="smtp_user">Admin / Sender Email *</label>
+                                <input type="email" id="smtp_user" name="smtp_user" class="form-control" value="{{ smtp_cfg.smtp_user or 'jonybangla2@gmail.com' }}" required>
+                            </div>
+                            <div class="form-col">
+                                <label class="form-label" for="smtp_password">Gmail App Password / SMTP Password</label>
+                                <input type="password" id="smtp_password" name="smtp_password" class="form-control" value="{{ smtp_cfg.smtp_password or '' }}" placeholder="Enter 16-character Google App Password">
+                                <small style="color: var(--text-muted); font-size: 0.75rem;">Generate via Google Account &gt; Security &gt; App Passwords</small>
+                            </div>
+                        </div>
+
+                        <div class="form-row" style="margin-top: 1rem;">
+                            <div class="form-col">
+                                <label class="form-label" for="sender_name">Sender Display Name</label>
+                                <input type="text" id="sender_name" name="sender_name" class="form-control" value="{{ smtp_cfg.sender_name or 'ZR-ERP Security System' }}">
+                            </div>
+                            <div class="form-col" style="display: flex; align-items: center; padding-top: 1.5rem;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem;">
+                                    <input type="checkbox" name="use_tls" value="yes" {% if smtp_cfg.use_tls %}checked{% endif %}>
+                                    <span>Enable TLS Encryption (Recommended for Gmail)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+                            <button type="submit" name="action" value="test" class="btn btn-outline" style="border-color: #2563eb; color: #2563eb;">
+                                📨 Send Test OTP to jonybangla2@gmail.com
+                            </button>
+                            <button type="submit" name="action" value="save" class="btn btn-primary">
+                                💾 Save SMTP Configuration
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 4: SYSTEM BRANDING & SOFTWARE INFO -->
+    <div id="tab-branding" class="tab-content" style="padding: 1.5rem; display: none;">
+        <div style="max-width: 650px; margin: 0 auto; text-align: center;">
+            <div style="font-size: 3.5rem; margin-bottom: 0.5rem;">⚖️</div>
+            <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.85rem; font-weight: 800; color: #1e3a8a; margin: 0;">
+                ZR-ERP Enterprise Edition
+            </h2>
+            <div style="font-size: 0.95rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                Advanced Double-Entry Accounting, Multi-Company & Automated Payroll Platform
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-top: 2rem; text-align: left;">
+                <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Software Name</div>
+                    <div style="font-size: 1.15rem; font-weight: 800; color: var(--text-primary); margin-top: 0.2rem;">ZR-ERP</div>
+                </div>
+                <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Release Version</div>
+                    <div style="font-size: 1.15rem; font-weight: 800; color: #059669; margin-top: 0.2rem;">v3.0 Multi-Company</div>
+                </div>
+                <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Admin 2FA Security</div>
+                    <div style="font-size: 0.92rem; font-weight: 700; color: #2563eb; margin-top: 0.2rem;">jonybangla2@gmail.com</div>
+                </div>
+                <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Database Architecture</div>
+                    <div style="font-size: 0.92rem; font-weight: 700; color: var(--text-primary); margin-top: 0.2rem;">Isolated SQLite WAL Mode</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL 1: CREATE NEW COMPANY PROFILE -->
+<div id="newCompanyModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 600px;">
+        <div class="modal-header">
+            <h3 style="margin: 0; font-size: 1.15rem; font-family: 'Outfit', sans-serif;">🏢 Create New Company Profile</h3>
+            <button type="button" class="btn-close" onclick="closeModal('newCompanyModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('create_company_profile') }}">
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-col">
+                        <label class="form-label" for="new_comp_name">Company Full Name *</label>
+                        <input type="text" id="new_comp_name" name="name" class="form-control" placeholder="e.g. ZR Trading Ltd" required>
+                    </div>
+                    <div class="form-col" style="max-width: 160px;">
+                        <label class="form-label" for="new_comp_code">Company Code *</label>
+                        <input type="text" id="new_comp_code" name="code" class="form-control" placeholder="e.g. ZR-02" required style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label class="form-label" for="new_comp_desc">Description / Purpose</label>
+                    <input type="text" id="new_comp_desc" name="description" class="form-control" placeholder="e.g. Logistics & Export Subsidiary">
+                </div>
+
+                <!-- Password Lock Section -->
+                <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: var(--radius-sm); padding: 1rem; margin-top: 1rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.92rem; font-weight: 700; color: #991b1b;">
+                        <input type="checkbox" name="is_locked" value="yes" id="newCompLockCheck" onchange="toggleLockPasswordInput(this, 'newCompPassContainer')">
+                        <span>🔒 Lock this profile with Password (Admin Security)</span>
+                    </label>
+                    <div id="newCompPassContainer" style="display: none; margin-top: 0.75rem;">
+                        <label class="form-label" style="color: #991b1b;" for="new_comp_password">Profile Access Password *</label>
+                        <input type="password" id="new_comp_password" name="password" class="form-control" placeholder="Set password required to enter this profile">
+                        <small style="color: #b91c1c; font-size: 0.75rem;">Users will be prompted for this password when switching into this profile.</small>
+                    </div>
+                </div>
+
+                <!-- Initial Data Option -->
+                <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; margin-top: 1rem;">
+                    <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem;">
+                        Initial Ledger Data Setup:
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.85rem;">
+                            <input type="radio" name="init_setup" value="blank" checked onchange="toggleCloneSource(false)">
+                            <span>Start Fresh (Clean new empty ledger with default structure)</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.85rem;">
+                            <input type="radio" name="init_setup" value="clone" onchange="toggleCloneSource(true)">
+                            <span>Clone records immediately from an existing company profile</span>
+                        </label>
+                    </div>
+
+                    <div id="cloneSourceContainer" style="display: none; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed var(--border);">
+                        <label class="form-label" for="clone_source_id">Copy Data From:</label>
+                        <select name="clone_source_id" id="clone_source_id" class="form-select">
+                            {% for c in all_companies %}
+                            <option value="{{ c.id }}">{{ c.code }} - {{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('newCompanyModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">✓ Create Company Profile</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL 2: EDIT COMPANY PROFILE & PASSWORD LOCK -->
+<div id="editCompanyModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 550px;">
+        <div class="modal-header">
+            <h3 style="margin: 0; font-size: 1.15rem; font-family: 'Outfit', sans-serif;">⚙️ Edit Company Profile & Password Lock</h3>
+            <button type="button" class="btn-close" onclick="closeModal('editCompanyModal')">&times;</button>
+        </div>
+        <form method="POST" id="editCompanyForm" action="">
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-col">
+                        <label class="form-label" for="edit_comp_name">Company Name *</label>
+                        <input type="text" id="edit_comp_name" name="name" class="form-control" required>
+                    </div>
+                    <div class="form-col" style="max-width: 160px;">
+                        <label class="form-label" for="edit_comp_code">Company Code *</label>
+                        <input type="text" id="edit_comp_code" name="code" class="form-control" required style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label class="form-label" for="edit_comp_desc">Description</label>
+                    <input type="text" id="edit_comp_desc" name="description" class="form-control">
+                </div>
+
+                <!-- Password Lock Section -->
+                <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: var(--radius-sm); padding: 1rem; margin-top: 1.25rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.92rem; font-weight: 700; color: #991b1b;">
+                        <input type="checkbox" name="is_locked" value="yes" id="editCompLockCheck" onchange="toggleLockPasswordInput(this, 'editCompPassContainer')">
+                        <span>🔒 Password Lock Enabled (Profile Protected)</span>
+                    </label>
+                    <div id="editCompPassContainer" style="display: none; margin-top: 0.75rem;">
+                        <label class="form-label" style="color: #991b1b;" for="edit_comp_password">Set New Profile Password</label>
+                        <input type="password" id="edit_comp_password" name="password" class="form-control" placeholder="Leave empty to keep existing password">
+                        <small style="color: #b91c1c; font-size: 0.75rem;">Leave blank to maintain current password, or enter new password to update.</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('editCompanyModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">✓ Update Profile Settings</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.65);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1050;
+    backdrop-filter: blur(4px);
+    padding: 1rem;
+}
+.modal-box {
+    background: #ffffff;
+    border-radius: var(--radius-md, 10px);
+    width: 100%;
+    max-width: 600px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+}
+</style>
+
+<script>
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+}
+
+function handleEditCompany(btn) {
+    const id = btn.getAttribute('data-id');
+    const name = btn.getAttribute('data-name');
+    const code = btn.getAttribute('data-code');
+    const desc = btn.getAttribute('data-desc');
+    const isLocked = btn.getAttribute('data-locked') === 'true';
+
+    openEditCompanyModal(id, name, code, desc, isLocked);
+}
+
+function openEditCompanyModal(id, name, code, desc, isLocked) {
+    const form = document.getElementById('editCompanyForm');
+    if (form) form.action = "/configuration/companies/" + id + "/edit";
+
+    const nameInput = document.getElementById('edit_comp_name');
+    if (nameInput) nameInput.value = name || '';
+
+    const codeInput = document.getElementById('edit_comp_code');
+    if (codeInput) codeInput.value = code || '';
+
+    const descInput = document.getElementById('edit_comp_desc');
+    if (descInput) descInput.value = desc || '';
+
+    const pwInput = document.getElementById('edit_comp_password');
+    if (pwInput) pwInput.value = '';
+
+    const lockCheck = document.getElementById('editCompLockCheck');
+    if (lockCheck) {
+        lockCheck.checked = (isLocked === true || isLocked === 'true');
+        toggleLockPasswordInput(lockCheck, 'editCompPassContainer');
+    }
+    openModal('editCompanyModal');
+}
+
+function switchConfigTab(event, tabId) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+    event.currentTarget.classList.add('active');
+    document.getElementById(tabId).style.display = 'block';
+}
+
+function toggleTransferMode(mode) {
+    const box = document.getElementById('selectiveModulesBox');
+    if (mode === 'selected') {
+        box.style.display = 'block';
+    } else {
+        box.style.display = 'none';
+    }
+}
+
+function toggleLockPasswordInput(checkbox, containerId) {
+    const container = document.getElementById(containerId);
+    container.style.display = checkbox.checked ? 'block' : 'none';
+}
+
+function toggleCloneSource(show) {
+    document.getElementById('cloneSourceContainer').style.display = show ? 'block' : 'none';
+}
+
+function confirmTransfer() {
+    const src = document.getElementById('source_cid');
+    const dst = document.getElementById('dest_cid');
+    if (src.value === dst.value) {
+        alert('Source company and Destination company must be different.');
+        return false;
+    }
+    const srcText = src.options[src.selectedIndex].text;
+    const dstText = dst.options[dst.selectedIndex].text;
+    return confirm(`CONFIRM DATA TRANSFER:\n\nFrom: ${srcText}\nTo:   ${dstText}\n\nAre you sure you want to proceed with this operation?`);
+}
+</script>
+{% endblock %}

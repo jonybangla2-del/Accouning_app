@@ -1,0 +1,1057 @@
+{% extends "base.html" %}
+
+{% block title %}Executive Financial Dashboard - ZR-ERP{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header no-print">
+    <div>
+        <h1 class="page-title">
+            <span>📊</span> Executive Financial Dashboard
+        </h1>
+        <p class="page-description">
+            Real-time corporate performance, liquidity metrics, and general ledger operations for
+            <strong style="color: var(--accent);">{{ active_company.name if active_company else 'ZR-ERP Main Enterprise' }}</strong>.
+        </p>
+    </div>
+    <div class="header-actions">
+        <span class="badge" style="background: #f1f5f9; color: #475569; font-size: 0.8rem; padding: 0.45rem 0.85rem; border: 1px solid #cbd5e1;">
+            📅 {{ now.strftime('%d %B %Y') if now else 'Today' }}
+        </span>
+        <a href="{{ url_for('remittance_dashboard') }}" class="btn btn-outline" style="border-color: #10b981; color: #047857; font-weight: 600; background: #ecfdf5;">
+            <span>💵</span> Remittance &amp; 10% Incentive
+        </a>
+        <a href="{{ url_for('budget_dashboard') }}" class="btn btn-outline" style="border-color: #38bdf8; color: #0284c7; font-weight: 600; background: #f0f9ff;">
+            <span>🎯</span> Monthly Budget
+        </a>
+        <a href="{{ url_for('create_voucher') }}" class="btn btn-primary">
+            <span>+</span> Post Voucher
+        </a>
+        <a href="{{ url_for('reports_hub') }}" class="btn btn-outline">
+            <span>📈</span> Financial Reports
+        </a>
+    </div>
+</div>
+
+<!-- Key Financial Indicators (Interactive KPIs) -->
+<div class="metrics-grid">
+    <!-- 1. Total Assets -->
+    <div class="metric-card asset" id="kpi-assets" onclick="selectChartCategory('assets')" title="Click to view Asset breakdown graph">
+        <div class="metric-card-top">
+            <span class="metric-label">Total Assets</span>
+            <div class="metric-icon-box">🏛️</div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency">৳</span>
+            {% if total_assets < 0 %}
+                <span class="text-danger">({{ "{:,.2f}".format(total_assets|abs) }})</span>
+            {% else %}
+                <span>{{ "{:,.2f}".format(total_assets) }}</span>
+            {% endif %}
+        </div>
+        <div class="metric-sub">
+            <span class="metric-pill metric-pill-blue">Active Resources</span>
+            <span style="color: var(--text-muted);">Cash, Bank &amp; Equipments</span>
+        </div>
+        <div class="click-hint">👉 Click to view asset graph</div>
+    </div>
+
+    <!-- 2. Total Liabilities -->
+    <div class="metric-card liability" id="kpi-liabilities" onclick="selectChartCategory('expenses')" title="Click to view Operating Cost Centers">
+        <div class="metric-card-top">
+            <span class="metric-label">Total Liabilities</span>
+            <div class="metric-icon-box">📑</div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency">৳</span>
+            {% if total_liabilities < 0 %}
+                <span>({{ "{:,.2f}".format(total_liabilities|abs) }})</span>
+            {% else %}
+                <span>{{ "{:,.2f}".format(total_liabilities) }}</span>
+            {% endif %}
+        </div>
+        <div class="metric-sub">
+            <span class="metric-pill metric-pill-amber">Obligations</span>
+            <span style="color: var(--text-muted);">Payables &amp; Short Term Dues</span>
+        </div>
+        <div class="click-hint">👉 Click to view expense graph</div>
+    </div>
+
+    <!-- 3. Owner's Equity -->
+    <div class="metric-card equity" id="kpi-equity" onclick="selectChartCategory('cashflow')" title="Click to view Net Income and Cashflow trends">
+        <div class="metric-card-top">
+            <span class="metric-label">Owner's Equity</span>
+            <div class="metric-icon-box">💼</div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency">৳</span>
+            {% if total_equity < 0 %}
+                <span>({{ "{:,.2f}".format(total_equity|abs) }})</span>
+            {% else %}
+                <span>{{ "{:,.2f}".format(total_equity) }}</span>
+            {% endif %}
+        </div>
+        <div class="metric-sub">
+            <span class="metric-pill metric-pill-purple">Capital Reserve</span>
+            <span style="color: var(--text-muted);">Capital &amp; Retained Earnings</span>
+        </div>
+        <div class="click-hint">👉 Click to view equity trends</div>
+    </div>
+
+    <!-- 4. Period Net Surplus / Deficit -->
+    <div class="metric-card {% if net_surplus >= 0 %}surplus{% else %}deficit{% endif %}" id="kpi-surplus" onclick="selectChartCategory('net_income')" title="Click to view Net Performance chart">
+        <div class="metric-card-top">
+            <span class="metric-label">Period Net {% if net_surplus >= 0 %}Surplus{% else %}Deficit{% endif %}</span>
+            <div class="metric-icon-box">{% if net_surplus >= 0 %}📈{% else %}📉{% endif %}</div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency">৳</span>
+            {% if net_surplus < 0 %}
+                <span class="text-danger">({{ "{:,.2f}".format(net_surplus|abs) }})</span>
+            {% else %}
+                <span class="text-success">{{ "{:,.2f}".format(net_surplus) }}</span>
+            {% endif %}
+        </div>
+        <div class="metric-sub">
+            {% if net_surplus >= 0 %}
+                <span class="metric-pill metric-pill-green">Net Surplus</span>
+            {% else %}
+                <span class="metric-pill metric-pill-red">Operational Deficit</span>
+            {% endif %}
+            <span style="color: var(--text-muted); font-size: 0.76rem;">Rev: ৳{{ "{:,.0f}".format(total_revenue) }} &bull; Exp: ৳{{ "{:,.0f}".format(total_expense) }}</span>
+        </div>
+        <div class="click-hint">👉 Click to view margin graph</div>
+    </div>
+</div>
+
+<!-- ========================================================================
+     INTERACTIVE FINANCIAL ANALYTICS & GRAPHICAL INSPECTOR (THE CORE FEATURE)
+     ======================================================================== -->
+<div class="analytics-hero-card">
+    <div class="analytics-header">
+        <div class="analytics-title-group">
+            <h2>
+                <span>📊</span> Financial Analytics &amp; Visual Inspector
+            </h2>
+            <p>Select any corporate indicator, cost center, or ledger account to inspect real-time graphical trends.</p>
+        </div>
+
+        <div class="analytics-controls">
+            <!-- Item Selector Dropdown -->
+            <label for="chartItemSelector" style="font-size: 0.8rem; font-weight: 600; color: #94a3b8;">Inspect Item:</label>
+            <select id="chartItemSelector" class="chart-select-picker" onchange="onItemSelectorChange(this.value)">
+                <optgroup label="Core Financial Perspectives">
+                    <option value="cashflow" selected>📈 Monthly Cashflow (Inflow vs Outflow)</option>
+                    <option value="net_income">📊 Net Monthly Profit &amp; Margin</option>
+                    <option value="expenses">🍩 Operating Expenses &amp; Cost Centers</option>
+                    <option value="assets">🏛️ Asset Allocation &amp; Liquid Funds</option>
+                    <option value="vouchers">📑 Transaction Activity by Voucher Type</option>
+                    <option value="payroll">👥 Departmental Human Resources &amp; Payroll</option>
+                </optgroup>
+                <optgroup label="Major Balance Sheet &amp; Ledger Accounts">
+                    <option value="acc_cash">💵 Cash in Hand (BS-001)</option>
+                    <option value="acc_bank">🏛️ Premier Bank (BS-002)</option>
+                    <option value="acc_salary">👥 Salary Expense (IS-000)</option>
+                    <option value="acc_rent">🏢 House Rent (IS-001)</option>
+                    <option value="acc_bonus">🎁 Eid Bonus (BS-029)</option>
+                </optgroup>
+            </select>
+
+            <!-- Chart Type Toggle -->
+            <div class="chart-toggle-group">
+                <button type="button" class="chart-toggle-btn active" id="btnTypeBar" onclick="setChartType('bar')">📊 Bar</button>
+                <button type="button" class="chart-toggle-btn" id="btnTypeLine" onclick="setChartType('line')">📈 Line</button>
+                <button type="button" class="chart-toggle-btn" id="btnTypeDonut" onclick="setChartType('doughnut')">🍩 Donut</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick-Access Tabs Strip -->
+    <div class="analytics-tabs-strip">
+        <button type="button" class="analytics-tab active" id="tab-cashflow" onclick="selectChartCategory('cashflow')">
+            <span>📈</span> Cashflow Flow (Receipts vs Payments)
+        </button>
+        <button type="button" class="analytics-tab" id="tab-net_income" onclick="selectChartCategory('net_income')">
+            <span>📊</span> Net Margin &amp; Profit
+        </button>
+        <button type="button" class="analytics-tab" id="tab-expenses" onclick="selectChartCategory('expenses')">
+            <span>🍩</span> Cost Centers (Expenses)
+        </button>
+        <button type="button" class="analytics-tab" id="tab-assets" onclick="selectChartCategory('assets')">
+            <span>🏛️</span> Asset &amp; Fund Distribution
+        </button>
+        <button type="button" class="analytics-tab" id="tab-vouchers" onclick="selectChartCategory('vouchers')">
+            <span>📑</span> Voucher Activity
+        </button>
+        <button type="button" class="analytics-tab" id="tab-payroll" onclick="selectChartCategory('payroll')">
+            <span>👥</span> HR &amp; Payroll
+        </button>
+    </div>
+
+    <!-- Main Visual Split: Chart Stage + Insights Sidebar -->
+    <div class="analytics-body">
+        <div class="chart-stage">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <div>
+                    <h3 id="chartViewTitle" style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin: 0; font-family: 'Outfit', sans-serif;">
+                        Monthly Cash Inflow vs Outflow
+                    </h3>
+                    <div id="chartViewSubtitle" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.2rem;">
+                        Comparing total Monthly Receipts (RV) against Operational Payments (PV).
+                    </div>
+                </div>
+                <div id="chartBadgeContainer">
+                    <span class="badge" style="background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; font-size: 0.72rem;">
+                        Live Ledger Data
+                    </span>
+                </div>
+            </div>
+
+            <div class="chart-container-box">
+                <canvas id="mainAnalyticsChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Right Insights Sidebar -->
+        <div class="analytics-sidebar">
+            <div>
+                <div class="sidebar-title">Item Insights &amp; Breakdown</div>
+
+                <div class="insight-metric-box">
+                    <div class="insight-metric-label" id="insightTotalLabel">Total Period Volume</div>
+                    <div class="insight-metric-val" id="insightTotalValue">৳ 47,839,994.00</div>
+                    <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;" id="insightTotalSub">
+                        Aggregated across 8 operational months
+                    </div>
+                </div>
+
+                <div class="sidebar-title" id="breakdownSectionTitle">Top Contributing Components</div>
+                <div class="breakdown-list" id="breakdownContainer">
+                    <!-- Dynamic Progress Bars Rendered via JS -->
+                </div>
+            </div>
+
+            <div style="border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem;">
+                <a href="{{ url_for('receipts_payments') }}" id="drilldownLinkBtn" class="btn btn-primary" style="width: 100%; justify-content: center; font-size: 0.84rem;">
+                    📖 Open Full Statement &amp; Ledger →
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================
+     BANK STATEMENT BALANCES (SEPARATE BOX PER BANK ACCOUNT)
+     ======================================================================== -->
+<div class="card" style="margin-bottom: 2rem; padding: 1.25rem 1.5rem; background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%); border: 1px solid var(--border-color);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 1.35rem;">🏛️</span>
+                <h2 class="card-title" style="margin: 0; font-size: 1.15rem; font-weight: 800; letter-spacing: -0.01em;">
+                    Bank Statement Balances (External Statement Feeds)
+                </h2>
+                <span class="badge" style="background: #e0e7ff; color: #3730a3; font-size: 0.72rem; font-weight: 700;">
+                    Independent Statements
+                </span>
+            </div>
+            <p style="margin: 0.2rem 0 0 0; font-size: 0.8rem; color: var(--text-muted);">
+                External bank statement positions verified against statements. Completely separate from ledger entries, with live ledger variance comparison.
+            </p>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem;">
+            <a href="{{ url_for('bank_statement_report') }}" class="btn btn-outline btn-sm" style="font-size: 0.8rem;">
+                📑 All Bank Statements Report →
+            </a>
+        </div>
+    </div>
+
+    <!-- Separate Box for each Bank Account -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 1.25rem;">
+        {% for b in bank_statement_boxes %}
+        <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: 10px; padding: 1.15rem 1.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.04); display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; border-top: 4px solid #2563eb;">
+            <div>
+                <!-- Top Bank Identity -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+                    <div>
+                        <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em;">
+                            {{ b.code }}
+                        </span>
+                        <h3 style="margin: 0.15rem 0 0 0; font-size: 1.05rem; font-weight: 700; color: #0f172a;">
+                            🏦 {{ b.name }}
+                        </h3>
+                    </div>
+                    {% if b.has_statement %}
+                        <span class="badge" style="background: #dcfce7; color: #166534; font-size: 0.72rem; padding: 0.2rem 0.5rem; font-weight: 700;">
+                            ✓ Verified Feed
+                        </span>
+                    {% else %}
+                        <span class="badge" style="background: #f1f5f9; color: #64748b; font-size: 0.72rem; padding: 0.2rem 0.5rem;">
+                            No Feed Yet
+                        </span>
+                    {% endif %}
+                </div>
+
+                <!-- Statement Closing Balance Box -->
+                <div style="background: #f8fafc; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 0.75rem; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 0.74rem; font-weight: 600; color: #64748b; text-transform: uppercase;">
+                        Bank Statement Balance
+                    </div>
+                    <div style="font-size: 1.45rem; font-weight: 800; color: #1e3a8a; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
+                        {% if b.statement_balance is not none %}
+                            ৳{{ "{:,.2f}".format(b.statement_balance) }}
+                        {% else %}
+                            <span style="font-size: 1rem; color: #94a3b8; font-weight: normal;">No statement uploaded</span>
+                        {% endif %}
+                    </div>
+                    <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">
+                        {% if b.as_of_date %}
+                            📅 As of {{ b.as_of_date.strftime('%d-%b-%Y') }} &bull; {{ b.line_count }} entries
+                        {% else %}
+                            Upload statement to track
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Ledger Reconciliation Breakdown -->
+                <div style="font-size: 0.78rem; padding: 0.5rem 0.25rem; display: flex; justify-content: space-between; border-bottom: 1px dashed var(--border-color); margin-bottom: 0.5rem;">
+                    <span style="color: var(--text-secondary);">Accounts Ledger (Book):</span>
+                    <strong style="color: #0f172a; font-family: monospace;">৳{{ "{:,.2f}".format(b.book_balance) }}</strong>
+                </div>
+
+                <div style="font-size: 0.78rem; padding: 0.25rem; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem;">
+                    <span style="color: var(--text-secondary);">Ledger Variance (Diff):</span>
+                    {% if b.variance is not none %}
+                        {% if b.variance == 0 %}
+                            <span class="badge" style="background: #dcfce7; color: #047857; font-size: 0.72rem; font-weight: 700;">
+                                ✓ Balanced (৳0.00)
+                            </span>
+                        {% else %}
+                            <span class="badge" style="background: #fef3c7; color: #b45309; font-size: 0.72rem; font-weight: 700;">
+                                ⚠️ Diff: ৳{{ "{:,.2f}".format(b.variance|abs) }}
+                            </span>
+                        {% endif %}
+                    {% else %}
+                        <span style="color: #cbd5e1; font-size: 0.75rem;">—</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Card Bottom Action Button -->
+            <div>
+                <a href="{{ url_for('bank_statement_report', account_id=b.account_id) }}" class="btn btn-outline" style="width: 100%; justify-content: center; font-size: 0.82rem; padding: 0.45rem; font-weight: 600;">
+                    📑 View {{ b.name }} Statement →
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ========================================================================
+     MIDDLE SECTION: LIQUID CASH/BANK + QUICK ACTIONS
+     ======================================================================== -->
+<div style="display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 1.75rem; margin-bottom: 2rem;">
+    <!-- Liquid Funds Widget -->
+    <div class="card" style="margin-bottom: 0;">
+        <div class="card-header" style="flex-wrap: wrap; gap: 0.5rem;">
+            <h2 class="card-title">💵 Cash &amp; Bank Position (Liquid Funds)</h2>
+            <div style="display: flex; gap: 0.4rem;">
+                <a href="{{ url_for('cash_book_report') }}" class="btn btn-success btn-sm">📖 Cash Book →</a>
+                <a href="{{ url_for('receipts_payments') }}" class="btn btn-outline btn-sm">Receipts &amp; Payments →</a>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Account</th>
+                        <th>Classification</th>
+                        <th class="num-col">Available Balance</th>
+                        <th style="width: 80px; text-align: center;">Visualize</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in liquid_accounts %}
+                    <tr class="clickable-row" onclick="inspectAccount('{{ item.code }}', '{{ item.name }}', {{ item.balance }})" title="Click to view in chart">
+                        <td>
+                            <strong style="color: var(--text-primary);">{{ item.name }}</strong>
+                            <div style="font-size: 0.74rem; color: var(--text-muted); font-family: monospace;">{{ item.code }}</div>
+                        </td>
+                        <td>
+                            <span class="badge" style="background: #f1f5f9; color: #475569;">{{ item.category }}</span>
+                        </td>
+                        <td class="num-col" style="font-weight: 700; color: #059669; font-size: 0.95rem;">
+                            ৳{{ "{:,.2f}".format(item.balance) }}
+                        </td>
+                        <td style="text-align: center;">
+                            <span class="btn btn-outline btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; color: var(--accent);">
+                                📊 Graph
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr style="background-color: #f8fafc; font-weight: 800; border-top: 2px solid var(--border);">
+                        <td colspan="2" style="color: var(--text-primary); font-size: 0.9rem;">
+                            Total Available Liquid Funds
+                        </td>
+                        <td class="num-col" style="color: #2563eb; font-size: 1.05rem;">
+                            ৳{{ "{:,.2f}".format(total_liquid) }}
+                        </td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- Quick Financial Actions & Module Shortcuts -->
+    <div class="card" style="margin-bottom: 0; display: flex; flex-direction: column;">
+        <div class="card-header">
+            <h2 class="card-title">⚡ Quick Financial Actions</h2>
+        </div>
+        <div class="card-body" style="display: flex; flex-direction: column; gap: 1.25rem;">
+            <div>
+                <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.65rem;">
+                    Post Voucher by Type:
+                </div>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <a href="{{ url_for('create_voucher', type='Payment') }}" class="btn btn-outline btn-sm" style="border-color: #fca5a5; color: #dc2626;">
+                        + Payment (PV)
+                    </a>
+                    <a href="{{ url_for('create_voucher', type='Receipt') }}" class="btn btn-outline btn-sm" style="border-color: #86efac; color: #059669;">
+                        + Receipt (RV)
+                    </a>
+                    <a href="{{ url_for('create_voucher', type='Journal') }}" class="btn btn-outline btn-sm" style="border-color: #93c5fd; color: #2563eb;">
+                        + Journal (JV)
+                    </a>
+                    <a href="{{ url_for('create_voucher', type='Contra') }}" class="btn btn-outline btn-sm" style="border-color: #fde68a; color: #d97706;">
+                        + Contra (CV)
+                    </a>
+                </div>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--border);">
+
+            <div>
+                <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.65rem;">
+                    Enterprise Modules &amp; Ledgers:
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;">
+                    <a href="{{ url_for('budget_dashboard') }}" class="btn btn-secondary btn-sm" style="justify-content: flex-start; color: #2563eb; font-weight: 700; grid-column: span 2; background: #eff6ff; border-color: #bfdbfe;">
+                        🎯 Monthly Budget &amp; Expense Analysis Cockpit →
+                    </a>
+                    <a href="{{ url_for('bank_statement_report') }}" class="btn btn-secondary btn-sm" style="justify-content: flex-start; color: #2563eb;">
+                        📑 Bank Statement Report
+                    </a>
+                    <a href="{{ url_for('bank_reconciliation') }}" class="btn btn-secondary btn-sm" style="justify-content: flex-start; color: #d97706;">
+                        ⚖️ Bank Reconciliation
+                    </a>
+                    <a href="{{ url_for('employee_list') }}" class="btn btn-secondary btn-sm" style="justify-content: flex-start; color: #059669;">
+                        👥 Employee Database
+                    </a>
+                    <a href="{{ url_for('fund_contributions_dashboard') }}" class="btn btn-secondary btn-sm" style="justify-content: flex-start; color: #7c3aed;">
+                        💰 Contribution Fund (PF)
+                    </a>
+                    <a href="{{ url_for('documents_hub') }}" class="btn btn-secondary btn-sm" style="justify-content: flex-start; color: #db2777;">
+                        📜 Certificates &amp; Slips
+                    </a>
+                    <a href="{{ url_for('balance_sheet') }}" class="btn btn-secondary btn-sm" style="justify-content: flex-start;">
+                        🏛️ Balance Sheet
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================
+     RECENT GENERAL LEDGER VOUCHERS TABLE
+     ======================================================================== -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">📖 Recent General Ledger Vouchers</h2>
+        <a href="{{ url_for('voucher_list') }}" class="btn btn-outline btn-sm">View Full Register →</a>
+    </div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 140px;">Voucher #</th>
+                    <th style="width: 110px;">Date</th>
+                    <th style="width: 100px;">Type</th>
+                    <th style="width: 130px;">Reference</th>
+                    <th>Narration</th>
+                    <th class="num-col" style="width: 140px;">Amount</th>
+                    <th style="width: 100px; text-align: center;">Slip</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if recent_vouchers %}
+                    {% for v in recent_vouchers %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('view_voucher', voucher_id=v.id) }}" style="font-family: monospace; font-weight: 700; text-decoration: none; color: var(--accent);">
+                                {{ v.voucher_no }}
+                            </a>
+                        </td>
+                        <td style="color: var(--text-secondary); font-size: 0.85rem;">{{ v.date.strftime('%Y-%m-%d') if v.date else '' }}</td>
+                        <td>
+                            <span class="badge badge-{{ v.voucher_type|lower }}">{{ v.voucher_type }}</span>
+                        </td>
+                        <td style="color: var(--text-secondary); font-size: 0.85rem;">{{ v.reference or '—' }}</td>
+                        <td>{{ v.narration }}</td>
+                        <td class="num-col" style="font-weight: 700; color: var(--text-primary);">৳{{ "{:,.2f}".format(v.total_amount) }}</td>
+                        <td style="text-align: center;">
+                            <a href="{{ url_for('view_voucher', voucher_id=v.id) }}" class="btn btn-outline btn-sm" style="padding: 0.2rem 0.55rem; font-size: 0.75rem;">
+                                📄 Slip
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                            No transactions recorded yet in this company profile. Click "+ Post Voucher" to post your first journal entry.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ========================================================================
+     JAVASCRIPT: INTERACTIVE GRAPHICAL VIEW & DRILLDOWN ENGINE
+     ======================================================================== -->
+<script>
+// Analytics Payload passed safely from Flask
+const analyticsData = {{ analytics_json|safe }};
+
+let currentChartInstance = null;
+let currentChartMode = 'bar'; // 'bar', 'line', 'doughnut'
+let currentCategory = 'cashflow'; // 'cashflow', 'net_income', 'expenses', 'assets', 'vouchers', 'payroll', 'acc_...'
+
+// Palette definition
+const PALETTE = [
+    '#2563eb', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6',
+    '#06b6d4', '#64748b', '#f43f5e', '#14b8a6', '#6366f1'
+];
+
+function formatTaka(val) {
+    if (val === null || val === undefined) return '৳ 0.00';
+    const num = Number(val);
+    const absStr = Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return num < 0 ? `(৳ ${absStr})` : `৳ ${absStr}`;
+}
+
+// Master Category Selector Handler
+function selectChartCategory(cat) {
+    currentCategory = cat;
+
+    // Update active tab strip
+    document.querySelectorAll('.analytics-tab').forEach(t => t.classList.remove('active'));
+    const targetTab = document.getElementById('tab-' + cat);
+    if (targetTab) targetTab.classList.add('active');
+
+    // Update select dropdown
+    const picker = document.getElementById('chartItemSelector');
+    if (picker) picker.value = cat;
+
+    // Highlight KPI card if applicable
+    document.querySelectorAll('.metric-card').forEach(c => c.classList.remove('active-kpi'));
+    if (cat === 'assets') document.getElementById('kpi-assets')?.classList.add('active-kpi');
+    if (cat === 'expenses') document.getElementById('kpi-liabilities')?.classList.add('active-kpi');
+    if (cat === 'cashflow') document.getElementById('kpi-equity')?.classList.add('active-kpi');
+    if (cat === 'net_income') document.getElementById('kpi-surplus')?.classList.add('active-kpi');
+
+    renderSelectedGraphic();
+}
+
+function onItemSelectorChange(val) {
+    if (val.startsWith('acc_')) {
+        // Individual account drilldown
+        currentCategory = val;
+        renderSelectedGraphic();
+    } else {
+        selectChartCategory(val);
+    }
+}
+
+function setChartType(type) {
+    currentChartMode = type;
+    document.querySelectorAll('.chart-toggle-btn').forEach(b => b.classList.remove('active'));
+    if (type === 'bar') document.getElementById('btnTypeBar').classList.add('active');
+    if (type === 'line') document.getElementById('btnTypeLine').classList.add('active');
+    if (type === 'doughnut') document.getElementById('btnTypeDonut').classList.add('active');
+
+    renderSelectedGraphic();
+}
+
+// Inspect specific account from table row click
+function inspectAccount(code, name, balance) {
+    currentCategory = 'acc_custom';
+    window.customInspectAccount = { code, name, balance };
+
+    // Update selector title
+    const picker = document.getElementById('chartItemSelector');
+    picker.value = '';
+
+    renderSelectedGraphic();
+    // Smooth scroll into view
+    document.querySelector('.analytics-hero-card').scrollIntoView({ behavior: 'smooth' });
+}
+
+// Main Render Function
+function renderSelectedGraphic() {
+    const canvas = document.getElementById('mainAnalyticsChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    if (currentChartInstance) {
+        currentChartInstance.destroy();
+    }
+
+    const titleEl = document.getElementById('chartViewTitle');
+    const subEl = document.getElementById('chartViewSubtitle');
+    const totalLabelEl = document.getElementById('insightTotalLabel');
+    const totalValEl = document.getElementById('insightTotalValue');
+    const totalSubEl = document.getElementById('insightTotalSub');
+    const breakdownTitleEl = document.getElementById('breakdownSectionTitle');
+    const breakdownContainer = document.getElementById('breakdownContainer');
+    const drilldownLink = document.getElementById('drilldownLinkBtn');
+
+    let chartConfig = null;
+
+    // CATEGORY 1: CASHFLOW (Receipts vs Payments)
+    if (currentCategory === 'cashflow') {
+        titleEl.textContent = 'Monthly Cash Inflow vs Outflow Trends';
+        subEl.textContent = 'Operational Receipts (RV) compared with Total Disbursements (PV) by Month.';
+        totalLabelEl.textContent = 'Total Annual Cash Movement';
+        const sumRec = analyticsData.receipts.reduce((a,b)=>a+b, 0);
+        const sumPay = analyticsData.payments.reduce((a,b)=>a+b, 0);
+        totalValEl.textContent = formatTaka(sumRec + sumPay);
+        totalSubEl.textContent = `Receipts: ${formatTaka(sumRec)} • Payments: ${formatTaka(sumPay)}`;
+        breakdownTitleEl.textContent = 'Monthly Performance Breakdown';
+
+        // Render progress bars in sidebar
+        breakdownContainer.innerHTML = '';
+        analyticsData.months.slice(-5).forEach((m, idx) => {
+            const actualIdx = analyticsData.months.length - 5 + idx;
+            const rec = analyticsData.receipts[actualIdx];
+            const pay = analyticsData.payments[actualIdx];
+            const net = rec - pay;
+            const pct = Math.min(Math.round((rec / (pay || 1)) * 100), 100);
+
+            breakdownContainer.innerHTML += `
+                <div class="breakdown-row">
+                    <div class="breakdown-meta">
+                        <span>${m}</span>
+                        <span style="color: ${net >= 0 ? '#059669' : '#dc2626'}">${formatTaka(net)} Net</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-bar-fill" style="width: ${pct}%; background: linear-gradient(90deg, #2563eb, #10b981);"></div>
+                    </div>
+                </div>
+            `;
+        });
+
+        drilldownLink.href = "/reports/receipts-payments";
+        drilldownLink.innerHTML = "💵 Open Receipts &amp; Payments Statement →";
+
+        const chartType = (currentChartMode === 'doughnut') ? 'bar' : currentChartMode;
+
+        chartConfig = {
+            type: chartType,
+            data: {
+                labels: analyticsData.months,
+                datasets: [
+                    {
+                        label: 'Receipts (Inflows)',
+                        data: analyticsData.receipts,
+                        backgroundColor: chartType === 'line' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.85)',
+                        borderColor: '#10b981',
+                        borderWidth: 2,
+                        borderRadius: 6,
+                        fill: chartType === 'line',
+                        tension: 0.35
+                    },
+                    {
+                        label: 'Payments (Disbursements)',
+                        data: analyticsData.payments,
+                        backgroundColor: chartType === 'line' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.85)',
+                        borderColor: '#ef4444',
+                        borderWidth: 2,
+                        borderRadius: 6,
+                        fill: chartType === 'line',
+                        tension: 0.35
+                    }
+                ]
+            },
+            options: getChartOptions()
+        };
+    }
+
+    // CATEGORY 2: NET INCOME & PROFIT
+    else if (currentCategory === 'net_income') {
+        titleEl.textContent = 'Net Monthly Operational Margin (Surplus / Deficit)';
+        subEl.textContent = 'Net monthly cash generation (Receipts minus Payments).';
+        totalLabelEl.textContent = 'Cumulative Period Net';
+        const sumNet = analyticsData.net.reduce((a,b)=>a+b, 0);
+        totalValEl.textContent = formatTaka(sumNet);
+        totalSubEl.textContent = sumNet >= 0 ? 'Operating in cumulative surplus' : 'Operating in cumulative deficit';
+        breakdownTitleEl.textContent = 'Monthly Net Cashflow Position';
+
+        breakdownContainer.innerHTML = '';
+        analyticsData.months.forEach((m, i) => {
+            const net = analyticsData.net[i];
+            breakdownContainer.innerHTML += `
+                <div class="breakdown-row">
+                    <div class="breakdown-meta">
+                        <span>${m}</span>
+                        <strong style="color: ${net >= 0 ? '#059669' : '#dc2626'}">${formatTaka(net)}</strong>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-bar-fill" style="width: ${Math.min(Math.abs(net)/100000, 100)}%; background: ${net >= 0 ? '#059669' : '#dc2626'};"></div>
+                    </div>
+                </div>
+            `;
+        });
+
+        drilldownLink.href = "/reports/income-expenditure";
+        drilldownLink.innerHTML = "📊 Open Income &amp; Expenditure Statement →";
+
+        const chartType = (currentChartMode === 'doughnut') ? 'bar' : currentChartMode;
+
+        chartConfig = {
+            type: chartType,
+            data: {
+                labels: analyticsData.months,
+                datasets: [{
+                    label: 'Net Monthly Cashflow',
+                    data: analyticsData.net,
+                    backgroundColor: analyticsData.net.map(v => v >= 0 ? 'rgba(16, 185, 129, 0.85)' : 'rgba(239, 68, 68, 0.85)'),
+                    borderColor: analyticsData.net.map(v => v >= 0 ? '#10b981' : '#ef4444'),
+                    borderWidth: 2,
+                    borderRadius: 6,
+                    fill: chartType === 'line',
+                    tension: 0.35
+                }]
+            },
+            options: getChartOptions()
+        };
+    }
+
+    // CATEGORY 3: EXPENSE COST CENTERS
+    else if (currentCategory === 'expenses' || currentCategory === 'acc_salary' || currentCategory === 'acc_rent' || currentCategory === 'acc_bonus') {
+        titleEl.textContent = 'Operating Expense Allocation & Cost Centers';
+        subEl.textContent = 'Major cost drivers across Salary, Rent, Bonus, Utilities, and Infrastructure.';
+        totalLabelEl.textContent = 'Total Operating Expenses';
+        totalValEl.textContent = formatTaka(analyticsData.totals.expense);
+        totalSubEl.textContent = `Analyzed across ${analyticsData.top_expenses.length} major heads`;
+        breakdownTitleEl.textContent = 'Expense Head Percentages';
+
+        breakdownContainer.innerHTML = '';
+        analyticsData.top_expenses.forEach((item, i) => {
+            const col = PALETTE[i % PALETTE.length];
+            breakdownContainer.innerHTML += `
+                <div class="breakdown-row">
+                    <div class="breakdown-meta">
+                        <span>${item.name}</span>
+                        <span><strong>${item.pct}%</strong> • ${formatTaka(item.amount)}</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-bar-fill" style="width: ${item.pct}%; background: ${col};"></div>
+                    </div>
+                </div>
+            `;
+        });
+
+        drilldownLink.href = "/reports/income-expenditure";
+        drilldownLink.innerHTML = "📑 Open Expense Ledger Details →";
+
+        const labels = analyticsData.top_expenses.map(e => e.name);
+        const values = analyticsData.top_expenses.map(e => e.amount);
+
+        const chartType = currentChartMode === 'line' ? 'bar' : currentChartMode;
+
+        chartConfig = {
+            type: chartType,
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Expense Amount',
+                    data: values,
+                    backgroundColor: PALETTE.slice(0, labels.length),
+                    borderRadius: 6,
+                    borderWidth: 1
+                }]
+            },
+            options: getChartOptions(chartType === 'doughnut')
+        };
+    }
+
+    // CATEGORY 4: ASSETS & LIQUID FUNDS
+    else if (currentCategory === 'assets' || currentCategory === 'acc_cash' || currentCategory === 'acc_bank') {
+        titleEl.textContent = 'Asset Allocation & Liquidity Breakdown';
+        subEl.textContent = 'Cash in Hand, Operating Bank Accounts, and Corporate Resources.';
+        totalLabelEl.textContent = 'Total Active Liquid Funds';
+        totalValEl.textContent = formatTaka(analyticsData.totals.liquid);
+        totalSubEl.textContent = `Total Balance Sheet Assets: ${formatTaka(analyticsData.totals.assets)}`;
+        breakdownTitleEl.textContent = 'Liquid Holdings Ratio';
+
+        breakdownContainer.innerHTML = '';
+        analyticsData.liquid_accounts.forEach((acc, i) => {
+            const col = i === 0 ? '#10b981' : '#2563eb';
+            const pct = Math.round((acc.balance / (analyticsData.totals.liquid || 1)) * 100);
+            breakdownContainer.innerHTML += `
+                <div class="breakdown-row">
+                    <div class="breakdown-meta">
+                        <span>${acc.name} (${acc.code})</span>
+                        <span><strong>${pct}%</strong> • ${formatTaka(acc.balance)}</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-bar-fill" style="width: ${pct}%; background: ${col};"></div>
+                    </div>
+                </div>
+            `;
+        });
+
+        drilldownLink.href = "/reports/cash-book";
+        drilldownLink.innerHTML = "📖 Open Cash &amp; Bank Book →";
+
+        const labels = analyticsData.asset_breakdown.map(a => a.name);
+        const values = analyticsData.asset_breakdown.map(a => a.amount);
+        const chartType = currentChartMode === 'line' ? 'bar' : currentChartMode;
+
+        chartConfig = {
+            type: chartType,
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Account Balance',
+                    data: values,
+                    backgroundColor: PALETTE.slice(0, labels.length),
+                    borderRadius: 6,
+                    borderWidth: 1
+                }]
+            },
+            options: getChartOptions(chartType === 'doughnut')
+        };
+    }
+
+    // CATEGORY 5: VOUCHER TYPE DISTRIBUTION
+    else if (currentCategory === 'vouchers') {
+        titleEl.textContent = 'Voucher Register Activity by Type';
+        subEl.textContent = 'Total volume and financial value posted across PV, RV, JV, and CV.';
+        totalLabelEl.textContent = 'Total Transactions';
+        const totalV = analyticsData.voucher_counts.reduce((a,b)=>a+b, 0);
+        totalValEl.textContent = totalV.toLocaleString() + ' Vouchers';
+        totalSubEl.textContent = 'Recorded across active general ledger';
+        breakdownTitleEl.textContent = 'Voucher Volume Share';
+
+        breakdownContainer.innerHTML = '';
+        analyticsData.voucher_stats.forEach((item) => {
+            const pct = Math.round((item.amount / (analyticsData.voucher_stats.reduce((a,b)=>a+b.amount,0)||1))*100);
+            breakdownContainer.innerHTML += `
+                <div class="breakdown-row">
+                    <div class="breakdown-meta">
+                        <span>${item.type}</span>
+                        <span>${formatTaka(item.amount)}</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-bar-fill" style="width: ${pct}%; background: ${item.color};"></div>
+                    </div>
+                </div>
+            `;
+        });
+
+        drilldownLink.href = "/vouchers";
+        drilldownLink.innerHTML = "📖 Open Voucher Register →";
+
+        chartConfig = {
+            type: currentChartMode === 'line' ? 'bar' : currentChartMode,
+            data: {
+                labels: analyticsData.voucher_stats.map(v => v.type),
+                datasets: [{
+                    label: 'Total Value',
+                    data: analyticsData.voucher_stats.map(v => v.amount),
+                    backgroundColor: analyticsData.voucher_stats.map(v => v.color),
+                    borderRadius: 6,
+                    borderWidth: 1
+                }]
+            },
+            options: getChartOptions(currentChartMode === 'doughnut')
+        };
+    }
+
+    // CATEGORY 6: HR & PAYROLL DISTRIBUTION
+    else if (currentCategory === 'payroll') {
+        titleEl.textContent = 'Departmental HR & Staff Allocation';
+        subEl.textContent = 'Workforce distribution across corporate departments.';
+        totalLabelEl.textContent = 'Active Employees';
+        const totalEmp = analyticsData.dept_distribution.reduce((a,b)=>a+b.count, 0);
+        totalValEl.textContent = totalEmp.toLocaleString() + ' Personnel';
+        totalSubEl.textContent = `Spread across ${analyticsData.dept_distribution.length} operational departments`;
+        breakdownTitleEl.textContent = 'Departmental Headcount';
+
+        breakdownContainer.innerHTML = '';
+        analyticsData.dept_distribution.forEach((item, i) => {
+            const col = PALETTE[i % PALETTE.length];
+            const pct = Math.round((item.count / (totalEmp || 1)) * 100);
+            breakdownContainer.innerHTML += `
+                <div class="breakdown-row">
+                    <div class="breakdown-meta">
+                        <span>${item.dept}</span>
+                        <span><strong>${item.count}</strong> staff (${pct}%)</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-bar-fill" style="width: ${pct}%; background: ${col};"></div>
+                    </div>
+                </div>
+            `;
+        });
+
+        drilldownLink.href = "/employees";
+        drilldownLink.innerHTML = "👥 Open Employee Database →";
+
+        chartConfig = {
+            type: currentChartMode === 'line' ? 'bar' : currentChartMode,
+            data: {
+                labels: analyticsData.dept_distribution.map(d => d.dept),
+                datasets: [{
+                    label: 'Employee Count',
+                    data: analyticsData.dept_distribution.map(d => d.count),
+                    backgroundColor: PALETTE.slice(0, analyticsData.dept_distribution.length),
+                    borderRadius: 6,
+                    borderWidth: 1
+                }]
+            },
+            options: getChartOptions(currentChartMode === 'doughnut')
+        };
+    }
+
+    // CUSTOM SPECIFIC ACCOUNT INSPECTOR (From Row Click)
+    else if (currentCategory === 'acc_custom' && window.customInspectAccount) {
+        const acc = window.customInspectAccount;
+        titleEl.textContent = `Account Inspector: ${acc.name} (${acc.code})`;
+        subEl.textContent = `Direct ledger focus on ${acc.name}. Current Ledger Balance: ${formatTaka(acc.balance)}`;
+        totalLabelEl.textContent = 'Current Available Balance';
+        totalValEl.textContent = formatTaka(acc.balance);
+        totalSubEl.textContent = `Account Code: ${acc.code} • Liquid Asset`;
+        breakdownTitleEl.textContent = 'Account Comparison with Total Liquid Funds';
+
+        const totalLiq = analyticsData.totals.liquid || 1;
+        const pct = Math.round((acc.balance / totalLiq) * 100);
+        breakdownContainer.innerHTML = `
+            <div class="breakdown-row">
+                <div class="breakdown-meta">
+                    <span>${acc.name} Share of Cash &amp; Bank</span>
+                    <strong>${pct}%</strong>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-bar-fill" style="width: ${pct}%; background: #059669;"></div>
+                </div>
+            </div>
+            <div style="font-size: 0.8rem; color: #64748b; margin-top: 1rem; line-height: 1.5;">
+                This account represents <strong>${pct}%</strong> of the enterprise's total liquid cash reserves.
+                All entries posting to this account automatically update the Cash Book and Bank Reconciliations.
+            </div>
+        `;
+
+        drilldownLink.href = "/reports/cash-book";
+        drilldownLink.innerHTML = `📖 Open ${acc.name} Cash Book Ledger →`;
+
+        chartConfig = {
+            type: 'bar',
+            data: {
+                labels: [acc.name, 'Other Liquid Reserves', 'Total Liquid Position'],
+                datasets: [{
+                    label: 'Balance (৳)',
+                    data: [acc.balance, Math.max(0, totalLiq - acc.balance), totalLiq],
+                    backgroundColor: ['#059669', '#cbd5e1', '#2563eb'],
+                    borderRadius: 6
+                }]
+            },
+            options: getChartOptions(false)
+        };
+    }
+
+    if (chartConfig) {
+        currentChartInstance = new Chart(ctx, chartConfig);
+    }
+}
+
+// Chart Options Builder
+function getChartOptions(isDonut = false) {
+    if (isDonut) {
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { boxWidth: 12, padding: 15, font: { family: 'Inter', size: 12 } }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return ' ' + context.label + ': ' + formatTaka(context.raw);
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    return {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'top',
+                labels: { boxWidth: 12, padding: 12, font: { family: 'Inter', size: 12 } }
+            },
+            tooltip: {
+                backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                titleFont: { family: 'Outfit', size: 13 },
+                bodyFont: { family: 'Inter', size: 12 },
+                padding: 12,
+                cornerRadius: 8,
+                callbacks: {
+                    label: function(context) {
+                        return ' ' + context.dataset.label + ': ' + formatTaka(context.raw);
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                grid: { display: false },
+                ticks: { font: { family: 'Inter', size: 11 }, color: '#64748b' }
+            },
+            y: {
+                grid: { color: 'rgba(226, 232, 240, 0.6)' },
+                ticks: {
+                    font: { family: 'Inter', size: 11 },
+                    color: '#64748b',
+                    callback: function(value) {
+                        if (Math.abs(value) >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+                        if (Math.abs(value) >= 1000) return (value / 1000).toFixed(0) + 'K';
+                        return value;
+                    }
+                }
+            }
+        }
+    };
+}
+
+// Auto-initialize on DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+    selectChartCategory('cashflow');
+});
+</script>
+{% endblock %}

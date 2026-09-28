@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Database Directory - ZR-ERP ERP{% endblock %}
+
+{% block content %}
+<div class="page-header no-print">
+    <div>
+        <h1 class="page-title">👥 Corporate Employee Database</h1>
+        <p class="page-description">
+            Complete personnel roster, salary profiles, official certificates generation, and historical records.
+        </p>
+    </div>
+    <div class="header-actions">
+        <a href="{{ url_for('download_employee_sample_excel') }}" class="btn btn-outline">
+            📥 Download Excel Template
+        </a>
+        <button type="button" class="btn btn-outline" onclick="openModal('importEmpModal')">
+            📤 Import Employees from Excel
+        </button>
+        <a href="{{ url_for('documents_hub') }}" class="btn btn-outline" style="border-color: #2563eb; color: #2563eb; font-weight: 600;">
+            📜 Documents & Certificates Hub
+        </a>
+        <a href="{{ url_for('add_employee') }}" class="btn btn-primary">
+            + Add New Employee
+        </a>
+        <button type="button" class="btn btn-outline" style="border-color: #ef4444; color: #dc2626; font-weight: 600; background-color: #fef2f2;" onclick="openModal('deleteAllEmployeesModal')">
+            🗑️ Delete All Employees
+        </button>
+    </div>
+</div>
+
+<!-- KPI Metrics Grid -->
+<div class="metrics-grid">
+    <div class="metric-card asset">
+        <div class="metric-label">Total Employee Profiles</div>
+        <div class="metric-value">{{ total_count }}</div>
+        <div class="metric-sub">Permanent & Contractual Personnel</div>
+    </div>
+
+    <div class="metric-card profit">
+        <div class="metric-label">Active Personnel</div>
+        <div class="metric-value" style="color: #059669;">{{ active_count }}</div>
+        <div class="metric-sub">On active monthly compensation</div>
+    </div>
+
+    <div class="metric-card expense">
+        <div class="metric-label">Total Monthly Payroll Disbursable</div>
+        <div class="metric-value" style="color: #2563eb;">৳{{ "{:,.2f}".format(total_payroll) }}</div>
+        <div class="metric-sub">Combined gross salaries</div>
+    </div>
+
+    <div class="metric-card liability">
+        <div class="metric-label">Departments</div>
+        <div class="metric-value" style="font-size: 1.4rem;">{{ departments|length }} Active</div>
+        <div class="metric-sub">Corporate Divisions</div>
+    </div>
+</div>
+
+<!-- Search & Department Filter Bar -->
+<div class="card no-print" style="margin-bottom: 1.5rem; padding: 1rem 1.25rem;">
+    <form method="GET" action="{{ url_for('employee_list') }}" style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;">
+        <div style="flex: 1; min-width: 220px;">
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">
+                Search Employee ID, Name, Designation, NID
+            </label>
+            <input type="text" name="search" value="{{ search_query }}" placeholder="Search any keyword..." class="form-control">
+        </div>
+
+        <div>
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">
+                Department
+            </label>
+            <select name="department" class="form-control" onchange="this.form.submit()" style="width: 190px;">
+                <option value="all">All Departments</option>
+                {% for d in departments %}
+                <option value="{{ d }}" {% if selected_dept == d %}selected{% endif %}>{{ d }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">
+                Status
+            </label>
+            <select name="status" class="form-control" onchange="this.form.submit()" style="width: 130px;">
+                <option value="all" {% if selected_status == 'all' %}selected{% endif %}>All</option>
+                <option value="Active" {% if selected_status == 'Active' %}selected{% endif %}>Active</option>
+                <option value="Inactive" {% if selected_status == 'Inactive' %}selected{% endif %}>Inactive</option>
+            </select>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem;">
+            <button type="submit" class="btn btn-primary" style="padding: 0.55rem 1.1rem;">Search</button>
+            <a href="{{ url_for('employee_list') }}" class="btn btn-outline" style="padding: 0.55rem 0.9rem;">Reset</a>
+        </div>
+    </form>
+</div>
+
+<!-- Employee Roster Table -->
+<div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 class="card-title">👨‍💼 Employee Master Directory ({{ employees|length }})</h2>
+        <span class="badge" style="background-color: #dbeafe; color: #1e40af;">Live Database</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 100px;">Emp ID</th>
+                    <th>Full Name</th>
+                    <th>Designation & Dept</th>
+                    <th style="width: 110px;">Joining Date</th>
+                    <th class="num-col">Basic (৳)</th>
+                    <th class="num-col">Gross Pay (৳)</th>
+                    <th>NID / Passport</th>
+                    <th style="width: 130px; text-align: center;">Certificates</th>
+                    <th style="width: 100px; text-align: center;" class="no-print">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if employees %}
+                    {% for emp in employees %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('employee_profile', emp_id=emp.id) }}" style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent); text-decoration: none;">
+                                {{ emp.employee_id }} ↗
+                            </a>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('employee_profile', emp_id=emp.id) }}" style="text-decoration: none; color: var(--text-primary);">
+                                <strong style="font-size: 0.95rem;">{{ emp.name }}</strong>
+                            </a>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">{{ emp.phone or emp.email or '' }}</div>
+                        </td>
+                        <td>
+                            <div>{{ emp.designation }}</div>
+                            <span style="font-size: 0.75rem; color: var(--text-muted); background: #f1f5f9; padding: 0.15rem 0.4rem; border-radius: 4px;">
+                                {{ emp.department }}
+                            </span>
+                        </td>
+                        <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-secondary);">
+                            {{ emp.joining_date.strftime('%d-%b-%Y') if emp.joining_date else '—' }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(emp.basic_salary) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #059669;">
+                            ৳{{ "{:,.2f}".format(emp.basic_salary + emp.allowances) }}
+                        </td>
+                        <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-secondary);">
+                            {{ emp.nid_passport or '—' }}
+                        </td>
+                        <td style="text-align: center;">
+                            <div style="display: flex; gap: 0.25rem; justify-content: center;">
+                                <a href="{{ url_for('generate_noc', emp_id=emp.id) }}" target="_blank" class="badge" style="background-color: #e0e7ff; color: #3730a3; text-decoration: none; padding: 0.2rem 0.45rem;" title="No Objection Certificate">
+                                    NOC
+                                </a>
+                                <a href="{{ url_for('generate_salary_certificate', emp_id=emp.id) }}" target="_blank" class="badge" style="background-color: #d1fae5; color: #065f46; text-decoration: none; padding: 0.2rem 0.45rem;" title="Salary Certificate">
+                                    Salary
+                                </a>
+                                <a href="{{ url_for('universal_payslip_generator', emp_id=emp.id) }}" target="_blank" class="badge" style="background-color: #fef3c7; color: #92400e; text-decoration: none; padding: 0.2rem 0.45rem;" title="Universal Payslip">
+                                    Slip
+                                </a>
+                                <a href="{{ url_for('generate_experience_certificate', emp_id=emp.id) }}" target="_blank" class="badge" style="background-color: #fce7f3; color: #9d174d; text-decoration: none; padding: 0.2rem 0.45rem;" title="Experience Certificate">
+                                    Exp
+                                </a>
+                            </div>
+                        </td>
+                        <td style="text-align: center;" class="no-print">
+                            <div style="display: flex; gap: 0.35rem; justify-content: center;">
+                                <a href="{{ url_for('employee_profile', emp_id=emp.id) }}" class="btn btn-outline btn-sm" title="View Full Profile" style="padding: 0.2rem 0.45rem; font-size: 0.75rem;">
+                                    👁️
+                                </a>
+                                <a href="{{ url_for('edit_employee', employee_id=emp.id) }}" class="btn btn-outline btn-sm" title="Edit Profile" style="padding: 0.2rem 0.45rem; font-size: 0.75rem; color: #2563eb;">
+                                    ✏️
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="9" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                            No employee records matched your filter.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- MODAL: IMPORT EMPLOYEES FROM EXCEL -->
+<div id="importEmpModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 550px;">
+        <div class="modal-header">
+            <h3 style="margin: 0; font-size: 1.15rem; font-family: 'Outfit', sans-serif;">📤 Import Employees from Excel</h3>
+            <button type="button" class="btn-close" onclick="closeModal('importEmpModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('import_employees_excel') }}" enctype="multipart/form-data">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Select Excel File (.xlsx / .xls)</label>
+                    <input type="file" name="excel_file" class="form-control" accept=".xlsx,.xls" required>
+                </div>
+
+                <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius-sm); padding: 0.85rem; font-size: 0.82rem; color: #1e40af; margin-bottom: 1rem;">
+                    <strong>Expected Columns:</strong><br>
+                    <code>Emp ID</code>, <code>Full Name</code>, <code>Designation</code>, <code>Department</code>, <code>Basic Salary</code>, <code>Allowances</code>, <code>Deductions</code>, <code>Bank Account No</code>, <code>Joining Date</code>, <code>NID / Passport</code>, <code>Phone</code>, <code>Email</code>, <code>Address</code>.
+                </div>
+
+                <div style="text-align: right;">
+                    <a href="{{ url_for('download_employee_sample_excel') }}" style="font-size: 0.82rem; color: #2563eb; text-decoration: none; font-weight: 600;">
+                        📥 Download Sample Excel Template
+                    </a>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('importEmpModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Start Import</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: DELETE ALL EMPLOYEES -->
+<div id="deleteAllEmployeesModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 540px;">
+        <div class="modal-header" style="background-color: #fef2f2; border-bottom: 1px solid #fee2e2;">
+            <h3 style="margin: 0; font-size: 1.15rem; color: #991b1b; display: flex; align-items: center; gap: 0.5rem; font-family: 'Outfit', sans-serif;">
+                <span>🗑️</span> Purge Corporate Employee Database
+            </h3>
+            <button type="button" class="btn-close" onclick="closeModal('deleteAllEmployeesModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('delete_all_employees') }}">
+            <div class="modal-body" style="padding: 1.25rem;">
+                <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: var(--radius-sm); padding: 0.85rem 1rem; font-size: 0.88rem; color: #991b1b; margin-bottom: 1rem;">
+                    <strong>⚠️ Destructive Action Warning:</strong><br>
+                    You are about to delete <strong>all {{ total_count }} employee profiles</strong> from the Corporate Employee Database.
+                </div>
+
+                <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: var(--radius-sm); padding: 0.85rem 1rem; font-size: 0.83rem; color: #065f46; margin-bottom: 1.25rem;">
+                    <strong>🛡️ Isolation Guarantee (Other Reports are 100% Safe):</strong>
+                    <ul style="margin: 0.35rem 0 0 1.2rem; padding: 0; line-height: 1.45;">
+                        <li><strong>General Ledger & Vouchers:</strong> All journal entries, payments, receipts, and account balances remain <strong>100% untouched</strong>.</li>
+                        <li><strong>Financial Reports:</strong> Cash & Bank Book, Trial Balance, Balance Sheet, Income & Expenditure, and Receipts & Payments are completely unaffected.</li>
+                        <li><strong>Banking:</strong> Bank Statements and Reconciliations remain preserved.</li>
+                    </ul>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; font-size: 0.88rem; margin-bottom: 0.75rem;">
+                        <input type="checkbox" name="clear_associated" value="yes" checked style="margin-top: 0.2rem;">
+                        <span>
+                            <strong>Also reset associated employee logs (Fund Contributions & Salary Histories)</strong><br>
+                            <span style="font-size: 0.78rem; color: var(--text-secondary);">Recommended to prevent orphaned child records and enable a clean re-import.</span>
+                        </span>
+                    </label>
+
+                    <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; font-size: 0.88rem; padding-top: 0.65rem; border-top: 1px dashed var(--border);">
+                        <input type="checkbox" name="confirm_delete" value="yes" required style="margin-top: 0.2rem;" id="confirmDeleteEmpCheck">
+                        <span style="color: #991b1b;">
+                            <strong>Yes, I confirm that I want to delete the entire employee database.</strong>
+                        </span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 0.85rem 1.25rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 0.5rem; background: #f8fafc;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('deleteAllEmployeesModal')">Cancel</button>
+                <button type="submit" class="btn btn-danger" style="background-color: #dc2626; border-color: #dc2626; color: #ffffff; font-weight: 600; padding: 0.55rem 1.1rem;">
+                    🗑️ Delete All Employees
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openModal(id) {
+    document.getElementById(id).style.display = 'flex';
+}
+function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
+}
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal-overlay')) {
+        event.target.style.display = 'none';
+    }
+}
+</script>
+
+<style>
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1050; backdrop-filter: blur(4px);
+}
+.modal-box {
+    background: #ffffff; border-radius: var(--radius-md);
+    width: 90%; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+}
+.modal-header {
+    padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center; background: #f8fafc;
+}
+.modal-body { padding: 1.25rem; }
+.modal-footer {
+    padding: 0.85rem 1.25rem; border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-end; gap: 0.5rem; background: #f8fafc;
+}
+.btn-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); }
+</style>
+{% endblock %}

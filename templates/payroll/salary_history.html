@@ -1,0 +1,662 @@
+{% extends "base.html" %}
+
+{% block title %}Historical Salary & Compensation Registry - ZR-ERP ERP{% endblock %}
+
+{% block content %}
+<div class="page-header no-print">
+    <div>
+        <h1 class="page-title">📜 Historical Salary & Compensation Registry</h1>
+        <p class="page-description">
+            Complete historical salary and compensation database matching standard 34-column registry. Fully decoupled from financial accounts.
+        </p>
+    </div>
+    <div class="header-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <a href="{{ url_for('employee_salary_report') }}" class="btn btn-outline" style="border-color: #3b82f6; color: #2563eb; font-weight: 600;">
+            📊 Search Employee Paid Report
+        </a>
+        <button type="button" class="btn btn-outline" onclick="openModal('addRecordModal')" style="border-color: #10b981; color: #059669; font-weight: 600;">
+            ➕ Add Single Record
+        </button>
+        <a href="{{ url_for('download_salary_history_sample_excel') }}" class="btn btn-outline">
+            📥 Download 34-Col Excel Template
+        </a>
+        <button type="button" class="btn btn-primary" onclick="openModal('importSalaryModal')">
+            📤 Import Excel
+        </button>
+        <button type="button" class="btn btn-outline" onclick="openModal('clearSalaryModal')" style="border-color: #ef4444; color: #dc2626; font-weight: 600;">
+            🗑️ Clear Data by Date
+        </button>
+    </div>
+</div>
+
+<!-- KPI Metrics Grid -->
+<div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+    <div class="metric-card asset">
+        <div class="metric-label">Historical Records Loaded</div>
+        <div class="metric-value">{{ histories|length }}</div>
+        <div class="metric-sub">Monthly salary compensation entries</div>
+    </div>
+
+    <div class="metric-card expense">
+        <div class="metric-label">Total Cumulative Gross Pay</div>
+        <div class="metric-value" style="color: #2563eb;">৳{{ "{:,.2f}".format(total_gross) }}</div>
+        <div class="metric-sub">Basic + HR + Med + Conv</div>
+    </div>
+
+    <div class="metric-card liability">
+        <div class="metric-label">Total Deductions Retained</div>
+        <div class="metric-value" style="color: #dc2626;">৳{{ "{:,.2f}".format(total_ded) }}</div>
+        <div class="metric-sub">Absence, Lateness, PF, Other</div>
+    </div>
+
+    <div class="metric-card profit">
+        <div class="metric-label">Total Net Disbursed (Cash)</div>
+        <div class="metric-value" style="color: #059669;">৳{{ "{:,.2f}".format(total_net) }}</div>
+        <div class="metric-sub">Net take-home paid to staff</div>
+    </div>
+
+    <div class="metric-card profit" style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border-left: 4px solid #059669;">
+        <div class="metric-label" style="color: #065f46; font-weight: 700;">🌟 TOTAL COMPANY PAID</div>
+        <div class="metric-value" style="color: #047857; font-size: 1.55rem;">৳{{ "{:,.2f}".format(total_company_paid) }}</div>
+        <div class="metric-sub" style="color: #065f46;">Net Disbursed + TDS + Employer PF</div>
+    </div>
+</div>
+
+<!-- Filter & Search Selection Bar -->
+<div class="card no-print" style="margin-bottom: 1.5rem; padding: 1rem 1.25rem;">
+    <form method="GET" action="{{ url_for('salary_history_dashboard') }}" style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;">
+        <div style="flex: 1; min-width: 200px;">
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">
+                Search by Employee ID / Name
+            </label>
+            <input type="text" name="search" class="form-control" placeholder="e.g. EMP-001 or Tanvir..." value="{{ search_q or '' }}">
+        </div>
+
+        <div style="min-width: 200px;">
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">
+                Select Employee
+            </label>
+            <select name="employee_id" class="form-control" onchange="this.form.submit()">
+                <option value="">All Employees</option>
+                {% for e in employees %}
+                <option value="{{ e.id }}" {% if selected_emp_id == e.id %}selected{% endif %}>
+                    {{ e.employee_id }} - {{ e.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">
+                Salary Month
+            </label>
+            <select name="month" class="form-control" onchange="this.form.submit()" style="width: 170px;">
+                <option value="all">All Recorded Months</option>
+                {% for m in month_list %}
+                <option value="{{ m }}" {% if selected_month == m %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem;">
+            <button type="submit" class="btn btn-primary" style="padding: 0.55rem 1.1rem;">Filter</button>
+            <a href="{{ url_for('salary_history_dashboard') }}" class="btn btn-outline" style="padding: 0.55rem 0.9rem;">Reset</a>
+        </div>
+    </form>
+</div>
+
+<!-- Salary History Ledger Table -->
+<div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+        <div>
+            <h2 class="card-title" style="margin: 0;">📜 Historical Salary Register ({{ histories|length }} Records)</h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">
+                Click any Employee ID to view their full cumulative paid statement and career totals.
+            </div>
+        </div>
+        <span class="badge" style="background-color: #dbeafe; color: #1e40af; font-size: 0.8rem;">
+            34-Column Specification Archive
+        </span>
+    </div>
+
+    <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
+        <table class="table" style="font-size: 0.85rem; border-collapse: separate; border-spacing: 0;">
+            <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 10;">
+                <tr>
+                    <th style="width: 95px;">Emp ID</th>
+                    <th style="min-width: 170px;">Staff Name & Designation</th>
+                    <th style="width: 90px;">Month</th>
+                    <th class="num-col">Basic (৳)</th>
+                    <th class="num-col">Gross Pay (৳)</th>
+                    <th class="num-col">PF (Empr+Emp)</th>
+                    <th class="num-col">Allowances (৳)</th>
+                    <th class="num-col">Deductions (৳)</th>
+                    <th class="num-col" style="color: #2563eb;">Net Pay (৳)</th>
+                    <th class="num-col" style="color: #b45309;">TDS (৳)</th>
+                    <th class="num-col" style="color: #059669; font-weight: 700;">Net After TDS (৳)</th>
+                    <th class="num-col" style="color: #065f46; font-weight: 800; background-color: #f0fdf4;">Company Paid (৳)</th>
+                    <th style="width: 140px; text-align: center;" class="no-print">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if histories %}
+                    {% for h in histories %}
+                    <tr>
+                        <td style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">
+                            <a href="{{ url_for('employee_salary_report', employee_id=h.employee.employee_id) }}" 
+                               title="Click to view full cumulative compensation statement"
+                               style="color: var(--accent); text-decoration: none; padding: 0.15rem 0.4rem; background: #eff6ff; border-radius: 4px; display: inline-block;">
+                                {{ h.employee.employee_id }} ↗
+                            </a>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('employee_profile', emp_id=h.employee_id) }}" style="text-decoration: none; color: var(--text-primary); font-weight: 600;">
+                                {{ h.employee.name }}
+                            </a>
+                            <div style="font-size: 0.73rem; color: var(--text-muted);">
+                                {{ h.designation or h.employee.designation }} &bull; {{ h.department or h.employee.department }}
+                            </div>
+                        </td>
+                        <td style="font-weight: 700; color: #1e40af; font-family: 'JetBrains Mono', monospace;">{{ h.salary_month }}</td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(h.basic_salary or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">
+                            ৳{{ "{:,.2f}".format(h.gross_salary or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #6366f1;">
+                            ৳{{ "{:,.2f}".format(h.pf_total or ((h.pf_employer or 0.0) + (h.pf_employee or h.pf_deduction or 0.0))) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #059669;" title="Holiday, Extra Duty, Loyalty, Eid Bonus, Office Order, etc.">
+                            +৳{{ "{:,.2f}".format((h.govt_holiday or 0.0) + (h.holiday_extra_duty or 0.0) + (h.loyalty_allowance or 0.0) + (h.additional_duty or 0.0) + (h.office_order_allowance or 0.0) + (h.eid_bonus or 0.0) + (h.other_addition or h.other_allowance or 0.0)) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #dc2626;">
+                            -৳{{ "{:,.2f}".format(h.total_deductions or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #2563eb;">
+                            ৳{{ "{:,.2f}".format(h.net_salary or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #b45309;">
+                            ৳{{ "{:,.2f}".format(h.tds or h.tax_deduction or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #059669;">
+                            ৳{{ "{:,.2f}".format(h.display_net) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #047857; background-color: #f0fdf4;">
+                            ৳{{ "{:,.2f}".format(h.display_company_paid) }}
+                        </td>
+                        <td style="text-align: center;" class="no-print">
+                            <div style="display: flex; gap: 0.35rem; justify-content: center;">
+                                <a href="{{ url_for('employee_salary_report', employee_id=h.employee.employee_id) }}" class="btn btn-outline btn-sm" style="font-size: 0.74rem; padding: 0.2rem 0.45rem; border-color: #3b82f6; color: #2563eb;" title="View all salary information company paid total">
+                                    📊 Paid Total
+                                </a>
+                                <a href="{{ url_for('universal_payslip_generator', emp_id=h.employee_id, month=h.salary_month) }}" target="_blank" class="btn btn-outline btn-sm" style="font-size: 0.74rem; padding: 0.2rem 0.45rem;" title="Print Payslip">
+                                    📄 Slip ↗
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="13" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                            No historical salary records found matching the filter. Click "Import Excel" to upload historical records or "Add Single Record".
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+            <tfoot>
+                <tr class="report-grandtotal-row" style="background: #f8fafc; font-weight: 700;">
+                    <td colspan="3" style="text-align: right; font-weight: 800;">REGISTRY TOTALS:</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(total_basic) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(total_gross) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #6366f1;">৳{{ "{:,.2f}".format(total_pf_empr * 2) }}</td>
+                    <td class="num-col"></td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #dc2626;">৳{{ "{:,.2f}".format(total_ded) }}</td>
+                    <td class="num-col"></td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #b45309;">৳{{ "{:,.2f}".format(total_tds) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #059669; font-weight: 800;">৳{{ "{:,.2f}".format(total_net) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #047857; font-weight: 900; background-color: #dcfce7; font-size: 0.98rem;">
+                        ৳{{ "{:,.2f}".format(total_company_paid) }}
+                    </td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL 1: CLEAR DATA AS PER DATE (USER REQUIREMENT)                        -->
+<!-- ========================================================================= -->
+<div id="clearSalaryModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 520px;">
+        <div class="modal-header" style="background-color: #fef2f2; border-bottom: 1px solid #fee2e2;">
+            <h3 style="margin: 0; font-size: 1.15rem; color: #991b1b; display: flex; align-items: center; gap: 0.5rem;">
+                <span>🗑️</span> Clear Historical Registry Data by Date
+            </h3>
+            <button type="button" class="btn-close" onclick="closeModal('clearSalaryModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('clear_salary_history') }}">
+            <div class="modal-body" style="padding: 1.25rem;">
+                <p style="font-size: 0.88rem; color: #475569; margin-bottom: 1rem;">
+                    Select the historical salary compensation records you wish to purge. 
+                </p>
+
+                <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: var(--radius-sm); padding: 0.75rem 0.9rem; font-size: 0.82rem; color: #065f46; margin-bottom: 1.25rem;">
+                    🛡️ <strong>Safety Guarantee:</strong> Employee database records (IDs, names, designations, departments) will <strong>NOT</strong> be deleted. Only past salary payment disbursement records will be cleared.
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label" style="font-weight: 600;">Choose Deletion Mode:</label>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.4rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; cursor: pointer;">
+                            <input type="radio" name="clear_mode" value="month" checked onchange="toggleClearInputs()">
+                            Clear by Specific Month
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; cursor: pointer;">
+                            <input type="radio" name="clear_mode" value="date_range" onchange="toggleClearInputs()">
+                            Clear by Date Range
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; cursor: pointer;">
+                            <input type="radio" name="clear_mode" value="all" onchange="toggleClearInputs()">
+                            Clear All Historical Salary Records
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Month Selector -->
+                <div id="clearMonthBox" class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Select Month to Clear:</label>
+                    <select name="target_month" class="form-control">
+                        {% for m in month_list %}
+                        <option value="{{ m }}">{{ m }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Date Range Selector -->
+                <div id="clearDateRangeBox" style="display: none; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Start Date:</label>
+                        <input type="date" name="start_date" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">End Date:</label>
+                        <input type="date" name="end_date" class="form-control">
+                    </div>
+                </div>
+
+                <!-- Confirmation Checkbox -->
+                <div style="background-color: #fff1f2; border: 1px solid #fecdd3; border-radius: var(--radius-sm); padding: 0.85rem; margin-top: 1rem;">
+                    <label style="display: flex; align-items: flex-start; gap: 0.6rem; font-size: 0.84rem; color: #9f1239; cursor: pointer; font-weight: 600;">
+                        <input type="checkbox" name="confirm_clear" value="yes" required style="margin-top: 0.2rem;">
+                        <span>I confirm that I want to delete historical salary records for the selected period.</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 0.85rem 1.25rem; background: #f8fafc; display: flex; justify-content: flex-end; gap: 0.5rem;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('clearSalaryModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="background-color: #dc2626; border-color: #dc2626;">
+                    🗑️ Permanently Clear Records
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL 2: ADD SINGLE HISTORICAL RECORD (34-COLUMN FORM)                    -->
+<!-- ========================================================================= -->
+<div id="addRecordModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header" style="background: #f8fafc; border-bottom: 1px solid var(--border);">
+            <h3 style="margin: 0; font-size: 1.15rem; color: #1e3a8a;">
+                ➕ Input Historical Salary Record (34-Column Specification)
+            </h3>
+            <button type="button" class="btn-close" onclick="closeModal('addRecordModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('add_salary_history_record') }}" id="manualRecordForm">
+            <div class="modal-body" style="padding: 1.25rem;">
+                <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius-sm); padding: 0.65rem 0.9rem; font-size: 0.82rem; color: #1e40af; margin-bottom: 1rem;">
+                    💡 <strong>Automatic Employee Sync:</strong> If the <strong>ID no.</strong> is new, it will automatically create a new employee profile in your employee database. If it exists, it links seamlessly with no duplicate entries!
+                </div>
+
+                <!-- Section 1: Employee & Period -->
+                <h4 style="font-size: 0.92rem; color: #1e3a8a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.35rem; margin-top: 0.5rem; margin-bottom: 0.85rem;">
+                    1. Employee Identification & Period
+                </h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+                    <div class="form-group">
+                        <label class="form-label">Month (YYYY-MM) *</label>
+                        <input type="text" name="salary_month" class="form-control" placeholder="2025-01" required value="{{ today_str[:7] if today_str else '2025-01' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">ID no. (Unique Employee ID) *</label>
+                        <input type="text" name="employee_id_code" id="m_id_no" class="form-control" placeholder="e.g. EMP-001" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Full Name *</label>
+                        <input type="text" name="employee_name" id="m_name" class="form-control" placeholder="Employee Name" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Department</label>
+                        <input type="text" name="department" id="m_dept" class="form-control" placeholder="Accounts / HR / Ops">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Designation</label>
+                        <input type="text" name="designation" id="m_desig" class="form-control" placeholder="Designation">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Date of Joining</label>
+                        <input type="date" name="joining_date" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Payment Date</label>
+                        <input type="date" name="payment_date" class="form-control">
+                    </div>
+                </div>
+
+                <!-- Section 2: Base Salary & Basic Allowances -->
+                <h4 style="font-size: 0.92rem; color: #1e3a8a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.35rem; margin-bottom: 0.85rem;">
+                    2. Core Compensation Structure
+                </h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+                    <div class="form-group">
+                        <label class="form-label">Basic (৳) *</label>
+                        <input type="number" step="0.01" name="basic_salary" id="m_basic" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">HR Allowance (৳)</label>
+                        <input type="number" step="0.01" name="house_rent" id="m_hr" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Medical Allowance (৳)</label>
+                        <input type="number" step="0.01" name="medical" id="m_med" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Conveyance (৳)</label>
+                        <input type="number" step="0.01" name="conveyance" id="m_conv" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 700; color: #1e40af;">Gross Pay (৳)</label>
+                        <input type="number" step="0.01" name="gross_salary" id="m_gross" class="form-control" value="0.00" style="font-weight: 700; background: #eff6ff;">
+                    </div>
+                </div>
+
+                <!-- Section 3: Provident Fund -->
+                <h4 style="font-size: 0.92rem; color: #1e3a8a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.35rem; margin-bottom: 0.85rem;">
+                    3. Provident Fund (PF)
+                </h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+                    <div class="form-group">
+                        <label class="form-label">PF Rate (e.g. 0.08)</label>
+                        <input type="number" step="0.0001" name="pf_rate" id="m_pf_rate" class="form-control" value="0.08" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">PF Employer (৳)</label>
+                        <input type="number" step="0.01" name="pf_employer" id="m_pf_empr" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">PF Employee (৳)</label>
+                        <input type="number" step="0.01" name="pf_employee" id="m_pf_emp" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 700;">Total PF (৳)</label>
+                        <input type="number" step="0.01" name="pf_total" id="m_pf_tot" class="form-control" value="0.00" style="background: #f1f5f9;">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Base Salary Payable (৳)</label>
+                        <input type="number" step="0.01" name="salary_payable" id="m_sal_pay" class="form-control" value="0.00">
+                    </div>
+                </div>
+
+                <!-- Section 4: Special Allowances & Duty -->
+                <h4 style="font-size: 0.92rem; color: #1e3a8a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.35rem; margin-bottom: 0.85rem;">
+                    4. Special Duties, Allowances & Bonuses
+                </h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+                    <div class="form-group">
+                        <label class="form-label">Govt. Holiday (৳)</label>
+                        <input type="number" step="0.01" name="govt_holiday" id="m_govt_hol" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Holiday & Extra Duty (৳)</label>
+                        <input type="number" step="0.01" name="holiday_extra_duty" id="m_hol_duty" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Loyalty Allowance (৳)</label>
+                        <input type="number" step="0.01" name="loyalty_allowance" id="m_loyalty" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Additional Duty Amount (৳)</label>
+                        <input type="number" step="0.01" name="additional_duty" id="m_add_duty" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Allowance Office Order (৳)</label>
+                        <input type="number" step="0.01" name="office_order_allowance" id="m_off_order" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Eid Bonus (৳)</label>
+                        <input type="number" step="0.01" name="eid_bonus" id="m_eid" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Other Additions (৳)</label>
+                        <input type="number" step="0.01" name="other_addition" id="m_oth_add" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                </div>
+
+                <!-- Section 5: Attendance & Deductions -->
+                <h4 style="font-size: 0.92rem; color: #1e3a8a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.35rem; margin-bottom: 0.85rem;">
+                    5. Attendance & Deductions
+                </h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+                    <div class="form-group">
+                        <label class="form-label">Working Days</label>
+                        <input type="number" name="working_days" class="form-control" value="26">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Absent Days</label>
+                        <input type="number" name="absent_days" class="form-control" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Late Days</label>
+                        <input type="number" name="late_days" class="form-control" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Absenteeism Amt (৳)</label>
+                        <input type="number" step="0.01" name="absenteeism_amount" id="m_abs_amt" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Lateness Amt (৳)</label>
+                        <input type="number" step="0.01" name="lateness_amount" id="m_late_amt" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Other Deduction (৳)</label>
+                        <input type="number" step="0.01" name="other_deduction" id="m_oth_ded" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 700; color: #dc2626;">Total Deductions (৳)</label>
+                        <input type="number" step="0.01" name="total_deductions" id="m_tot_ded" class="form-control" value="0.00" style="background: #fef2f2;">
+                    </div>
+                </div>
+
+                <!-- Section 6: Settlement & Company Total Paid -->
+                <h4 style="font-size: 0.92rem; color: #1e3a8a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.35rem; margin-bottom: 0.85rem;">
+                    6. Net Payout & Company Expenditure
+                </h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label">Arrear / Adj (৳)</label>
+                        <input type="number" step="0.01" name="arrear" id="m_arr" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 700; color: #2563eb;">Net Pay (৳)</label>
+                        <input type="number" step="0.01" name="net_salary" id="m_net_pay" class="form-control" value="0.00" style="font-weight: 700;">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">TDS (Tax) (৳)</label>
+                        <input type="number" step="0.01" name="tds" id="m_tds" class="form-control" value="0.00" oninput="calcFormValues()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 700; color: #059669;">Net Pay After TDS (৳)</label>
+                        <input type="number" step="0.01" name="net_pay_after_tds" id="m_net_after_tds" class="form-control" value="0.00" style="font-weight: 700; background: #ecfdf5;">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 800; color: #065f46;">🌟 COMPANY TOTAL PAID (৳)</label>
+                        <input type="number" step="0.01" name="company_total_paid" id="m_co_paid" class="form-control" value="0.00" style="font-weight: 800; background: #dcfce7;">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 0.85rem 1.25rem; background: #f8fafc; display: flex; justify-content: flex-end; gap: 0.5rem;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('addRecordModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="background-color: #059669; border-color: #059669;">
+                    💾 Save Historical Record & Sync Employee
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL 3: IMPORT PREVIOUS SALARY FROM EXCEL                                -->
+<!-- ========================================================================= -->
+<div id="importSalaryModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 620px;">
+        <div class="modal-header">
+            <h3 style="margin: 0; font-size: 1.15rem; font-family: 'Outfit', sans-serif;">
+                📤 Import Historical Salary Spreadsheet (.xlsx)
+            </h3>
+            <button type="button" class="btn-close" onclick="closeModal('importSalaryModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('import_salary_history_excel') }}" enctype="multipart/form-data">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Select Excel File (.xlsx / .xls)</label>
+                    <input type="file" name="excel_file" class="form-control" accept=".xlsx,.xls" required>
+                </div>
+
+                <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: var(--radius-sm); padding: 0.85rem; font-size: 0.82rem; color: #166534; margin-bottom: 0.85rem;">
+                    ✅ <strong>Full 34-Column Specification Supported:</strong><br>
+                    Matches your client historical salary registry: <code>Month</code>, <code>ID no.</code>, <code>Name</code>, <code>Department</code>, <code>Designation</code>, <code>Date of Joining</code>, <code>Basic</code>, <code>HR Allowance</code>, <code>Medical Allowance</code>, <code>Conveyance Allowance</code>, <code>Gross Pay</code>, <code>PF</code>, <code>PF Employer</code>, <code>PF Employee</code>, <code>Total</code>, <code>Salary</code>, <code>Govt. Holiday</code>, <code>Holiday & Extra Duty Allowance</code>, <code>Loyalty Allowance</code>, <code>Additional duty amount</code>, <code>Allowance for office order</code>, <code>Eid Bonus</code>, <code>Other</code>, <code>Working Day</code>, <code>Absent</code>, <code>Late</code>, <code>Absenteeism Amount</code>, <code>Lateness Amount</code>, <code>Other Deduction</code>, <code>Deduction</code>, <code>Arrear</code>, <code>Net Pay</code>, <code>TDS</code>, <code>Net pay after TDS</code>.
+                </div>
+
+                <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius-sm); padding: 0.75rem; font-size: 0.82rem; color: #1e40af; margin-bottom: 1rem;">
+                    ⚡ <strong>Employee Master Database Automatic Generation:</strong><br>
+                    If an Employee ID is new, an employee profile is automatically generated in your system. If the ID exists, it updates without creating duplicate employee records.
+                </div>
+
+                <div style="text-align: right;">
+                    <a href="{{ url_for('download_salary_history_sample_excel') }}" style="font-size: 0.82rem; color: #2563eb; text-decoration: none; font-weight: 600;">
+                        📥 Download 34-Column Sample Excel Template
+                    </a>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('importSalaryModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Start Import</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openModal(id) {
+    document.getElementById(id).style.display = 'flex';
+}
+function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
+}
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal-overlay')) {
+        event.target.style.display = 'none';
+    }
+}
+
+function toggleClearInputs() {
+    const mode = document.querySelector('input[name="clear_mode"]:checked').value;
+    const mBox = document.getElementById('clearMonthBox');
+    const dBox = document.getElementById('clearDateRangeBox');
+    if (mode === 'month') {
+        mBox.style.display = 'block';
+        dBox.style.display = 'none';
+    } else if (mode === 'date_range') {
+        mBox.style.display = 'none';
+        dBox.style.display = 'grid';
+    } else {
+        mBox.style.display = 'none';
+        dBox.style.display = 'none';
+    }
+}
+
+function calcFormValues() {
+    const basic = parseFloat(document.getElementById('m_basic').value) || 0;
+    const hr = parseFloat(document.getElementById('m_hr').value) || 0;
+    const med = parseFloat(document.getElementById('m_med').value) || 0;
+    const conv = parseFloat(document.getElementById('m_conv').value) || 0;
+    const gross = basic + hr + med + conv;
+    document.getElementById('m_gross').value = gross.toFixed(2);
+
+    const pfRate = parseFloat(document.getElementById('m_pf_rate').value) || 0;
+    if (pfRate > 0 && basic > 0 && parseFloat(document.getElementById('m_pf_emp').value) === 0) {
+        const pfShare = Math.round(basic * pfRate);
+        document.getElementById('m_pf_emp').value = pfShare.toFixed(2);
+        document.getElementById('m_pf_empr').value = pfShare.toFixed(2);
+    }
+    const pfEmpr = parseFloat(document.getElementById('m_pf_empr').value) || 0;
+    const pfEmp = parseFloat(document.getElementById('m_pf_emp').value) || 0;
+    const pfTot = pfEmpr + pfEmp;
+    document.getElementById('m_pf_tot').value = pfTot.toFixed(2);
+
+    const govtHol = parseFloat(document.getElementById('m_govt_hol').value) || 0;
+    const holDuty = parseFloat(document.getElementById('m_hol_duty').value) || 0;
+    const loyalty = parseFloat(document.getElementById('m_loyalty').value) || 0;
+    const addDuty = parseFloat(document.getElementById('m_add_duty').value) || 0;
+    const offOrder = parseFloat(document.getElementById('m_off_order').value) || 0;
+    const eid = parseFloat(document.getElementById('m_eid').value) || 0;
+    const othAdd = parseFloat(document.getElementById('m_oth_add').value) || 0;
+    const totAllowances = govtHol + holDuty + loyalty + addDuty + offOrder + eid + othAdd;
+
+    const absAmt = parseFloat(document.getElementById('m_abs_amt').value) || 0;
+    const lateAmt = parseFloat(document.getElementById('m_late_amt').value) || 0;
+    const othDed = parseFloat(document.getElementById('m_oth_ded').value) || 0;
+    const totDed = absAmt + lateAmt + othDed + pfEmp;
+    document.getElementById('m_tot_ded').value = totDed.toFixed(2);
+
+    const arrear = parseFloat(document.getElementById('m_arr').value) || 0;
+    const netPay = gross + totAllowances - totDed + arrear;
+    document.getElementById('m_net_pay').value = netPay.toFixed(2);
+
+    const tds = parseFloat(document.getElementById('m_tds').value) || 0;
+    const netAfterTds = netPay - tds;
+    document.getElementById('m_net_after_tds').value = netAfterTds.toFixed(2);
+
+    const companyPaid = netAfterTds + tds + pfEmpr;
+    document.getElementById('m_co_paid').value = companyPaid.toFixed(2);
+}
+</script>
+
+<style>
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.65);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1050; backdrop-filter: blur(4px);
+}
+.modal-box {
+    background: #ffffff; border-radius: var(--radius-md);
+    width: 92%; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+}
+.modal-header {
+    padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+}
+.modal-body { padding: 1.25rem; }
+.modal-footer {
+    padding: 0.85rem 1.25rem; border-top: 1px solid var(--border);
+}
+.btn-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); }
+</style>
+{% endblock %}

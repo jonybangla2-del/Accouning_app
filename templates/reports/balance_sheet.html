@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Balance Sheet (Statement of Financial Position){% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">🏛️ Balance Sheet (Statement of Financial Position)</h1>
+        <p class="page-description">Cumulative financial health, assets, liabilities, and equity as of selected date.</p>
+    </div>
+    <div class="header-actions">
+        <button onclick="window.print()" class="btn btn-outline">🖨️ Print / Save PDF</button>
+        <a href="{{ url_for('reports_hub') }}" class="btn btn-secondary">← Reports Hub</a>
+    </div>
+</div>
+
+<!-- Date Filter -->
+<form method="GET" action="{{ url_for('balance_sheet') }}" class="filter-bar no-print">
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <label class="form-label" style="margin-bottom: 0;">As of Date:</label>
+        <input type="date" name="as_of_date" class="form-control" value="{{ as_of_date }}" style="width: 170px;">
+        <button type="submit" class="btn btn-primary btn-sm">Generate Report</button>
+    </div>
+
+    <div style="margin-left: auto;">
+        {% if is_balanced %}
+            <span class="badge badge-balanced">✓ Balanced: Assets = Liabilities + Equity</span>
+        {% else %}
+            <span class="badge badge-unbalanced">⚠ Out of Balance (Difference: ৳{{ "{:,.2f}".format(diff) }})</span>
+        {% endif %}
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-header" style="text-align: center; display: block; border-bottom: 2px solid var(--primary);">
+        <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.35rem; color: var(--primary);">LEDGERPRO ENTERPRISE</h2>
+        <div style="font-size: 1.1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin: 0.25rem 0;">Statement of Financial Position (Balance Sheet)</div>
+        <div style="font-size: 0.9rem; color: var(--text-secondary);">As of {{ as_of_date_obj.strftime('%d %B, %Y') if as_of_date_obj else as_of_date }}</div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table report-table">
+            <thead>
+                <tr>
+                    <th>Capital & Liabilities / Assets</th>
+                    <th class="num-col" style="width: 180px;">Amount (৳)</th>
+                    <th class="num-col" style="width: 200px;">Total (৳)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- ================= 1. ASSETS ================= -->
+                <tr style="background-color: #1e293b; color: white;">
+                    <td colspan="3" style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: white;">I. ASSETS</td>
+                </tr>
+
+                <!-- Current Assets -->
+                <tr class="report-section-header">
+                    <td colspan="3">1. Current Assets</td>
+                </tr>
+                {% for acc in current_assets %}
+                <tr>
+                    <td class="indent-1">[{{ acc.code }}] {{ acc.name }}</td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(acc.balance) }}</td>
+                    <td class="num-col"></td>
+                </tr>
+                {% endfor %}
+                <tr class="report-subtotal-row">
+                    <td class="indent-1"><em>Total Current Assets</em></td>
+                    <td class="num-col"></td>
+                    <td class="num-col"><strong>৳{{ "{:,.2f}".format(total_current_assets) }}</strong></td>
+                </tr>
+
+                <!-- Non-Current Assets -->
+                <tr class="report-section-header">
+                    <td colspan="3">2. Non-Current Assets (Fixed Assets)</td>
+                </tr>
+                {% for acc in non_current_assets %}
+                <tr>
+                    <td class="indent-1">[{{ acc.code }}] {{ acc.name }}</td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(acc.balance) }}</td>
+                    <td class="num-col"></td>
+                </tr>
+                {% endfor %}
+                <tr class="report-subtotal-row">
+                    <td class="indent-1"><em>Total Non-Current Assets</em></td>
+                    <td class="num-col"></td>
+                    <td class="num-col"><strong>৳{{ "{:,.2f}".format(total_non_current_assets) }}</strong></td>
+                </tr>
+
+                <!-- TOTAL ASSETS -->
+                <tr class="report-total-row" style="background-color: #eff6ff;">
+                    <td style="font-weight: 700; color: #1e40af; text-transform: uppercase;">TOTAL ASSETS (1 + 2)</td>
+                    <td class="num-col"></td>
+                    <td class="num-col" style="font-weight: 700; font-size: 1.15rem; color: #1e40af;">
+                        ৳{{ "{:,.2f}".format(total_assets) }}
+                    </td>
+                </tr>
+
+                <!-- ================= 2. LIABILITIES & EQUITY ================= -->
+                <tr style="background-color: #1e293b; color: white;">
+                    <td colspan="3" style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: white;">II. LIABILITIES & OWNER'S EQUITY</td>
+                </tr>
+
+                <!-- Current Liabilities -->
+                <tr class="report-section-header">
+                    <td colspan="3">1. Current Liabilities</td>
+                </tr>
+                {% for acc in current_liabilities %}
+                <tr>
+                    <td class="indent-1">[{{ acc.code }}] {{ acc.name }}</td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(acc.balance) }}</td>
+                    <td class="num-col"></td>
+                </tr>
+                {% endfor %}
+                <tr class="report-subtotal-row">
+                    <td class="indent-1"><em>Total Current Liabilities</em></td>
+                    <td class="num-col"></td>
+                    <td class="num-col"><strong>৳{{ "{:,.2f}".format(total_current_liabilities) }}</strong></td>
+                </tr>
+
+                <!-- Non-Current Liabilities -->
+                {% if non_current_liabilities %}
+                <tr class="report-section-header">
+                    <td colspan="3">2. Non-Current Liabilities (Long-Term Debt)</td>
+                </tr>
+                {% for acc in non_current_liabilities %}
+                <tr>
+                    <td class="indent-1">[{{ acc.code }}] {{ acc.name }}</td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(acc.balance) }}</td>
+                    <td class="num-col"></td>
+                </tr>
+                {% endfor %}
+                <tr class="report-subtotal-row">
+                    <td class="indent-1"><em>Total Non-Current Liabilities</em></td>
+                    <td class="num-col"></td>
+                    <td class="num-col"><strong>৳{{ "{:,.2f}".format(total_non_current_liabilities) }}</strong></td>
+                </tr>
+                {% endif %}
+
+                <!-- Subtotal Liabilities -->
+                <tr style="background-color: #fff7ed; font-weight: 600;">
+                    <td>Total Liabilities</td>
+                    <td class="num-col"></td>
+                    <td class="num-col" style="color: #9a3412;">৳{{ "{:,.2f}".format(total_liabilities) }}</td>
+                </tr>
+
+                <!-- Owner's Equity -->
+                <tr class="report-section-header">
+                    <td colspan="3">3. Owner's Equity & Reserves</td>
+                </tr>
+                {% for acc in equity_accounts %}
+                <tr>
+                    <td class="indent-1">[{{ acc.code }}] {{ acc.name }}</td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(acc.balance) }}</td>
+                    <td class="num-col"></td>
+                </tr>
+                {% endfor %}
+                <!-- Current Period Net Surplus transferred from P&L -->
+                <tr>
+                    <td class="indent-1">
+                        <strong>Current Period Net Surplus / (Deficit)</strong>
+                        <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Transferred from Statement of Income & Expenditure</span>
+                    </td>
+                    <td class="num-col {% if current_surplus >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-weight: 600;">
+                        ৳{{ "{:,.2f}".format(current_surplus) }}
+                    </td>
+                    <td class="num-col"></td>
+                </tr>
+                <tr class="report-subtotal-row">
+                    <td class="indent-1"><em>Total Owner's Equity</em></td>
+                    <td class="num-col"></td>
+                    <td class="num-col" style="color: #6b21a8;"><strong>৳{{ "{:,.2f}".format(total_equity) }}</strong></td>
+                </tr>
+
+                <!-- TOTAL LIABILITIES & EQUITY -->
+                <tr class="report-total-row" style="background-color: #fdf2f8;">
+                    <td style="font-weight: 700; color: #831843; text-transform: uppercase;">TOTAL LIABILITIES & EQUITY (1 + 2 + 3)</td>
+                    <td class="num-col"></td>
+                    <td class="num-col" style="font-weight: 700; font-size: 1.15rem; color: #831843;">
+                        ৳{{ "{:,.2f}".format(total_liabilities_and_equity) }}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card-body" style="background-color: #f8fafc; border-top: 1px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                <em>Fundamental Accounting Equation: Total Assets (৳{{ "{:,.2f}".format(total_assets) }}) = Total Liabilities (৳{{ "{:,.2f}".format(total_liabilities) }}) + Total Equity (৳{{ "{:,.2f}".format(total_equity) }}).</em>
+            </div>
+            <div>
+                {% if is_balanced %}
+                    <span class="badge badge-balanced" style="font-size: 0.9rem;">✓ Perfectly Balanced (৳0.00 difference)</span>
+                {% else %}
+                    <span class="badge badge-unbalanced" style="font-size: 0.9rem;">⚠ Out of Balance by ৳{{ "{:,.2f}".format(diff) }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

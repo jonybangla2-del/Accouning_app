@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salary Payslip - {{ employee.name }} ({{ month }})</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            padding: 2.5rem 1rem;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .slip-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+            padding: 3rem 3.5rem;
+            border: 1px solid #cbd5e1;
+        }
+        .slip-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .slip-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.65rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 0.2rem;
+        }
+        .slip-badge {
+            display: inline-block;
+            background: #dbeafe;
+            color: #1e40af;
+            font-weight: 700;
+            padding: 0.35rem 0.85rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        .emp-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem 2rem;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1.1rem 1.25rem;
+            margin-bottom: 1.75rem;
+            font-size: 0.88rem;
+        }
+        .breakdown-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.75rem;
+        }
+        .comp-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+        }
+        .comp-table th {
+            text-align: left;
+            padding: 0.5rem 0.6rem;
+            background-color: #f1f5f9;
+            border-bottom: 2px solid #94a3b8;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+        .comp-table td {
+            padding: 0.55rem 0.6rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .num-col {
+            text-align: right;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+        }
+        .net-pay-banner {
+            background-color: #eff6ff;
+            border: 2px solid #2563eb;
+            border-radius: 6px;
+            padding: 1.1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        .words-box {
+            background-color: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 6px;
+            padding: 0.85rem 1.25rem;
+            font-size: 0.88rem;
+            margin-bottom: 2rem;
+        }
+        .signature-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            margin-top: 4rem;
+            text-align: center;
+        }
+        .sig-line {
+            border-top: 1px dashed #64748b;
+            padding-top: 0.5rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        @media print {
+            body { background: none; padding: 0; }
+            .slip-container { border: none; box-shadow: none; padding: 0; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print" style="max-width: 800px; margin: 0 auto 1.5rem auto; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <a href="{{ url_for('documents_hub') }}" style="color: #2563eb; text-decoration: none; font-size: 0.9rem; font-weight: 600;">
+                ← Back
+            </a>
+            <!-- Month Switcher Form -->
+            <form method="GET" action="{{ url_for('universal_payslip_generator', emp_id=employee.id) }}" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Month:</span>
+                <select name="month" class="form-control" onchange="this.form.submit()" style="padding: 0.35rem 0.65rem; font-size: 0.85rem;">
+                    {% for m in all_months %}
+                    <option value="{{ m }}" {% if month == m %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+        <div style="display: flex; gap: 0.75rem;">
+            <button onclick="window.print()" class="btn btn-primary" style="padding: 0.5rem 1.25rem;">
+                🖨️ Print / Save as PDF
+            </button>
+            <button onclick="window.close()" class="btn btn-outline" style="padding: 0.5rem 1rem;">
+                Close Window
+            </button>
+        </div>
+    </div>
+
+    <div class="slip-container">
+        <!-- Slip Header -->
+        <div class="slip-header">
+            <div>
+                <div class="slip-title">LEDGERPRO ENTERPRISE LIMITED</div>
+                <div style="font-size: 0.85rem; color: #475569;">Human Resources & Corporate Payroll &bull; Dhaka, Bangladesh</div>
+            </div>
+            <div style="text-align: right;">
+                <div class="slip-badge">MONTHLY PAYSLIP</div>
+                <div style="font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 700; color: #1e40af; margin-top: 0.35rem;">
+                    {{ month }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Employee Particulars Grid -->
+        <div class="emp-grid">
+            <div>
+                <span style="color: #64748b;">Employee Name:</span>
+                <strong style="color: #0f172a; margin-left: 0.35rem;">{{ employee.name }}</strong>
+            </div>
+            <div>
+                <span style="color: #64748b;">Employee ID:</span>
+                <strong style="font-family: 'JetBrains Mono', monospace; color: #2563eb; margin-left: 0.35rem;">{{ employee.employee_id }}</strong>
+            </div>
+            <div>
+                <span style="color: #64748b;">Designation:</span>
+                <strong style="color: #0f172a; margin-left: 0.35rem;">{{ employee.designation }}</strong>
+            </div>
+            <div>
+                <span style="color: #64748b;">Department:</span>
+                <span style="margin-left: 0.35rem;">{{ employee.department }}</span>
+            </div>
+            <div>
+                <span style="color: #64748b;">Disbursement Mode:</span>
+                <span style="margin-left: 0.35rem;">{{ employee.bank_account_no or 'Bank Transfer (Premier Bank)' }}</span>
+            </div>
+            <div>
+                <span style="color: #64748b;">Payment Date:</span>
+                <span style="margin-left: 0.35rem;">{{ payment_date.strftime('%d-%b-%Y') if payment_date else '' }}</span>
+            </div>
+        </div>
+
+        <!-- Breakdown Grid: Earnings vs Deductions -->
+        <div class="breakdown-grid">
+            <!-- Earnings -->
+            <div>
+                <h3 style="font-size: 0.85rem; text-transform: uppercase; font-weight: 700; color: #065f46; margin-bottom: 0.5rem; letter-spacing: 0.04em;">
+                    Earnings (+)
+                </h3>
+                <table class="comp-table">
+                    <thead>
+                        <tr>
+                            <th>Component</th>
+                            <th class="num-col">Amount (৳)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Basic Salary</td>
+                            <td class="num-col">৳{{ "{:,.2f}".format(basic) }}</td>
+                        </tr>
+                        <tr>
+                            <td>House Rent Allowance</td>
+                            <td class="num-col">৳{{ "{:,.2f}".format(house_rent) }}</td>
+                        </tr>
+                        <tr>
+                            <td>Medical Allowance</td>
+                            <td class="num-col">৳{{ "{:,.2f}".format(medical) }}</td>
+                        </tr>
+                        <tr>
+                            <td>Conveyance Allowance</td>
+                            <td class="num-col">৳{{ "{:,.2f}".format(conveyance) }}</td>
+                        </tr>
+                        {% if allowances - (house_rent + medical + conveyance) > 0 %}
+                        <tr>
+                            <td>Other Allowances</td>
+                            <td class="num-col">৳{{ "{:,.2f}".format(allowances - (house_rent + medical + conveyance)) }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr style="font-weight: 700; background-color: #f8fafc; border-top: 2px solid #cbd5e1;">
+                            <td>Total Gross Earnings:</td>
+                            <td class="num-col" style="color: #059669;">৳{{ "{:,.2f}".format(gross) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Deductions -->
+            <div>
+                <h3 style="font-size: 0.85rem; text-transform: uppercase; font-weight: 700; color: #991b1b; margin-bottom: 0.5rem; letter-spacing: 0.04em;">
+                    Deductions (-)
+                </h3>
+                <table class="comp-table">
+                    <thead>
+                        <tr>
+                            <th>Component</th>
+                            <th class="num-col">Amount (৳)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Provident Fund (8%)</td>
+                            <td class="num-col" style="color: #dc2626;">৳{{ "{:,.2f}".format(pf_deduction) }}</td>
+                        </tr>
+                        <tr>
+                            <td>Statutory / Tax Deductions</td>
+                            <td class="num-col" style="color: #dc2626;">
+                                ৳{{ "{:,.2f}".format(deductions - pf_deduction if deductions > pf_deduction else 0.0) }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="color: #94a3b8;">Other Reductions</td>
+                            <td class="num-col" style="color: #cbd5e1;">-</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #94a3b8;">&nbsp;</td>
+                            <td class="num-col" style="color: #cbd5e1;">&nbsp;</td>
+                        </tr>
+                        <tr style="font-weight: 700; background-color: #f8fafc; border-top: 2px solid #cbd5e1;">
+                            <td>Total Deductions:</td>
+                            <td class="num-col" style="color: #dc2626;">৳{{ "{:,.2f}".format(deductions) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Net Take-Home Salary Banner -->
+        <div class="net-pay-banner">
+            <div>
+                <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: #1e40af; letter-spacing: 0.05em;">
+                    NET TAKE-HOME DISBURSEMENT
+                </div>
+                <div style="font-size: 0.8rem; color: #475569; margin-top: 0.15rem;">
+                    Gross Earnings less Total Deductions
+                </div>
+            </div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 1.6rem; font-weight: 800; color: #1e40af;">
+                ৳{{ "{:,.2f}".format(net_salary) }}
+            </div>
+        </div>
+
+        <!-- Amount In Words -->
+        <div class="words-box">
+            <span style="font-weight: 700; color: #166534; font-size: 0.8rem; text-transform: uppercase;">Amount in Words:</span>
+            <div style="font-weight: 700; color: #14532d; margin-top: 0.2rem;">
+                {{ net_words }}
+            </div>
+        </div>
+
+        <!-- Signatures -->
+        <div class="signature-grid">
+            <div>
+                <div class="sig-line">Prepared By</div>
+                <div style="font-size: 0.75rem; color: #64748b;">Payroll Executive</div>
+            </div>
+            <div>
+                <div class="sig-line">Checked & Verified</div>
+                <div style="font-size: 0.75rem; color: #64748b;">Finance & Accounts</div>
+            </div>
+            <div>
+                <div class="sig-line">Employee Signature</div>
+                <div style="font-size: 0.75rem; color: #64748b;">{{ employee.name }}</div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

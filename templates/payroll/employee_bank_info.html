@@ -1,0 +1,642 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Bank Information Sheet (EFT / BEFTN) - ZR-ERP{% endblock %}
+
+{% block content %}
+<style>
+/* Sticky Actions Column */
+.table-responsive {
+    position: relative;
+    overflow-x: auto;
+}
+th.col-actions-sticky {
+    position: sticky !important;
+    right: 0 !important;
+    background-color: #f8fafc !important;
+    z-index: 6 !important;
+    box-shadow: -5px 0 10px rgba(0, 0, 0, 0.05);
+}
+td.col-actions-sticky {
+    position: sticky !important;
+    right: 0 !important;
+    background-color: #ffffff !important;
+    z-index: 5 !important;
+    box-shadow: -5px 0 10px rgba(0, 0, 0, 0.05);
+}
+tr:hover td.col-actions-sticky {
+    background-color: #f1f5f9 !important;
+}
+.bank-row:hover {
+    background-color: #f8fafc;
+}
+.badge-eft {
+    background-color: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+    font-weight: 700;
+    font-size: 0.74rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+.badge-beftn {
+    background-color: #fff7ed;
+    color: #9a3412;
+    border: 1px solid #fed7aa;
+    font-weight: 700;
+    font-size: 0.74rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+.badge-cash {
+    background-color: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+    font-weight: 700;
+    font-size: 0.74rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+</style>
+
+<div class="page-header no-print" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+    <div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+            <span style="font-size: 1.6rem;">🏦</span>
+            <h1 class="page-title" style="margin: 0; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em;">
+                Employee Bank Information Sheet
+            </h1>
+            <span class="badge" style="background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; font-size: 0.74rem; font-weight: 700; padding: 0.2rem 0.6rem;">
+                Disbursal Routing: EFT &amp; BEFTN
+            </span>
+        </div>
+        <p class="page-description" style="color: var(--text-muted); font-size: 0.88rem; margin: 0;">
+            Manage and maintain bank account details, routing numbers, and transfer methods for all employees. 
+            Transfers are routed via <strong>The Premier Bank PLC (EFT)</strong> or <strong>Other Banks (BEFTN Clearing)</strong>.
+        </p>
+    </div>
+
+    <!-- Header Action Buttons -->
+    <div class="header-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+        <button type="button" class="btn btn-outline" id="btnToggleSpreadsheet" onclick="toggleSpreadsheetMode()" style="font-size: 0.84rem; font-weight: 700; color: #0284c7; border-color: #38bdf8; background: #f0f9ff;">
+            ⚡ Inline Spreadsheet Mode
+        </button>
+
+        <button type="button" class="btn btn-outline" onclick="openModal('uploadBankSheetModal')" style="font-size: 0.84rem; font-weight: 600; color: #2563eb; border-color: #93c5fd; background: #eff6ff;">
+            📤 Import Bank Sheet (Excel / CSV)
+        </button>
+
+        <a href="{{ url_for('export_employee_bank_info_excel', channel=active_channel, search=search_query, department=active_dept) }}" class="btn btn-success" style="font-size: 0.84rem; font-weight: 700;">
+            📊 Export to Excel
+        </a>
+
+        <a href="{{ url_for('monthly_salary_sheets') }}" class="btn btn-primary" style="font-size: 0.84rem; font-weight: 700; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);">
+            📑 View Monthly Salary Sheets &rarr;
+        </a>
+    </div>
+</div>
+
+<!-- ========================================================================
+     KPI COCKPIT: PAYMENT CHANNEL DISTRIBUTION
+     ======================================================================== -->
+<div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom: 1.75rem;">
+    <!-- 1. Total Employees -->
+    <div class="metric-card" style="border-top: 4px solid #3b82f6; background: #f8fafc;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #1e3a8a;">Total Registered Staff</span>
+            <div class="metric-icon-box" style="background: #e0f2fe; color: #0284c7;">👥</div>
+        </div>
+        <div class="metric-value">
+            <span style="color: #0f172a;">{{ total_count }}</span>
+        </div>
+        <div class="metric-sub">
+            <span class="metric-pill" style="background: #e2e8f0; color: #334155;">Active Roster</span>
+            <span style="color: var(--text-muted); font-size: 0.76rem;">All company personnel</span>
+        </div>
+    </div>
+
+    <!-- 2. Premier Bank EFT (Internal Transfer) -->
+    <div class="metric-card" style="border-top: 4px solid #10b981; background: #f0fdf4;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #065f46;">Premier Bank Accounts</span>
+            <div class="metric-icon-box" style="background: #dcfce7; color: #10b981;">🏦</div>
+        </div>
+        <div class="metric-value">
+            <span style="color: #047857;">{{ eft_count }}</span>
+        </div>
+        <div class="metric-sub">
+            <span class="badge-eft">EFT (Internal)</span>
+            <span style="color: var(--text-muted); font-size: 0.76rem;">Direct corporate transfer</span>
+        </div>
+    </div>
+
+    <!-- 3. Other Banks BEFTN (Inter-Bank Clearing) -->
+    <div class="metric-card" style="border-top: 4px solid #f97316; background: #fff7ed;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #9a3412;">Other Banks (BEFTN)</span>
+            <div class="metric-icon-box" style="background: #ffedd5; color: #f97316;">🏛️</div>
+        </div>
+        <div class="metric-value">
+            <span style="color: #c2410c;">{{ beftn_count }}</span>
+        </div>
+        <div class="metric-sub">
+            <span class="badge-beftn">BEFTN Clearing</span>
+            <span style="color: var(--text-muted); font-size: 0.76rem;">Routed via Bangladesh Bank</span>
+        </div>
+    </div>
+
+    <!-- 4. Cash Disbursement -->
+    <div class="metric-card" style="border-top: 4px solid #64748b; background: #f8fafc;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #475569;">Cash Disbursement</span>
+            <div class="metric-icon-box" style="background: #f1f5f9; color: #64748b;">💵</div>
+        </div>
+        <div class="metric-value">
+            <span style="color: #334155;">{{ cash_count }}</span>
+        </div>
+        <div class="metric-sub">
+            <span class="badge-cash">Cash Office</span>
+            <span style="color: var(--text-muted); font-size: 0.76rem;">Manual payment slip</span>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================
+     FILTER & CHANNEL SELECTOR BAR
+     ======================================================================== -->
+<div class="card no-print" style="margin-bottom: 1.5rem; padding: 1.15rem 1.25rem;">
+    <!-- Channel Tabs -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; padding-bottom: 0.85rem; border-bottom: 1px solid var(--border-color);">
+        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Payment Channel:</span>
+            
+            <a href="{{ url_for('employee_bank_info', channel='all', search=search_query, department=active_dept) }}" class="btn btn-sm {% if active_channel == 'all' %}btn-primary{% else %}btn-outline{% endif %}" style="border-radius: 20px; font-size: 0.82rem; padding: 0.35rem 0.85rem;">
+                All Staff ({{ total_count }})
+            </a>
+
+            <a href="{{ url_for('employee_bank_info', channel='EFT', search=search_query, department=active_dept) }}" class="btn btn-sm {% if active_channel == 'EFT' %}btn-primary{% else %}btn-outline{% endif %}" style="border-radius: 20px; font-size: 0.82rem; padding: 0.35rem 0.85rem; {% if active_channel != 'EFT' %}border-color: #a7f3d0; color: #047857; background: #f0fdf4;{% endif %}">
+                🏦 Premier Bank EFT ({{ eft_count }})
+            </a>
+
+            <a href="{{ url_for('employee_bank_info', channel='BEFTN', search=search_query, department=active_dept) }}" class="btn btn-sm {% if active_channel == 'BEFTN' %}btn-primary{% else %}btn-outline{% endif %}" style="border-radius: 20px; font-size: 0.82rem; padding: 0.35rem 0.85rem; {% if active_channel != 'BEFTN' %}border-color: #fed7aa; color: #c2410c; background: #fff7ed;{% endif %}">
+                🏛️ Other Banks BEFTN ({{ beftn_count }})
+            </a>
+
+            <a href="{{ url_for('employee_bank_info', channel='Cash', search=search_query, department=active_dept) }}" class="btn btn-sm {% if active_channel == 'Cash' %}btn-primary{% else %}btn-outline{% endif %}" style="border-radius: 20px; font-size: 0.82rem; padding: 0.35rem 0.85rem;">
+                💵 Cash ({{ cash_count }})
+            </a>
+        </div>
+
+        <div style="font-size: 0.8rem; color: var(--text-muted);">
+            Showing <strong>{{ employees|length }}</strong> employee records
+        </div>
+    </div>
+
+    <!-- Search & Filter Form -->
+    <form method="GET" action="{{ url_for('employee_bank_info') }}" style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
+        <input type="hidden" name="channel" value="{{ active_channel }}">
+
+        <div style="flex: 2; min-width: 220px;">
+            <label style="display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.3rem;">
+                Search by Name, Employee ID, Bank, Account #, or Routing #
+            </label>
+            <input type="text" name="search" value="{{ search_query }}" placeholder="Filter employee bank records..." class="form-control" style="font-size: 0.85rem;">
+        </div>
+
+        <div style="flex: 1; min-width: 180px;">
+            <label style="display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.3rem;">
+                Department
+            </label>
+            <select name="department" class="form-control" style="font-size: 0.85rem;">
+                <option value="">All Departments</option>
+                {% for d in departments %}
+                <option value="{{ d }}" {% if active_dept == d %}selected{% endif %}>{{ d }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem;">
+            <button type="submit" class="btn btn-primary" style="padding: 0.55rem 1.1rem; font-size: 0.85rem;">🔍 Search</button>
+            <a href="{{ url_for('employee_bank_info', channel=active_channel) }}" class="btn btn-outline" style="padding: 0.55rem 0.9rem; font-size: 0.85rem;">Reset</a>
+        </div>
+    </form>
+</div>
+
+<!-- ========================================================================
+     ACTIVE SPREADSHEET BAR (SHOWN IN SPREADSHEET MODE)
+     ======================================================================== -->
+<div id="spreadsheetActiveBar" style="display: none; background: linear-gradient(135deg, #1e3a8a, #2563eb); color: white; padding: 0.8rem 1.25rem; border-radius: 8px; margin-bottom: 1rem; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem; box-shadow: 0 4px 12px rgba(37,99,235,0.25);">
+    <div style="font-size: 0.84rem;">
+        <strong>✏️ Inline Spreadsheet Edit Mode Active:</strong> You can edit any employee's Bank Name, Branch, Routing Number, Account Number, and Transfer Method directly in the table below.
+    </div>
+    <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <button type="button" class="btn btn-sm" onclick="toggleSpreadsheetMode(false)" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); font-size: 0.8rem;">
+            ✕ Cancel
+        </button>
+        <button type="submit" form="bulkBankForm" class="btn btn-sm btn-success" style="font-weight: 700; background: #10b981; border: none; padding: 0.35rem 1.1rem; font-size: 0.8rem; box-shadow: 0 2px 8px rgba(16,185,129,0.4);">
+            💾 Save All Bank Information Edits
+        </button>
+    </div>
+</div>
+
+<!-- ========================================================================
+     EMPLOYEE BANK INFORMATION ROSTER TABLE
+     ======================================================================== -->
+<div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+        <div>
+            <h2 class="card-title" style="margin: 0; font-size: 1.1rem; font-weight: 700;">
+                📋 Employee Bank Accounts &amp; Routing Directory
+            </h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">
+                Company Originating Bank: <strong>The Premier Bank PLC</strong> (A/C: 02071110000026 &bull; Banani Branch)
+            </div>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button onclick="window.print()" class="btn btn-outline btn-sm no-print">🖨️ Print Sheet</button>
+        </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('bulk_update_employee_bank_info') }}" id="bulkBankForm">
+        <input type="hidden" name="channel" value="{{ active_channel }}">
+        <input type="hidden" name="search" value="{{ search_query }}">
+        <input type="hidden" name="department" value="{{ active_dept }}">
+
+        <div class="table-responsive">
+            <table class="table report-table" style="font-size: 0.82rem;">
+                <thead>
+                    <tr>
+                        <th style="width: 50px; text-align: center;">SL</th>
+                        <th style="width: 80px;">Emp ID</th>
+                        <th style="min-width: 180px;">Employee Name</th>
+                        <th style="min-width: 160px;">Department &amp; Designation</th>
+                        <th style="min-width: 180px;">Bank Name</th>
+                        <th style="width: 140px;">Branch Name</th>
+                        <th style="width: 120px;">Routing No</th>
+                        <th style="width: 150px;">Account Number</th>
+                        <th style="width: 140px; text-align: center;">Payment Channel</th>
+                        <th class="col-actions-sticky no-print" style="width: 90px; text-align: center;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if employees %}
+                        {% for e in employees %}
+                        <tr class="bank-row" id="emp-row-{{ e.id }}" ondblclick="openEditBankModal({{ e.id }})" title="Double-click to edit bank details">
+                            <!-- 1. SL -->
+                            <td style="text-align: center; color: var(--text-muted); font-size: 0.78rem;">
+                                {{ loop.index }}
+                                <input type="hidden" name="emp_ids" value="{{ e.id }}">
+                            </td>
+
+                            <!-- 2. Emp ID -->
+                            <td style="font-family: monospace; font-weight: 700; color: #1e40af;">
+                                {{ e.employee_id }}
+                            </td>
+
+                            <!-- 3. Name -->
+                            <td>
+                                <strong style="color: var(--text-primary); display: block;">{{ e.name }}</strong>
+                                <small style="color: var(--text-muted); font-size: 0.74rem;">
+                                    Joined: {{ e.joining_date.strftime('%d-%b-%Y') if e.joining_date else '—' }} &bull; Basic: ৳{{ "{:,.0f}".format(e.basic_salary) }}
+                                </small>
+                            </td>
+
+                            <!-- 4. Department & Designation -->
+                            <td>
+                                <span style="display: block; font-weight: 600; color: #334155;">{{ e.department }}</span>
+                                <small style="color: var(--text-muted); font-size: 0.75rem;">{{ e.designation }}</small>
+                            </td>
+
+                            <!-- 5. Bank Name -->
+                            <td>
+                                <div class="normal-view">
+                                    <strong style="color: {% if 'Premier' in (e.bank_name or '') %}#047857{% else %}#1e3a8a{% endif %};">
+                                        {{ e.bank_name or 'The Premier Bank PLC' }}
+                                    </strong>
+                                </div>
+                                <select name="bank_name_{{ e.id }}" class="edit-view form-control form-control-sm" style="display: none; font-size: 0.78rem;">
+                                    <option value="The Premier Bank PLC" {% if 'Premier' in (e.bank_name or '') %}selected{% endif %}>The Premier Bank PLC</option>
+                                    <option value="Dutch-Bangla Bank PLC" {% if 'Dutch-Bangla' in (e.bank_name or '') %}selected{% endif %}>Dutch-Bangla Bank PLC</option>
+                                    <option value="Islami Bank Bangladesh PLC" {% if 'Islami Bank' in (e.bank_name or '') %}selected{% endif %}>Islami Bank Bangladesh PLC</option>
+                                    <option value="BRAC Bank PLC" {% if 'BRAC Bank' in (e.bank_name or '') %}selected{% endif %}>BRAC Bank PLC</option>
+                                    <option value="The City Bank PLC" {% if 'City Bank' in (e.bank_name or '') %}selected{% endif %}>The City Bank PLC</option>
+                                    <option value="Eastern Bank PLC" {% if 'Eastern Bank' in (e.bank_name or '') %}selected{% endif %}>Eastern Bank PLC</option>
+                                    <option value="Sonali Bank PLC" {% if 'Sonali Bank' in (e.bank_name or '') %}selected{% endif %}>Sonali Bank PLC</option>
+                                    <option value="Pubali Bank PLC" {% if 'Pubali Bank' in (e.bank_name or '') %}selected{% endif %}>Pubali Bank PLC</option>
+                                    <option value="Mutual Trust Bank PLC" {% if 'Mutual Trust' in (e.bank_name or '') %}selected{% endif %}>Mutual Trust Bank PLC</option>
+                                    <option value="Cash Disbursement" {% if e.payment_method == 'Cash' %}selected{% endif %}>Cash Disbursement</option>
+                                </select>
+                            </td>
+
+                            <!-- 6. Branch Name -->
+                            <td>
+                                <span class="normal-view" style="color: #475569;">
+                                    {{ e.bank_branch or 'Banani Branch' }}
+                                </span>
+                                <input type="text" name="branch_{{ e.id }}" value="{{ e.bank_branch or 'Banani Branch' }}" class="edit-view form-control form-control-sm" style="display: none; font-size: 0.78rem;">
+                            </td>
+
+                            <!-- 7. Routing Number -->
+                            <td>
+                                <span class="normal-view" style="font-family: monospace; font-size: 0.8rem; color: #475569;">
+                                    {{ e.routing_no or '085261198' }}
+                                </span>
+                                <input type="text" name="routing_{{ e.id }}" value="{{ e.routing_no or '085261198' }}" class="edit-view form-control form-control-sm" style="display: none; font-family: monospace; font-size: 0.78rem;">
+                            </td>
+
+                            <!-- 8. Account Number -->
+                            <td>
+                                <div class="normal-view">
+                                    <strong style="font-family: monospace; font-size: 0.82rem; color: #0f172a;">
+                                        {{ e.bank_account_no or '—' }}
+                                    </strong>
+                                </div>
+                                <input type="text" name="account_{{ e.id }}" value="{{ e.bank_account_no or '' }}" placeholder="A/C Number" class="edit-view form-control form-control-sm" style="display: none; font-family: monospace; font-size: 0.78rem;">
+                            </td>
+
+                            <!-- 9. Payment Channel Badge -->
+                            <td style="text-align: center;">
+                                <div class="normal-view">
+                                    {% if e.payment_method == 'EFT' %}
+                                        <span class="badge-eft" title="Internal transfer via The Premier Bank PLC">
+                                            🏦 EFT (Premier)
+                                        </span>
+                                    {% elif e.payment_method == 'BEFTN' %}
+                                        <span class="badge-beftn" title="Inter-bank clearing via Bangladesh Bank BEFTN">
+                                            🏛️ BEFTN (Other)
+                                        </span>
+                                    {% else %}
+                                        <span class="badge-cash" title="Cash disbursement">
+                                            💵 Cash
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <select name="method_{{ e.id }}" class="edit-view form-control form-control-sm" style="display: none; font-size: 0.76rem;">
+                                    <option value="EFT" {% if e.payment_method == 'EFT' %}selected{% endif %}>EFT (Premier)</option>
+                                    <option value="BEFTN" {% if e.payment_method == 'BEFTN' %}selected{% endif %}>BEFTN (Other)</option>
+                                    <option value="Cash" {% if e.payment_method == 'Cash' %}selected{% endif %}>Cash</option>
+                                </select>
+                            </td>
+
+                            <!-- 10. Sticky Actions -->
+                            <td class="col-actions-sticky no-print">
+                                <div class="normal-view" style="display: flex; gap: 0.35rem; justify-content: center; align-items: center;">
+                                    <button type="button" class="btn btn-sm btn-primary" onclick="openEditBankModal({{ e.id }})" style="padding: 0.22rem 0.6rem; font-size: 0.76rem; font-weight: 700; background: #2563eb; border: none; box-shadow: 0 1px 4px rgba(37,99,235,0.3);" title="Edit bank details">
+                                        ✏️ Edit
+                                    </button>
+                                </div>
+                                <div class="edit-view" style="display: none; text-align: center;">
+                                    <button type="submit" class="btn btn-sm btn-success" style="padding: 0.22rem 0.6rem; font-size: 0.76rem; font-weight: 700; background: #10b981; border: none;" title="Save changes">
+                                        💾 Save
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="10" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                                No employees found matching the filter criteria.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </form>
+</div>
+
+<!-- ========================================================================
+     MODAL: EDIT EMPLOYEE BANK PROFILE
+     ======================================================================== -->
+<div id="editBankModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 550px;">
+        <div class="modal-header">
+            <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.4rem;">
+                <span>🏦</span> Edit Employee Bank &amp; Disbursal Profile
+            </h3>
+            <button type="button" class="btn-close" onclick="closeModal('editBankModal')">&times;</button>
+        </div>
+        <form method="POST" id="editBankForm" action="">
+            <div class="modal-body">
+                <!-- Employee Summary Header -->
+                <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1rem;">
+                    <div style="font-weight: 800; color: #1e3a8a; font-size: 0.92rem;" id="modalEmpName"></div>
+                    <div style="font-size: 0.78rem; color: #475569; margin-top: 2px;" id="modalEmpMeta"></div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 600;">Bank Name *</label>
+                    <select name="bank_name" id="modalBankName" class="form-control" onchange="autoDetectPaymentMethod(this.value)" required>
+                        <option value="The Premier Bank PLC">The Premier Bank PLC (Our Operating Bank)</option>
+                        <option value="Dutch-Bangla Bank PLC">Dutch-Bangla Bank PLC (DBBL)</option>
+                        <option value="Islami Bank Bangladesh PLC">Islami Bank Bangladesh PLC</option>
+                        <option value="BRAC Bank PLC">BRAC Bank PLC</option>
+                        <option value="The City Bank PLC">The City Bank PLC</option>
+                        <option value="Eastern Bank PLC">Eastern Bank PLC (EBL)</option>
+                        <option value="Sonali Bank PLC">Sonali Bank PLC</option>
+                        <option value="Pubali Bank PLC">Pubali Bank PLC</option>
+                        <option value="Mutual Trust Bank PLC">Mutual Trust Bank PLC</option>
+                        <option value="Dhaka Bank PLC">Dhaka Bank PLC</option>
+                        <option value="Standard Chartered Bank">Standard Chartered Bank</option>
+                        <option value="United Commercial Bank PLC">United Commercial Bank PLC (UCB)</option>
+                        <option value="Cash Disbursement">Cash Disbursement (No Bank)</option>
+                    </select>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600;">Branch Name</label>
+                        <input type="text" name="bank_branch" id="modalBankBranch" class="form-control" placeholder="e.g. Banani Branch">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600;">9-Digit Routing Number</label>
+                        <input type="text" name="routing_no" id="modalRoutingNo" class="form-control" placeholder="e.g. 085261198">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600;">Account Number *</label>
+                        <input type="text" name="bank_account_no" id="modalAccountNo" class="form-control" placeholder="e.g. 02071210009941" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600;">Payment Transfer Method *</label>
+                        <select name="payment_method" id="modalPaymentMethod" class="form-control" required>
+                            <option value="EFT">🏦 EFT (The Premier Bank PLC)</option>
+                            <option value="BEFTN">🏛️ BEFTN (Other Banks Clearing)</option>
+                            <option value="Cash">💵 Cash Disbursement</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; background: #f8fafc; padding: 0.75rem; border-radius: 6px; border: 1px solid var(--border-color); margin-top: 0.5rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 600; font-size: 0.8rem;">Provident Fund Status</label>
+                        <select name="pf_status" id="modalPfStatus" class="form-control" style="font-size: 0.82rem;">
+                            <option value="P">P (Eligible - 10% Basic)</option>
+                            <option value="NP">NP (Non-PF)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 600; font-size: 0.8rem;">Default Monthly TDS (৳)</label>
+                        <input type="number" step="0.01" name="tds_amount" id="modalTdsAmount" class="form-control" placeholder="0.00" style="font-size: 0.82rem;">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('editBankModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="font-weight: 700;">💾 Save Bank Details</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================
+     MODAL: UPLOAD BANK INFORMATION SHEET (EXCEL / CSV)
+     ======================================================================== -->
+<div id="uploadBankSheetModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 540px;">
+        <div class="modal-header">
+            <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.4rem;">
+                <span>📤</span> Import Employee Bank Information Sheet
+            </h3>
+            <button type="button" class="btn-close" onclick="closeModal('uploadBankSheetModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('upload_employee_bank_info_excel') }}" enctype="multipart/form-data">
+            <div class="modal-body">
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0; margin-bottom: 1rem;">
+                    Upload an Excel (.xlsx, .xls) or CSV sheet of employee bank information. 
+                    The importer matches existing staff by <strong>Employee ID</strong> (e.g. 127, EMP-001) or <strong>Employee Name</strong>.
+                </p>
+
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 600;">Select Bank Sheet File (.xlsx, .xls, .csv) *</label>
+                    <input type="file" name="bank_file" accept=".xlsx,.xls,.csv" class="form-control" required style="padding: 0.45rem;">
+                </div>
+
+                <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.85rem; font-size: 0.78rem; color: #475569;">
+                    <strong>💡 Supported Columns in your Excel/CSV:</strong>
+                    <ul style="margin: 0.35rem 0 0 1.2rem; padding: 0;">
+                        <li><strong>Emp ID / ID No.</strong> &bull; matches employee profile</li>
+                        <li><strong>Employee Name</strong> &bull; fallback matching</li>
+                        <li><strong>Bank Name</strong> (Premier Bank automatically routes to EFT; other banks route to BEFTN)</li>
+                        <li><strong>Branch Name</strong></li>
+                        <li><strong>Routing Number</strong></li>
+                        <li><strong>Account Number</strong></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('uploadBankSheetModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="font-weight: 700;">Upload &amp; Update Roster →</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// JSON cache of employee bank profiles
+const employeesBankData = {
+    {% for e in employees %}
+    {{ e.id }}: {
+        id: {{ e.id }},
+        employee_id: {{ e.employee_id|tojson }},
+        name: {{ e.name|tojson }},
+        department: {{ e.department|tojson }},
+        designation: {{ e.designation|tojson }},
+        bank_name: {{ (e.bank_name or 'The Premier Bank PLC')|tojson }},
+        bank_branch: {{ (e.bank_branch or 'Banani Branch')|tojson }},
+        routing_no: {{ (e.routing_no or '085261198')|tojson }},
+        bank_account_no: {{ (e.bank_account_no or '')|tojson }},
+        payment_method: {{ (e.payment_method or 'EFT')|tojson }},
+        pf_status: {{ (e.pf_status or 'P')|tojson }},
+        tds_amount: {{ e.tds_amount or 0.0 }}
+    },
+    {% endfor %}
+};
+
+function openEditBankModal(empId) {
+    const d = employeesBankData[empId];
+    if (!d) return;
+
+    document.getElementById('editBankForm').action = "/payroll/employees/" + empId + "/edit-bank";
+    document.getElementById('modalEmpName').textContent = d.name + " (" + d.employee_id + ")";
+    document.getElementById('modalEmpMeta').textContent = d.department + " • " + d.designation;
+    
+    document.getElementById('modalBankName').value = d.bank_name || 'The Premier Bank PLC';
+    document.getElementById('modalBankBranch').value = d.bank_branch || 'Banani Branch';
+    document.getElementById('modalRoutingNo').value = d.routing_no || '085261198';
+    document.getElementById('modalAccountNo').value = d.bank_account_no || '';
+    document.getElementById('modalPaymentMethod').value = d.payment_method || 'EFT';
+    document.getElementById('modalPfStatus').value = d.pf_status || 'P';
+    document.getElementById('modalTdsAmount').value = d.tds_amount || 0;
+
+    openModal('editBankModal');
+}
+
+function autoDetectPaymentMethod(bankName) {
+    const methodSelect = document.getElementById('modalPaymentMethod');
+    const routingInput = document.getElementById('modalRoutingNo');
+    const branchInput = document.getElementById('modalBankBranch');
+
+    if (bankName === 'The Premier Bank PLC') {
+        methodSelect.value = 'EFT';
+        if (!routingInput.value) routingInput.value = '085261198';
+        if (!branchInput.value) branchInput.value = 'Banani Branch';
+    } else if (bankName === 'Cash Disbursement') {
+        methodSelect.value = 'Cash';
+        routingInput.value = '';
+        branchInput.value = 'Corporate Office';
+    } else {
+        methodSelect.value = 'BEFTN';
+        if (routingInput.value === '085261198') routingInput.value = '';
+    }
+}
+
+// Inline Spreadsheet Edit Mode Toggle
+let isSpreadsheetMode = false;
+function toggleSpreadsheetMode(forceState) {
+    if (forceState !== undefined) {
+        isSpreadsheetMode = forceState;
+    } else {
+        isSpreadsheetMode = !isSpreadsheetMode;
+    }
+
+    const banner = document.getElementById('spreadsheetActiveBar');
+    const toggleBtn = document.getElementById('btnToggleSpreadsheet');
+    const normalViews = document.querySelectorAll('.normal-view');
+    const editViews = document.querySelectorAll('.edit-view');
+
+    if (isSpreadsheetMode) {
+        if (banner) banner.style.display = 'flex';
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '✕ Exit Spreadsheet Mode';
+            toggleBtn.style.color = '#dc2626';
+            toggleBtn.style.borderColor = '#fca5a5';
+            toggleBtn.style.background = '#fef2f2';
+        }
+        normalViews.forEach(el => el.style.display = 'none');
+        editViews.forEach(el => el.style.display = '');
+    } else {
+        if (banner) banner.style.display = 'none';
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '⚡ Inline Spreadsheet Mode';
+            toggleBtn.style.color = '#0284c7';
+            toggleBtn.style.borderColor = '#38bdf8';
+            toggleBtn.style.background = '#f0f9ff';
+        }
+        normalViews.forEach(el => el.style.display = '');
+        editViews.forEach(el => el.style.display = 'none');
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,417 @@
+{% extends "base.html" %}
+
+{% block title %}{{ employee.name }} - Employee Dossier{% endblock %}
+
+{% block content %}
+<div class="page-header no-print">
+    <div>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <a href="{{ url_for('employee_list') }}" style="color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">
+                ← Back to Employee Directory
+            </a>
+        </div>
+        <h1 class="page-title" style="margin-top: 0.35rem;">
+            👨‍💼 {{ employee.name }}
+            <span class="badge" style="background-color: #dbeafe; color: #1e40af; font-size: 0.8rem; vertical-align: middle; margin-left: 0.5rem;">
+                {{ employee.employee_id }}
+            </span>
+        </h1>
+        <p class="page-description">
+            {{ employee.designation }} &bull; Department of {{ employee.department }}
+        </p>
+    </div>
+        <a href="{{ url_for('edit_employee', employee_id=employee.id) }}" class="btn btn-outline" style="border-color: #2563eb; color: #2563eb;">
+            ✏️ Edit Profile
+        </a>
+        <a href="{{ url_for('generate_noc', emp_id=employee.id) }}" target="_blank" class="btn btn-outline" style="border-color: #6366f1; color: #6366f1;">
+            📄 Issue NOC ↗
+        </a>
+        <a href="{{ url_for('generate_salary_certificate', emp_id=employee.id) }}" target="_blank" class="btn btn-outline" style="border-color: #059669; color: #059669;">
+            💵 Salary Certificate ↗
+        </a>
+        <a href="{{ url_for('generate_experience_certificate', emp_id=employee.id) }}" target="_blank" class="btn btn-outline" style="border-color: #db2777; color: #db2777;">
+            🏅 Experience Certificate ↗
+        </a>
+        <a href="{{ url_for('universal_payslip_generator', emp_id=employee.id) }}" target="_blank" class="btn btn-primary">
+            🧾 Generate Payslip ↗
+        </a>
+    </div>
+</div>
+
+<!-- Profile Top Highlights -->
+<div class="metrics-grid">
+    <div class="metric-card asset">
+        <div class="metric-label">Monthly Gross Compensation</div>
+        <div class="metric-value" style="color: #2563eb;">৳{{ "{:,.2f}".format(employee.basic_salary + employee.allowances) }}</div>
+        <div class="metric-sub">Basic: ৳{{ "{:,.2f}".format(employee.basic_salary) }}</div>
+    </div>
+
+    <div class="metric-card profit">
+        <div class="metric-label">Net Take-Home Salary</div>
+        <div class="metric-value" style="color: #059669;">
+            ৳{{ "{:,.2f}".format(employee.basic_salary + employee.allowances - employee.deductions) }}
+        </div>
+        <div class="metric-sub">After statutory & fund deductions</div>
+    </div>
+
+    <div class="metric-card liability">
+        <div class="metric-label">Accumulated Contribution Fund</div>
+        <div class="metric-value" style="color: #d97706;">৳{{ "{:,.2f}".format(total_fund) }}</div>
+        <div class="metric-sub">Provident & Welfare Fund Balance</div>
+    </div>
+
+    <div class="metric-card expense">
+        <div class="metric-label">Joining Date & Tenure</div>
+        <div class="metric-value" style="font-size: 1.25rem;">
+            {{ employee.joining_date.strftime('%d-%b-%Y') if employee.joining_date else '—' }}
+        </div>
+        <div class="metric-sub">{{ employee.status }} Employment</div>
+    </div>
+</div>
+
+<!-- Tab Navigation -->
+<div class="card" style="padding: 0; overflow: hidden; margin-bottom: 1.5rem;">
+    <div style="display: flex; border-bottom: 1px solid var(--border); background-color: #f8fafc; padding: 0 1rem;">
+        <button class="tab-btn active" onclick="switchTab(event, 'tab-info')">📋 Personal & Employment Info</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-salary')">💵 Salary Structure</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-history')">📜 Salary History ({{ salary_histories|length }})</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-fund')">💰 Contribution Fund ({{ fund_contributions|length }})</button>
+    </div>
+
+    <!-- TAB 1: PERSONAL & EMPLOYMENT INFO -->
+    <div id="tab-info" class="tab-content" style="padding: 1.5rem;">
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem;">
+            <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.35rem;">
+                    <h3 style="font-size: 1rem; color: var(--text-primary); margin: 0;">
+                        Personal Particulars
+                    </h3>
+                    <a href="{{ url_for('edit_employee', employee_id=employee.id) }}" style="font-size: 0.8rem; color: #2563eb; text-decoration: none; font-weight: 600;">
+                        ✏️ Edit Particulars
+                    </a>
+                </div>
+                <table style="width: 100%; font-size: 0.9rem; line-height: 2.2;">
+                    <tr>
+                        <td style="color: var(--text-muted); width: 35%;">Full Legal Name:</td>
+                        <td><strong>{{ employee.name }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td style="color: var(--text-muted);">National ID / Passport:</td>
+                        <td>
+                            {% if employee.nid_passport %}
+                                <strong style="font-family: 'JetBrains Mono', monospace;">{{ employee.nid_passport }}</strong>
+                            {% else %}
+                                <span style="color: var(--text-muted);">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="color: var(--text-muted);">Gender:</td>
+                        <td>{{ employee.gender or '—' }}</td>
+                    </tr>
+                    <tr>
+                        <td style="color: var(--text-muted);">Official Email:</td>
+                        <td>
+                            {% if employee.email %}
+                                <a href="mailto:{{ employee.email }}" style="color: var(--accent);">{{ employee.email }}</a>
+                            {% else %}
+                                <span style="color: var(--text-muted);">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="color: var(--text-muted);">Contact Phone:</td>
+                        <td>
+                            {% if employee.phone %}
+                                <span style="font-family: 'JetBrains Mono', monospace;">{{ employee.phone }}</span>
+                            {% else %}
+                                <span style="color: var(--text-muted);">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="color: var(--text-muted);">Residential Address:</td>
+                        <td>
+                            {% if employee.present_address %}
+                                <span>{{ employee.present_address }}</span>
+                            {% else %}
+                                <span style="color: var(--text-muted);">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <div>
+                <h3 style="font-size: 1rem; color: var(--text-primary); margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.35rem;">
+                    Employment & Banking
+                </h3>
+                <table style="width: 100%; font-size: 0.9rem; line-height: 2.2;">
+                    <tr>
+                        <td style="color: var(--text-muted); width: 35%;">Employee Code:</td>
+                        <td><strong style="font-family: 'JetBrains Mono', monospace; color: var(--accent);">{{ employee.employee_id }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td style="color: var(--text-muted);">Designation:</td>
+                        <td><strong>{{ employee.designation }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td style="color: var(--text-muted);">Department:</td>
+                        <td>{{ employee.department }}</td>
+                    </tr>
+                    <tr>
+                        <td style="color: var(--text-muted);">Date of Joining:</td>
+                        <td>
+                            {% if employee.joining_date %}
+                                <strong>{{ employee.joining_date.strftime('%d-%b-%Y') }}</strong>
+                            {% else %}
+                                <span style="color: var(--text-muted);">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="color: var(--text-muted);">Employment Status:</td>
+                        <td>
+                            <span class="badge" style="background-color: #d1fae5; color: #065f46;">{{ employee.status }}</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="color: var(--text-muted);">Disbursement Account:</td>
+                        <td>
+                            {% if employee.bank_account_no %}
+                                <strong style="font-family: 'JetBrains Mono', monospace;">{{ employee.bank_account_no }}</strong>
+                            {% else %}
+                                <span style="color: var(--text-muted);">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: SALARY STRUCTURE -->
+    <div id="tab-salary" class="tab-content" style="padding: 1.5rem; display: none;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+            <div>
+                <h3 style="font-size: 1rem; color: #065f46; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.35rem;">
+                    Earnings Structure (+)
+                </h3>
+                <table class="table report-table">
+                    <tr>
+                        <td>Basic Salary</td>
+                        <td class="num-col" style="font-weight: 700;">৳{{ "{:,.2f}".format(employee.basic_salary) }}</td>
+                    </tr>
+                    <tr>
+                        <td>House Rent Allowance (40%)</td>
+                        <td class="num-col">৳{{ "{:,.2f}".format(employee.house_rent if employee.house_rent > 0 else employee.basic_salary * 0.4) }}</td>
+                    </tr>
+                    <tr>
+                        <td>Medical Allowance (10%)</td>
+                        <td class="num-col">৳{{ "{:,.2f}".format(employee.medical_allowance if employee.medical_allowance > 0 else employee.basic_salary * 0.1) }}</td>
+                    </tr>
+                    <tr>
+                        <td>Conveyance Allowance (5%)</td>
+                        <td class="num-col">৳{{ "{:,.2f}".format(employee.conveyance if employee.conveyance > 0 else employee.basic_salary * 0.05) }}</td>
+                    </tr>
+                    <tr class="report-subtotal-row">
+                        <td><strong>Total Monthly Gross Earnings</strong></td>
+                        <td class="num-col" style="color: #059669; font-weight: 800;">
+                            ৳{{ "{:,.2f}".format(employee.basic_salary + employee.allowances) }}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <div>
+                <h3 style="font-size: 1rem; color: #991b1b; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.35rem;">
+                    Deductions Structure (-)
+                </h3>
+                <table class="table report-table">
+                    <tr>
+                        <td>Provident Fund (Employee 8%)</td>
+                        <td class="num-col" style="color: #dc2626;">৳{{ "{:,.2f}".format(employee.provident_fund if employee.provident_fund > 0 else employee.basic_salary * 0.08) }}</td>
+                    </tr>
+                    <tr>
+                        <td>Income Tax / Other Deductions</td>
+                        <td class="num-col" style="color: #dc2626;">
+                            ৳{{ "{:,.2f}".format(employee.deductions - (employee.provident_fund if employee.provident_fund > 0 else employee.basic_salary * 0.08) if employee.deductions > 0 else 0.0) }}
+                        </td>
+                    </tr>
+                    <tr class="report-subtotal-row">
+                        <td><strong>Total Monthly Deductions</strong></td>
+                        <td class="num-col" style="color: #dc2626; font-weight: 800;">
+                            ৳{{ "{:,.2f}".format(employee.deductions) }}
+                        </td>
+                    </tr>
+                </table>
+
+                <div style="margin-top: 1.5rem; background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius-sm); padding: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 0.8rem; font-weight: 700; color: #1e40af;">NET TAKE-HOME PAY:</div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Direct transfer into bank account</div>
+                    </div>
+                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 1.35rem; font-weight: 800; color: #1e40af;">
+                        ৳{{ "{:,.2f}".format(employee.basic_salary + employee.allowances - employee.deductions) }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: SALARY HISTORY -->
+    <div id="tab-history" class="tab-content" style="padding: 1.5rem; display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="font-size: 1rem; color: var(--text-primary); margin: 0;">
+                📜 Historical Salary Disbursement Records
+            </h3>
+            <a href="{{ url_for('salary_history_dashboard', employee_id=employee.id) }}" class="btn btn-outline btn-sm">
+                View Global Salary History ↗
+            </a>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table" style="font-size: 0.85rem;">
+                <thead>
+                    <tr>
+                        <th>Salary Month</th>
+                        <th>Payment Date</th>
+                        <th class="num-col">Basic (৳)</th>
+                        <th class="num-col">Allowances (৳)</th>
+                        <th class="num-col">Gross (৳)</th>
+                        <th class="num-col">Deductions (৳)</th>
+                        <th class="num-col">Net Pay (৳)</th>
+                        <th style="width: 110px; text-align: center;">Payslip</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if salary_histories %}
+                        {% for sh in salary_histories %}
+                        <tr>
+                            <td style="font-weight: 700; color: var(--text-primary);">{{ sh.salary_month }}</td>
+                            <td>{{ sh.payment_date.strftime('%d-%b-%Y') if sh.payment_date else '' }}</td>
+                            <td class="num-col">৳{{ "{:,.2f}".format(sh.basic_salary) }}</td>
+                            <td class="num-col" style="color: #059669;">+৳{{ "{:,.2f}".format(sh.gross_salary - sh.basic_salary) }}</td>
+                            <td class="num-col" style="font-weight: 600;">৳{{ "{:,.2f}".format(sh.gross_salary) }}</td>
+                            <td class="num-col" style="color: #dc2626;">-৳{{ "{:,.2f}".format(sh.total_deductions) }}</td>
+                            <td class="num-col" style="font-weight: 700; color: #1e40af;">
+                                ৳{{ "{:,.2f}".format(sh.net_salary) }}
+                            </td>
+                            <td style="text-align: center;">
+                                <a href="{{ url_for('universal_payslip_generator', emp_id=employee.id, month=sh.salary_month) }}" target="_blank" class="btn btn-outline btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">
+                                    📄 Payslip ↗
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                No historical salary records imported yet for this employee.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- TAB 4: CONTRIBUTION FUND -->
+    <div id="tab-fund" class="tab-content" style="padding: 1.5rem; display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div>
+                <h3 style="font-size: 1rem; color: var(--text-primary); margin: 0;">
+                    💰 Employee Contribution Fund Ledger (PF & Welfare)
+                </h3>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">
+                    Total Accumulated Balance: <strong style="color: #059669; font-size: 0.95rem;">৳{{ "{:,.2f}".format(total_fund) }}</strong>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <a href="{{ url_for('employee_fund_ledger', emp_id=employee.id) }}" target="_blank" class="btn btn-outline btn-sm">
+                    🖨️ Full Fund Statement ↗
+                </a>
+                <a href="{{ url_for('export_employee_fund_excel', emp_id=employee.id) }}" class="btn btn-success btn-sm">
+                    📊 Export Excel
+                </a>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table" style="font-size: 0.85rem;">
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Date</th>
+                        <th class="num-col">Employee Share (৳)</th>
+                        <th class="num-col">Company Match (৳)</th>
+                        <th class="num-col">Profit / Interest (৳)</th>
+                        <th class="num-col">Monthly Total (৳)</th>
+                        <th class="num-col">Cumulative Fund (৳)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if fund_contributions %}
+                        {% for fc in fund_contributions %}
+                        <tr>
+                            <td style="font-weight: 700;">{{ fc.contribution_month }}</td>
+                            <td>{{ fc.contribution_date.strftime('%d-%b-%Y') if fc.contribution_date else '' }}</td>
+                            <td class="num-col">৳{{ "{:,.2f}".format(fc.employee_share) }}</td>
+                            <td class="num-col" style="color: #059669;">৳{{ "{:,.2f}".format(fc.employer_share) }}</td>
+                            <td class="num-col" style="color: #2563eb;">৳{{ "{:,.2f}".format(fc.profit_interest) }}</td>
+                            <td class="num-col" style="font-weight: 600;">৳{{ "{:,.2f}".format(fc.total_monthly) }}</td>
+                            <td class="num-col" style="font-weight: 700; color: #059669;">
+                                ৳{{ "{:,.2f}".format(fc.cumulative_balance) }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                No fund contribution entries recorded yet.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function switchTab(evt, tabId) {
+    var contents = document.getElementsByClassName("tab-content");
+    for (var i = 0; i < contents.length; i++) {
+        contents[i].style.display = "none";
+    }
+    var buttons = document.getElementsByClassName("tab-btn");
+    for (var i = 0; i < buttons.length; i++) {
+        buttons[i].classList.remove("active");
+    }
+    document.getElementById(tabId).style.display = "block";
+    evt.currentTarget.classList.add("active");
+}
+</script>
+
+<style>
+.tab-btn {
+    background: none;
+    border: none;
+    padding: 0.85rem 1.25rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+.tab-btn:hover {
+    color: var(--accent);
+}
+.tab-btn.active {
+    color: var(--accent);
+    border-bottom: 2px solid var(--accent);
+    background-color: #ffffff;
+}
+</style>
+{% endblock %}

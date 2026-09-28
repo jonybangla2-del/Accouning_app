@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>No Objection Certificate (NOC) - {{ employee.name }} ({{ employee.employee_id }})</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            padding: 2.5rem 1rem;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .cert-container {
+            max-width: 820px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+            padding: 3.5rem 4rem;
+            border: 1px solid #cbd5e1;
+            position: relative;
+        }
+        .letterhead-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .logo-area h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.85rem;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: 0.02em;
+            margin-bottom: 0.2rem;
+        }
+        .logo-area div {
+            font-size: 0.85rem;
+            color: #475569;
+        }
+        .contact-area {
+            text-align: right;
+            font-size: 0.82rem;
+            color: #64748b;
+            line-height: 1.45;
+        }
+        .cert-meta {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+            color: #334155;
+        }
+        .cert-title-box {
+            text-align: center;
+            margin: 2rem 0;
+        }
+        .cert-title {
+            display: inline-block;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #0f172a;
+            border-bottom: 2px solid #2563eb;
+            padding-bottom: 0.4rem;
+        }
+        .cert-salutation {
+            font-weight: 700;
+            font-size: 1.05rem;
+            margin-bottom: 1.5rem;
+            color: #1e293b;
+        }
+        .cert-body {
+            font-size: 1rem;
+            line-height: 1.85;
+            color: #1e293b;
+            text-align: justify;
+            margin-bottom: 2rem;
+        }
+        .cert-body p {
+            margin-bottom: 1.25rem;
+        }
+        .emp-highlight {
+            font-weight: 700;
+            color: #0f172a;
+        }
+        .signature-section {
+            margin-top: 5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+        .sig-block {
+            text-align: center;
+            width: 220px;
+        }
+        .sig-line {
+            border-top: 1px dashed #64748b;
+            padding-top: 0.6rem;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+        .sig-desig {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-top: 0.15rem;
+        }
+        .seal-box {
+            width: 110px;
+            height: 110px;
+            border: 2px dashed #94a3b8;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.72rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-align: center;
+            margin: 0 auto;
+        }
+        @media print {
+            body { background: none; padding: 0; }
+            .cert-container { border: none; box-shadow: none; padding: 0; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print" style="max-width: 820px; margin: 0 auto 1.5rem auto; display: flex; justify-content: space-between; align-items: center;">
+        <a href="{{ url_for('documents_hub') }}" style="color: #2563eb; text-decoration: none; font-size: 0.9rem; font-weight: 600;">
+            ← Back to Documents Hub
+        </a>
+        <div style="display: flex; gap: 0.75rem;">
+            <button onclick="window.print()" class="btn btn-primary" style="padding: 0.5rem 1.25rem;">
+                🖨️ Print / Save as PDF
+            </button>
+            <button onclick="window.close()" class="btn btn-outline" style="padding: 0.5rem 1rem;">
+                Close Window
+            </button>
+        </div>
+    </div>
+
+    <div class="cert-container">
+        <!-- Letterhead Header -->
+        <div class="letterhead-header">
+            <div class="logo-area">
+                <h1>LEDGERPRO ENTERPRISE LIMITED</h1>
+                <div>Corporate Headquarters &bull; Human Resources Division</div>
+            </div>
+            <div class="contact-area">
+                <div>Plot #45, Gulshan Avenue, Dhaka-1212</div>
+                <div>Tel: +880 2 9876543 | Web: www.zr-erp.com</div>
+                <div>Email: hr@zr-erp.com</div>
+            </div>
+        </div>
+
+        <!-- Meta Ref and Date -->
+        <div class="cert-meta">
+            <div>Ref No: <strong style="font-family: 'JetBrains Mono', monospace;">{{ ref_no }}</strong></div>
+            <div>Date: <strong>{{ issue_date.strftime('%d %B, %Y') }}</strong></div>
+        </div>
+
+        <!-- Title -->
+        <div class="cert-title-box">
+            <div class="cert-title">NO OBJECTION CERTIFICATE (NOC)</div>
+        </div>
+
+        <!-- Salutation -->
+        <div class="cert-salutation">
+            TO WHOM IT MAY CONCERN
+        </div>
+
+        <!-- Certificate Body -->
+        <div class="cert-body">
+            <p>
+                This is to officially certify that <span class="emp-highlight">{{ employee.name }}</span>, holding Employee ID <span class="emp-highlight" style="font-family: 'JetBrains Mono', monospace;">{{ employee.employee_id }}</span>{% if employee.nid_passport %} and National ID / Passport No. <span class="emp-highlight" style="font-family: 'JetBrains Mono', monospace;">{{ employee.nid_passport }}</span>{% endif %}, is a permanent, full-time employee of <strong>ZR-ERP Enterprise Limited</strong>.
+            </p>
+            <p>
+                {% if employee.joining_date %}He/She joined our organization on <span class="emp-highlight">{{ employee.joining_date.strftime('%d %B, %Y') }}</span> and is currently holding the substantive position{% else %}He/She is currently holding the substantive position{% endif %} of <span class="emp-highlight">{{ employee.designation }}</span> in the Department of <span class="emp-highlight">{{ employee.department }}</span>.
+            </p>
+            <p>
+                This certificate is being furnished upon the formal application of the employee for the specific purpose of <span class="emp-highlight">{{ purpose }}</span>{% if country and country != 'Overseas' %} in <span class="emp-highlight">{{ country }}</span>{% endif %}.
+            </p>
+            <p>
+                The management of ZR-ERP Enterprise Limited hereby declares that it has <strong>NO OBJECTION</strong> whatsoever to his/her application or undertaking for the aforementioned purpose. We further certify that during his/her authorized period of absence, his/her employment with our company remains active, and he/she will resume official duties upon return.
+            </p>
+            <p>
+                During his/her service tenure with us, <span class="emp-highlight">{{ employee.name }}</span> has proven to be an upright, diligent, and sincere professional of high moral character and integrity.
+            </p>
+            <p>
+                We wish him/her every success in all future pursuits.
+            </p>
+        </div>
+
+        <!-- Signatures and Official Seal -->
+        <div class="signature-section">
+            <div class="sig-block">
+                <div class="sig-line">Prepared & Verified By</div>
+                <div class="sig-desig">Head of Human Resources</div>
+                <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.2rem;">ZR-ERP Enterprise Ltd.</div>
+            </div>
+
+            <div class="seal-box">
+                OFFICIAL<br>CORPORATE<br>SEAL
+            </div>
+
+            <div class="sig-block">
+                <div class="sig-line">Authorized Signatory</div>
+                <div class="sig-desig">Managing Director / CEO</div>
+                <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.2rem;">ZR-ERP Enterprise Ltd.</div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

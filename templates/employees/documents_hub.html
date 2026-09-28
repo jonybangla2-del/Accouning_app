@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Documents & Certificates Generator - ZR-ERP ERP{% endblock %}
+
+{% block content %}
+<div class="page-header no-print">
+    <div>
+        <h1 class="page-title">📜 Employee Documents & Certificates Hub</h1>
+        <p class="page-description">
+            Generate official corporate certificates (NOC, Salary Certificate, Experience Certificate, and Pay Slip) by Employee ID number.
+        </p>
+    </div>
+    <div class="header-actions">
+        <a href="{{ url_for('employee_list') }}" class="btn btn-outline">
+            👥 Employee Directory
+        </a>
+    </div>
+</div>
+
+<!-- Instant Certificate Generator Card -->
+<div class="card" style="margin-bottom: 2rem; border-top: 4px solid var(--accent);">
+    <div class="card-header">
+        <h2 class="card-title">⚡ Instant Certificate Generator</h2>
+        <span class="badge" style="background-color: #dbeafe; color: #1e40af;">Official Letterhead Engine</span>
+    </div>
+
+    <div style="padding: 1.25rem;">
+        <form id="docGeneratorForm" target="_blank" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; align-items: flex-end;">
+            <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">
+                    1. Select Employee ID / Name
+                </label>
+                <select id="empSelect" class="form-control" onchange="updateEmployeePreview()" required>
+                    {% for emp in employees %}
+                    <option value="{{ emp.id }}" data-code="{{ emp.employee_id }}" data-desig="{{ emp.designation }}" data-dept="{{ emp.department }}" {% if selected_employee and selected_employee.id == emp.id %}selected{% endif %}>
+                        {{ emp.employee_id }} - {{ emp.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">
+                    2. Document / Certificate Type
+                </label>
+                <select id="docTypeSelect" class="form-control" onchange="toggleDocFields()" required>
+                    <option value="noc">No Objection Certificate (NOC)</option>
+                    <option value="salary">Salary Certificate</option>
+                    <option value="payslip">Monthly Pay Slip</option>
+                    <option value="experience">Experience / Service Certificate</option>
+                </select>
+            </div>
+
+            <div id="purposeContainer">
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">
+                    3. Purpose / Stated Objective
+                </label>
+                <input type="text" id="docPurpose" value="Visa Application & International Travel" class="form-control" placeholder="e.g. Bank Loan, Visa, Tenancy">
+            </div>
+
+            <div id="monthContainer" style="display: none;">
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">
+                    3. Salary Month (For Payslip)
+                </label>
+                <select id="docMonth" class="form-control">
+                    <option value="2026-01">January 2026</option>
+                    <option value="2026-02">February 2026</option>
+                    <option value="2026-03">March 2026</option>
+                    <option value="2025-12">December 2025</option>
+                    <option value="2025-11">November 2025</option>
+                    <option value="2025-10">October 2025</option>
+                </select>
+            </div>
+
+            <div>
+                <button type="button" onclick="launchDocument()" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 0.65rem 1rem;">
+                    🚀 Generate & Print Certificate ↗
+                </button>
+            </div>
+        </form>
+
+        <div id="employeePreviewBox" style="margin-top: 1.25rem; background-color: #f8fafc; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); padding: 0.85rem 1.25rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.88rem;">
+            <div>
+                Selected: <strong id="prevName" style="color: var(--text-primary);">{{ selected_employee.name if selected_employee else '' }}</strong>
+                &bull; <span id="prevDesig" style="color: var(--text-secondary);">{{ selected_employee.designation if selected_employee else '' }}</span>
+                &bull; Dept: <span id="prevDept" style="color: var(--text-secondary);">{{ selected_employee.department if selected_employee else '' }}</span>
+            </div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--accent); font-weight: 600;">
+                ID: <span id="prevCode">{{ selected_employee.employee_id if selected_employee else '' }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Employee Fast-Action Roster Table -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">📋 1-Click Document Generator Roster</h2>
+        <span class="badge">{{ employees|length }} Active Staff</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 90px;">Emp ID</th>
+                    <th>Full Name</th>
+                    <th>Designation & Dept</th>
+                    <th class="num-col">Gross Pay (৳)</th>
+                    <th style="text-align: center; width: 110px;">NOC</th>
+                    <th style="text-align: center; width: 120px;">Salary Cert</th>
+                    <th style="text-align: center; width: 110px;">Pay Slip</th>
+                    <th style="text-align: center; width: 130px;">Experience</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in employees %}
+                <tr>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent);">
+                        {{ emp.employee_id }}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('employee_profile', emp_id=emp.id) }}" style="text-decoration: none; color: var(--text-primary); font-weight: 600;">
+                            {{ emp.name }}
+                        </a>
+                    </td>
+                    <td>
+                        <div>{{ emp.designation }}</div>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">{{ emp.department }}</span>
+                    </td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #059669;">
+                        ৳{{ "{:,.2f}".format(emp.basic_salary + emp.allowances) }}
+                    </td>
+                    <td style="text-align: center;">
+                        <a href="{{ url_for('generate_noc', emp_id=emp.id) }}" target="_blank" class="btn btn-outline btn-sm" style="color: #4f46e5; border-color: #c7d2fe; font-size: 0.78rem; padding: 0.25rem 0.6rem;">
+                            📄 NOC ↗
+                        </a>
+                    </td>
+                    <td style="text-align: center;">
+                        <a href="{{ url_for('generate_salary_certificate', emp_id=emp.id) }}" target="_blank" class="btn btn-outline btn-sm" style="color: #059669; border-color: #a7f3d0; font-size: 0.78rem; padding: 0.25rem 0.6rem;">
+                            💵 Salary ↗
+                        </a>
+                    </td>
+                    <td style="text-align: center;">
+                        <a href="{{ url_for('universal_payslip_generator', emp_id=emp.id) }}" target="_blank" class="btn btn-outline btn-sm" style="color: #d97706; border-color: #fde68a; font-size: 0.78rem; padding: 0.25rem 0.6rem;">
+                            🧾 Slip ↗
+                        </a>
+                    </td>
+                    <td style="text-align: center;">
+                        <a href="{{ url_for('generate_experience_certificate', emp_id=emp.id) }}" target="_blank" class="btn btn-outline btn-sm" style="color: #db2777; border-color: #fbcfe8; font-size: 0.78rem; padding: 0.25rem 0.6rem;">
+                            🏅 Service ↗
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function updateEmployeePreview() {
+    var sel = document.getElementById("empSelect");
+    var opt = sel.options[sel.selectedIndex];
+    if (opt) {
+        document.getElementById("prevName").innerText = opt.text.split('-')[1].trim();
+        document.getElementById("prevCode").innerText = opt.getAttribute("data-code");
+        document.getElementById("prevDesig").innerText = opt.getAttribute("data-desig");
+        document.getElementById("prevDept").innerText = opt.getAttribute("data-dept");
+    }
+}
+
+function toggleDocFields() {
+    var docType = document.getElementById("docTypeSelect").value;
+    var purpCont = document.getElementById("purposeContainer");
+    var monthCont = document.getElementById("monthContainer");
+    var purpInput = document.getElementById("docPurpose");
+
+    if (docType === "noc") {
+        purpCont.style.display = "block";
+        monthCont.style.display = "none";
+        purpInput.value = "Visa Application & International Travel";
+    } else if (docType === "salary") {
+        purpCont.style.display = "block";
+        monthCont.style.display = "none";
+        purpInput.value = "Bank Loan & Credit Card Facility Application";
+    } else if (docType === "payslip") {
+        purpCont.style.display = "none";
+        monthCont.style.display = "block";
+    } else {
+        purpCont.style.display = "none";
+        monthCont.style.display = "none";
+    }
+}
+
+function launchDocument() {
+    var empId = document.getElementById("empSelect").value;
+    var docType = document.getElementById("docTypeSelect").value;
+    var purpose = encodeURIComponent(document.getElementById("docPurpose").value);
+    var month = document.getElementById("docMonth").value;
+
+    var url = "";
+    if (docType === "noc") {
+        url = "/employees/" + empId + "/noc?purpose=" + purpose;
+    } else if (docType === "salary") {
+        url = "/employees/" + empId + "/salary-certificate?purpose=" + purpose;
+    } else if (docType === "payslip") {
+        url = "/employees/" + empId + "/payslip-generator?month=" + month;
+    } else if (docType === "experience") {
+        url = "/employees/" + empId + "/experience-certificate";
+    }
+
+    if (url) {
+        window.open(url, "_blank");
+    }
+}
+</script>
+{% endblock %}

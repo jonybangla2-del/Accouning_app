@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Reconciliation Statement - {{ bank_account.name }} ({{ month }})</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            padding: 2rem 1rem;
+        }
+        .report-sheet {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            padding: 3rem 3.5rem;
+            border: 1px solid #cbd5e1;
+        }
+        .company-header {
+            text-align: center;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .company-name {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.65rem;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: 0.03em;
+        }
+        .company-sub {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+        }
+        .doc-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1e40af;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 0.75rem;
+        }
+        .recon-meta-table {
+            width: 100%;
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+        }
+        .statement-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 2rem;
+            font-size: 0.95rem;
+        }
+        .statement-table th {
+            text-align: left;
+            padding: 0.6rem 0.75rem;
+            background-color: #f1f5f9;
+            border-bottom: 2px solid #94a3b8;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            color: #334155;
+        }
+        .statement-table td {
+            padding: 0.65rem 0.75rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .num-val {
+            text-align: right;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+        }
+        .total-row {
+            font-weight: 700;
+            border-top: 2px solid #0f172a !important;
+            border-bottom: 2px solid #0f172a !important;
+            background-color: #f8fafc;
+        }
+        .text-recon-zero {
+            color: #059669;
+        }
+        .text-recon-diff {
+            color: #dc2626;
+        }
+        .signature-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            margin-top: 4.5rem;
+            text-align: center;
+        }
+        .signature-line {
+            border-top: 1px dashed #64748b;
+            padding-top: 0.5rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #334155;
+        }
+        .signature-title {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            margin-top: 0.15rem;
+        }
+        @media print {
+            body { background: none; padding: 0; }
+            .report-sheet { border: none; box-shadow: none; padding: 0; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print" style="max-width: 800px; margin: 0 auto 1.5rem auto; display: flex; justify-content: space-between; align-items: center;">
+        <a href="{{ url_for('bank_reconciliation', account_id=bank_account.id, month=month) }}" style="color: #2563eb; text-decoration: none; font-size: 0.9rem; font-weight: 600;">
+            ← Back to Reconciliation Workspace
+        </a>
+        <div style="display: flex; gap: 0.75rem;">
+            <button onclick="window.print()" class="btn btn-primary" style="padding: 0.5rem 1.25rem;">
+                🖨️ Print / Save as PDF
+            </button>
+            <button onclick="window.close()" class="btn btn-outline" style="padding: 0.5rem 1rem;">
+                Close Window
+            </button>
+        </div>
+    </div>
+
+    <div class="report-sheet">
+        <!-- Corporate Header -->
+        <div class="company-header">
+            <div class="company-name">LEDGERPRO ENTERPRISE LIMITED</div>
+            <div class="company-sub">Corporate Finance & Treasury Division &bull; Head Office, Dhaka, Bangladesh</div>
+            <div class="doc-title">BANK RECONCILIATION STATEMENT</div>
+            <div style="font-size: 0.9rem; color: #475569; margin-top: 0.35rem; font-weight: 600;">
+                For the Period Ended: {{ recon.statement_date.strftime('%d %B, %Y') if recon and recon.statement_date else month }}
+            </div>
+        </div>
+
+        <!-- Particulars Meta Bar -->
+        <table class="recon-meta-table">
+            <tr>
+                <td style="color: #64748b; width: 22%;">Bank Account:</td>
+                <td><strong>{{ bank_account.name }}</strong> (Code: {{ bank_account.code }})</td>
+                <td style="color: #64748b; width: 20%;">Recon Status:</td>
+                <td><strong style="color: #059669;">{{ recon.status if recon else 'Reconciled' }} (Audit Verified)</strong></td>
+            </tr>
+            <tr>
+                <td style="color: #64748b;">Currency:</td>
+                <td><strong>Bangladeshi Taka (BDT ৳)</strong></td>
+                <td style="color: #64748b;">Reconciled By:</td>
+                <td><strong>{{ recon.reconciled_by if recon else 'Administrator' }}</strong></td>
+            </tr>
+        </table>
+
+        <!-- Formal CPA Two-Part Reconciliation Statement -->
+        <table class="statement-table">
+            <thead>
+                <tr>
+                    <th style="width: 70%;">Particulars / Item Description</th>
+                    <th class="num-val" style="width: 30%;">Amount (৳)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- PART A: BANK BALANCE TO ADJUSTED -->
+                <tr style="background-color: #f8fafc;">
+                    <td colspan="2" style="font-weight: 700; color: #1e40af; font-size: 0.88rem;">
+                        PART A: ADJUSTMENT OF BALANCE PER BANK STATEMENT
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Balance as per Bank Statement</strong> (as of {{ recon.statement_date.strftime('%d-%b-%Y') if recon and recon.statement_date else '' }}):</td>
+                    <td class="num-val">৳{{ "{:,.2f}".format(recon.statement_balance if recon else 0.0) }}</td>
+                </tr>
+                <tr>
+                    <td style="padding-left: 1.5rem; color: #059669;">
+                        + <em>Add: Deposits in Transit / Uncredited Cheques:</em>
+                    </td>
+                    <td class="num-val" style="color: #059669;">
+                        +৳{{ "{:,.2f}".format(recon.uncredited_deposits if recon else 0.0) }}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding-left: 1.5rem; color: #dc2626;">
+                        - <em>Less: Outstanding Cheques / Unpresented Cheques:</em>
+                    </td>
+                    <td class="num-val" style="color: #dc2626;">
+                        -৳{{ "{:,.2f}".format(recon.unpresented_cheques if recon else 0.0) }}
+                    </td>
+                </tr>
+                <tr style="font-weight: 700; background-color: #eff6ff;">
+                    <td style="color: #1e40af;">(1) ADJUSTED BANK STATEMENT BALANCE:</td>
+                    <td class="num-val" style="color: #1e40af; font-size: 1.05rem;">
+                        ৳{{ "{:,.2f}".format(recon.adjusted_bank_balance if recon else 0.0) }}
+                    </td>
+                </tr>
+
+                <tr><td colspan="2" style="height: 1.25rem; border: none;"></td></tr>
+
+                <!-- PART B: BOOK BALANCE TO ADJUSTED -->
+                <tr style="background-color: #f8fafc;">
+                    <td colspan="2" style="font-weight: 700; color: #065f46; font-size: 0.88rem;">
+                        PART B: ADJUSTMENT OF BALANCE PER GENERAL LEDGER (BOOKS)
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Balance as per General Ledger</strong> (Cash/Bank Book):</td>
+                    <td class="num-val">৳{{ "{:,.2f}".format(recon.book_balance if recon else 0.0) }}</td>
+                </tr>
+                <tr>
+                    <td style="padding-left: 1.5rem; color: #059669;">
+                        + <em>Add: Direct Bank Credits / Interest not in Books:</em>
+                    </td>
+                    <td class="num-val" style="color: #059669;">
+                        +৳{{ "{:,.2f}".format(recon.direct_credits if recon else 0.0) }}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding-left: 1.5rem; color: #dc2626;">
+                        - <em>Less: Bank Charges, Fees & Excise Duty:</em>
+                    </td>
+                    <td class="num-val" style="color: #dc2626;">
+                        -৳{{ "{:,.2f}".format(recon.bank_charges if recon else 0.0) }}
+                    </td>
+                </tr>
+                <tr style="font-weight: 700; background-color: #ecfdf5;">
+                    <td style="color: #065f46;">(2) ADJUSTED GENERAL LEDGER BOOK BALANCE:</td>
+                    <td class="num-val" style="color: #065f46; font-size: 1.05rem;">
+                        ৳{{ "{:,.2f}".format(recon.adjusted_book_balance if recon else 0.0) }}
+                    </td>
+                </tr>
+
+                <tr><td colspan="2" style="height: 1.25rem; border: none;"></td></tr>
+
+                <!-- VARIANCE ROW -->
+                <tr class="total-row">
+                    <td style="font-size: 1rem; color: #0f172a;">
+                        NET RECONCILIATION VARIANCE / DIFFERENCE [(1) - (2)]:
+                    </td>
+                    <td class="num-val {% if recon and recon.variance == 0 %}text-recon-zero{% else %}text-recon-diff{% endif %}" style="font-size: 1.2rem;">
+                        ৳{{ "{:,.2f}".format(recon.variance if recon else 0.0) }}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Auditor Confirmation Note -->
+        <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.85rem 1.15rem; font-size: 0.82rem; color: #475569; margin-bottom: 2rem;">
+            <strong>Auditor Note:</strong> This Bank Reconciliation Statement has been prepared in accordance with Generally Accepted Accounting Principles (GAAP) and CPA Standards. The Adjusted Bank Balance and Adjusted Book Balance are in complete agreement without unreconciled discrepancy.
+        </div>
+
+        <!-- Corporate Signatures -->
+        <div class="signature-grid">
+            <div>
+                <div class="signature-line">Prepared By</div>
+                <div class="signature-title">Senior Accounts Executive</div>
+            </div>
+            <div>
+                <div class="signature-line">Checked & Verified By</div>
+                <div class="signature-title">Manager Accounts & Finance</div>
+            </div>
+            <div>
+                <div class="signature-line">Approved & Certified By</div>
+                <div class="signature-title">Chief Financial Officer (CFO)</div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

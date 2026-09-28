@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block title %}Fund Statement - {{ employee.name }} ({{ employee.employee_id }}){% endblock %}
+
+{% block content %}
+<div class="page-header no-print">
+    <div>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <a href="{{ url_for('fund_contributions_dashboard') }}" style="color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">
+                ← Back to Fund Portfolio
+            </a>
+        </div>
+        <h1 class="page-title" style="margin-top: 0.35rem;">
+            💰 Individual Contribution Fund Statement
+        </h1>
+        <p class="page-description">
+            Provident & Welfare Fund accumulation statement for <strong>{{ employee.name }}</strong> ({{ employee.employee_id }}).
+        </p>
+    </div>
+    <div class="header-actions">
+        <button onclick="window.print()" class="btn btn-primary">
+            🖨️ Print Fund Statement
+        </button>
+        <a href="{{ url_for('export_employee_fund_excel', emp_id=employee.id) }}" class="btn btn-success">
+            📊 Export to Excel
+        </a>
+        <button type="button" class="btn btn-danger" onclick="openModal('clearEmpFundModal')" style="display: inline-flex; align-items: center; gap: 0.4rem; background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border: none; color: #fff; font-weight: 600; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);">
+            🗑️ Clear Previous Data
+        </button>
+    </div>
+</div>
+
+<!-- Employee Header Card -->
+<div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.5rem; color: #ffffff; margin: 0;">
+                    {{ employee.name }}
+                </h2>
+                <span style="background: rgba(255, 255, 255, 0.2); color: #ffffff; font-family: 'JetBrains Mono', monospace; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.85rem; font-weight: 700;">
+                    {{ employee.employee_id }}
+                </span>
+            </div>
+            <div style="color: #cbd5e1; font-size: 0.9rem; margin-top: 0.35rem;">
+                {{ employee.designation }} &bull; Department of {{ employee.department }}
+            </div>
+            <div style="color: #94a3b8; font-size: 0.82rem; margin-top: 0.2rem;">
+                {% if employee.joining_date %}Joined: {{ employee.joining_date.strftime('%d-%b-%Y') }} &bull; {% endif %}Basic Pay: ৳{{ "{:,.2f}".format(employee.basic_salary) }}
+            </div>
+        </div>
+
+        <div style="text-align: right; background: rgba(255, 255, 255, 0.1); padding: 1rem 1.5rem; border-radius: var(--radius-sm); border: 1px solid rgba(255, 255, 255, 0.15);">
+            <div style="font-size: 0.75rem; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em; font-weight: 700;">
+                TOTAL ACCUMULATED FUND
+            </div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 1.85rem; font-weight: 800; color: #34d399; margin-top: 0.25rem;">
+                ৳{{ "{:,.2f}".format(closing_bal) }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Fund Movement Ledger Table -->
+<div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 class="card-title">📜 Chronological Fund Contributions & Profits</h2>
+        <span class="badge" style="background-color: #d1fae5; color: #065f46;">{{ records|length }} Contributions Logged</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table report-table">
+            <thead>
+                <tr>
+                    <th style="width: 100px;">Month</th>
+                    <th style="width: 110px;">Deposit Date</th>
+                    <th class="num-col">PF Employee (৳)</th>
+                    <th class="num-col" style="color: #7c3aed;">PF Employer (৳)</th>
+                    <th class="num-col" style="color: #0284c7;">Welfare Fund (৳)</th>
+                    <th class="num-col" style="color: #d97706;">Profit / Return (৳)</th>
+                    <th class="num-col">Monthly Inflow (৳)</th>
+                    <th class="num-col" style="width: 160px; color: #059669;">Cumulative Fund (৳)</th>
+                    <th>Narration / Remarks</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if records %}
+                    {% for r in records %}
+                    <tr>
+                        <td style="font-weight: 700; color: var(--text-primary);">{{ r.contribution_month }}</td>
+                        <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
+                            {{ r.contribution_date.strftime('%d-%b-%Y') if r.contribution_date else '' }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(r.employee_share) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #7c3aed;">
+                            ৳{{ "{:,.2f}".format(r.employer_share) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #0284c7;">
+                            ৳{{ "{:,.2f}".format(r.welfare_fund or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #d97706;">
+                            ৳{{ "{:,.2f}".format(r.profit_interest) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">
+                            ৳{{ "{:,.2f}".format(r.total_monthly) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #059669; font-size: 0.95rem;">
+                            ৳{{ "{:,.2f}".format(r.cumulative_balance) }}
+                        </td>
+                        <td style="font-size: 0.82rem; color: var(--text-secondary);">
+                            {{ r.remarks or 'Regular contribution' }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="9" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                            No contribution entries recorded for this employee.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+            <tfoot>
+                <tr class="report-grandtotal-row">
+                    <td colspan="2" style="text-align: right; font-weight: 700;">TOTALS ACCRUED:</td>
+                    <td class="num-col" style="font-weight: 700;">৳{{ "{:,.2f}".format(tot_emp) }}</td>
+                    <td class="num-col" style="font-weight: 700; color: #7c3aed;">৳{{ "{:,.2f}".format(tot_comp) }}</td>
+                    <td class="num-col" style="font-weight: 700; color: #0284c7;">৳{{ "{:,.2f}".format(tot_welfare) }}</td>
+                    <td class="num-col" style="font-weight: 700; color: #d97706;">৳{{ "{:,.2f}".format(tot_prof) }}</td>
+                    <td class="num-col" style="font-weight: 700;">৳{{ "{:,.2f}".format(tot_emp + tot_comp + tot_welfare + tot_prof) }}</td>
+                    <td class="num-col" style="font-weight: 800; color: #059669; font-size: 1.1rem;">৳{{ "{:,.2f}".format(closing_bal) }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+<!-- MODAL: CLEAR EMPLOYEE FUND DATA -->
+<div id="clearEmpFundModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 550px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); color: #ffffff;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 1.25rem;">🗑️</span>
+                <h3 style="margin: 0; font-size: 1.15rem; font-family: 'Outfit', sans-serif; color: #ffffff;">
+                    Clear Fund Data - {{ employee.name }}
+                </h3>
+            </div>
+            <button type="button" class="btn-close" onclick="closeModal('clearEmpFundModal')" style="color: #ffffff;">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('clear_fund_contributions') }}" onsubmit="return confirmEmpClear();">
+            <input type="hidden" name="employee_id" value="{{ employee.id }}">
+            <input type="hidden" name="redirect_emp_id" value="{{ employee.id }}">
+
+            <div class="modal-body" style="padding: 1.25rem 1.5rem;">
+                <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: var(--radius-sm); padding: 0.85rem; font-size: 0.82rem; color: #991b1b; margin-bottom: 1.25rem;">
+                    <strong>⚠️ Caution:</strong><br>
+                    You are clearing fund contribution history for <strong>{{ employee.name }} ({{ employee.employee_id }})</strong>. This module is completely separate and will <strong>NOT</strong> touch your General Ledger or Vouchers.
+                </div>
+
+                <!-- Scope Selection -->
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label" style="font-weight: 700; margin-bottom: 0.5rem; display: block;">Select Clearing Option:</label>
+                    <div style="display: flex; flex-direction: column; gap: 0.65rem;">
+                        <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; padding: 0.6rem 0.85rem; border: 1px solid var(--border); border-radius: 6px; background: #fafafa;">
+                            <input type="radio" name="clear_scope" value="all" checked onchange="toggleEmpScopeInputs('all')" style="margin-top: 0.2rem;">
+                            <div>
+                                <span style="font-weight: 600; color: #b91c1c;">Clear ALL Records for this Employee</span>
+                                <div style="font-size: 0.78rem; color: var(--text-muted);">Permanently deletes all {{ records|length }} historical fund records for {{ employee.name }}.</div>
+                            </div>
+                        </label>
+
+                        <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; padding: 0.6rem 0.85rem; border: 1px solid var(--border); border-radius: 6px; background: #fafafa;">
+                            <input type="radio" name="clear_scope" value="date_range" onchange="toggleEmpScopeInputs('date_range')" style="margin-top: 0.2rem;">
+                            <div>
+                                <span style="font-weight: 600; color: var(--text-primary);">Clear by Date Range</span>
+                                <div style="font-size: 0.78rem; color: var(--text-muted);">Delete records strictly within specified dates and recalculate remaining balance.</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Date Range Container -->
+                <div id="empDateRangeContainer" style="display: none; background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 0.5rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: 0.82rem;">From Date</label>
+                            <input type="date" name="from_date" id="emp_fund_clear_from" class="form-control" value="2026-01-01">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: 0.82rem;">To Date</label>
+                            <input type="date" name="to_date" id="emp_fund_clear_to" class="form-control" value="2026-12-31">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="background: #fef2f2; border-top: 1px solid #fee2e2;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('clearEmpFundModal')">Cancel</button>
+                <button type="submit" class="btn btn-danger" style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border: none; font-weight: 600; padding: 0.5rem 1.25rem; color: #fff;">
+                    🗑️ Clear Records Now
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openModal(id) {
+    document.getElementById(id).style.display = 'flex';
+}
+function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
+}
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal-overlay')) {
+        event.target.style.display = 'none';
+    }
+}
+function toggleEmpScopeInputs(scope) {
+    document.getElementById('empDateRangeContainer').style.display = (scope === 'date_range') ? 'block' : 'none';
+}
+function confirmEmpClear() {
+    return confirm("ATTENTION: Are you sure you want to permanently clear fund contribution records for {{ employee.name }}?\n\nThis cannot be undone. Accounts calculation will NOT be affected.\n\nProceed?");
+}
+</script>
+
+<style>
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1050; backdrop-filter: blur(4px);
+}
+.modal-box {
+    background: #ffffff; border-radius: var(--radius-md);
+    width: 90%; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+}
+.modal-header {
+    padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center; background: #f8fafc;
+}
+.modal-body { padding: 1.25rem; }
+.modal-footer {
+    padding: 0.85rem 1.25rem; border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-end; gap: 0.5rem; background: #f8fafc;
+}
+.btn-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); }
+</style>
+{% endblock %}

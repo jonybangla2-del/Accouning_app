@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Execute Monthly Payroll{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">⚡ Process Monthly Payroll Disbursement</h1>
+        <p class="page-description">Calculate monthly staff compensation and automatically post the corresponding Payment Voucher to the General Ledger.</p>
+    </div>
+    <div class="header-actions">
+        <a href="{{ url_for('payroll_dashboard') }}" class="btn btn-outline">← Back to Payroll</a>
+    </div>
+</div>
+
+<form method="POST" action="{{ url_for('run_payroll') }}">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Disbursement Parameters</h2>
+        </div>
+        <div class="card-body">
+            <div class="form-row">
+                <div class="form-col" style="max-width: 200px;">
+                    <label class="form-label" for="payroll_month">Payroll Month *</label>
+                    <input type="month" id="payroll_month" name="payroll_month" class="form-control" value="{{ current_month }}" required>
+                </div>
+
+                <div class="form-col" style="max-width: 200px;">
+                    <label class="form-label" for="processed_date">Disbursement Date *</label>
+                    <input type="date" id="processed_date" name="processed_date" class="form-control" value="{{ today }}" required>
+                </div>
+
+                <div class="form-col" id="payAccCol" style="display: none;">
+                    <label class="form-label" for="payment_account_id">Payment Source (Bank / Cash)</label>
+                    <select id="payment_account_id" name="payment_account_id" class="form-select">
+                        {% for acc in liquid_accounts %}
+                            <option value="{{ acc.id }}">[{{ acc.code }}] {{ acc.name }} (Available: ৳{{ "{:,.2f}".format(acc.balance) }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-col" id="expAccCol" style="display: none;">
+                    <label class="form-label" for="expense_account_id">Salaries Expense Account</label>
+                    <select id="expense_account_id" name="expense_account_id" class="form-select">
+                        {% for acc in expense_accounts %}
+                            <option value="{{ acc.id }}" {% if '5010' in acc.code or 'Salaries' in acc.name %}selected{% endif %}>
+                                [{{ acc.code }}] {{ acc.name }} ({{ acc.type }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- HR & Payroll Separation Toggle -->
+            <div style="margin-top: 1rem; padding: 0.85rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;">
+                <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; margin: 0; font-size: 0.88rem; font-weight: 600; color: #166534;">
+                    <input type="checkbox" name="post_to_gl" value="yes" id="postToGlCheckbox" onchange="toggleGlAccounts(this)">
+                    <span>Post automatic accounting Payment Voucher (PV) to General Ledger</span>
+                </label>
+                <div style="font-size: 0.78rem; color: #15803d; margin-top: 0.25rem; margin-left: 1.6rem;">
+                    🛡️ By default, HR & Payroll runs operate independently from financial accounts. Unchecked = strictly HR compensation tracking without affecting Chart of Accounts or Cash/Bank balances.
+                </div>
+            </div>
+            <script>
+            function toggleGlAccounts(cb) {
+                document.getElementById('payAccCol').style.display = cb.checked ? 'block' : 'none';
+                document.getElementById('expAccCol').style.display = cb.checked ? 'block' : 'none';
+            }
+            </script>
+        </div>
+    </div>
+
+    <!-- Employee Salary Breakdown -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Staff Compensation Schedule</h2>
+            <span class="badge" style="background-color: #d1fae5; color: #065f46;">{{ employees|length }} Active Staff Members</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th style="width: 100px;">Emp ID</th>
+                        <th>Staff Name & Designation</th>
+                        <th class="num-col">Basic Pay (৳)</th>
+                        <th class="num-col">Allowances (৳)</th>
+                        <th class="num-col">Deductions (৳)</th>
+                        <th class="num-col" style="width: 160px; color: #059669;">Net Payable (৳)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for emp in employees %}
+                    <tr>
+                        <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent);">
+                            {{ emp.employee_id }}
+                        </td>
+                        <td>
+                            <strong>{{ emp.name }}</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">{{ emp.designation }} &bull; {{ emp.department }}</div>
+                        </td>
+                        <td class="num-col">৳{{ "{:,.2f}".format(emp.basic_salary) }}</td>
+                        <td class="num-col" style="color: #059669;">+৳{{ "{:,.2f}".format(emp.allowances) }}</td>
+                        <td class="num-col" style="color: #dc2626;">-৳{{ "{:,.2f}".format(emp.deductions) }}</td>
+                        <td class="num-col" style="font-weight: 700; color: #059669; font-size: 1rem;">
+                            ৳{{ "{:,.2f}".format(emp.basic_salary + emp.allowances - emp.deductions) }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="report-total-row">
+                        <td colspan="2" style="text-align: right; text-transform: uppercase;">Total Payroll Disbursable:</td>
+                        <td class="num-col">৳{{ "{:,.2f}".format(total_basic) }}</td>
+                        <td class="num-col" style="color: #059669;">+৳{{ "{:,.2f}".format(total_allowances) }}</td>
+                        <td class="num-col" style="color: #dc2626;">-৳{{ "{:,.2f}".format(total_deductions) }}</td>
+                        <td class="num-col" style="color: #2563eb; font-size: 1.15rem;">
+                            ৳{{ "{:,.2f}".format(total_net) }}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="card-body" style="background-color: #f8fafc; border-top: 1px solid var(--border);">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div style="font-size: 0.85rem; color: var(--text-secondary); max-width: 650px;">
+                    <strong>Automated Double-Entry Posting:</strong> Upon confirmation, the system will automatically create a general ledger <strong>Payment Voucher (PV)</strong>:
+                    <br>
+                    &bull; <strong>Debit:</strong> Salaries & Wages Expense (৳{{ "{:,.2f}".format(total_net) }})
+                    <br>
+                    &bull; <strong>Credit:</strong> Selected Bank/Cash Account (৳{{ "{:,.2f}".format(total_net) }})
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-success" style="padding: 0.75rem 1.5rem; font-size: 1rem;" onclick="return confirm('Confirm monthly payroll processing and auto-post Payment Voucher to General Ledger?');">
+                        ✓ Disburse Payroll & Post Voucher
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}

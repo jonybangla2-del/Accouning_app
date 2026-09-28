@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Remittance Record #{{ record.id }} - ZR-ERP{% endblock %}
+
+{% block content %}
+<div style="max-width: 1100px; margin: 0 auto; padding-bottom: 3rem;">
+    <!-- Page Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                <a href="{{ url_for('remittance_dashboard') }}" style="color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">
+                    ← Back to Remittance Statement
+                </a>
+            </div>
+            <h1 class="page-title" style="margin: 0; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em;">
+                Edit Entry #{{ record.id }} &bull; {{ record.particulars }}
+            </h1>
+            <p style="color: var(--text-muted); font-size: 0.88rem; margin: 0.25rem 0 0 0;">
+                Update transaction details, adjust audited incentive amounts, or update regulatory banking compliance checkpoints.
+            </p>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <form method="POST" action="{{ url_for('delete_remittance_entry', rec_id=record.id) }}" onsubmit="return confirm('Are you sure you want to delete this record?');" style="margin: 0;">
+                <button type="submit" class="btn btn-outline" style="color: #dc2626; border-color: #fca5a5; font-size: 0.85rem; padding: 0.55rem 1rem;">
+                    🗑️ Delete Entry
+                </button>
+            </form>
+            <a href="{{ url_for('remittance_dashboard') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 0.55rem 1rem;">
+                Cancel
+            </a>
+        </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('edit_remittance_entry', rec_id=record.id) }}">
+        <!-- 1. Transaction Core Details -->
+        <div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem 1.5rem;">
+            <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
+                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--primary);">
+                    1. Transaction &amp; Identity Details
+                </h3>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+                <!-- Date -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Transaction Date *</label>
+                    <input type="date" name="date" class="form-control" value="{{ record.date.strftime('%Y-%m-%d') if record.date else '' }}" required style="font-size: 0.88rem;">
+                </div>
+
+                <!-- Particulars -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Particulars / Description *</label>
+                    <input type="text" name="particulars" class="form-control" value="{{ record.particulars }}" list="particularsList" required style="font-weight: 600; font-size: 0.88rem;">
+                    <datalist id="particularsList">
+                        <option value="Remittance Received">
+                        <option value="Remittance Received-local">
+                        <option value="Budget issue">
+                        <option value="Software Export Proceeds">
+                    </datalist>
+                </div>
+
+                <!-- Invoice No -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Invoice No</label>
+                    <input type="text" name="invoice_no" value="{{ record.invoice_no or '' }}" class="form-control" placeholder="e.g. 020122, 0331202201" style="font-weight: 700; font-family: monospace; font-size: 0.95rem;">
+                </div>
+
+                <!-- Sent By -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Sent By / Client</label>
+                    <input type="text" name="sent_by" value="{{ record.sent_by or '' }}" class="form-control" placeholder="e.g. NRB, Kent, Ny having, Cash" style="font-size: 0.88rem;">
+                </div>
+
+                <!-- Deal No / Reference -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Deed / Deal / Reference No</label>
+                    <input type="text" name="deal_no" value="{{ record.deal_no or '' }}" class="form-control" placeholder="Reference or Deal Number" style="font-size: 0.88rem;">
+                </div>
+
+                <!-- Remittance Date -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Inward Remittance Date</label>
+                    <input type="date" name="remittance_date" value="{{ record.remittance_date.strftime('%Y-%m-%d') if record.remittance_date else '' }}" class="form-control" style="font-size: 0.88rem;">
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Financial Proceeds & Currency Conversion -->
+        <div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem 1.5rem; border-left: 4px solid var(--primary);">
+            <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
+                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text-color);">
+                    2. Financial Amounts &amp; Foreign Currency Inflows
+                </h3>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem;">
+                <!-- Remittance USD -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem; color: #047857;">
+                        🌎 Remittance Amount ($ USD)
+                    </label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 10px; top: 8px; font-weight: 700; color: #059669;">$</span>
+                        <input type="number" step="0.01" name="remittance_usd" id="inputRemittanceUSD" value="{{ record.remittance_usd or 0.0 }}" class="form-control" style="padding-left: 24px; font-weight: 700; font-size: 0.95rem; color: #065f46; background: #f0fdf4;" oninput="recalcAmounts()">
+                    </div>
+                </div>
+
+                <!-- Conversion Rate -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem; color: #047857;">
+                        Exchange Rate ($ Rate Tk.)
+                    </label>
+                    <input type="number" step="0.01" name="usd_rate" id="inputUsdRate" value="{{ record.usd_rate or 0.0 }}" class="form-control" style="font-weight: 700; font-size: 0.95rem; color: #065f46; background: #f0fdf4;" oninput="recalcAmounts()">
+                </div>
+
+                <!-- Received BDT -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem; color: #1e40af;">
+                        💵 Received Inflow (BDT ৳)
+                    </label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 10px; top: 8px; font-weight: 700; color: #2563eb;">৳</span>
+                        <input type="number" step="0.01" name="received_bdt" id="inputReceivedBDT" value="{{ record.received_bdt or 0.0 }}" class="form-control" style="padding-left: 24px; font-weight: 800; font-size: 1rem; color: #1e3a8a; background: #eff6ff;">
+                    </div>
+                </div>
+
+                <!-- Budget Amount -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem; color: #991b1b;">
+                        📋 Budget Issue Amount (BDT ৳)
+                    </label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 10px; top: 8px; font-weight: 700; color: #dc2626;">৳</span>
+                        <input type="number" step="0.01" name="budget_amount" value="{{ record.budget_amount or 0.0 }}" class="form-control" style="padding-left: 24px; font-weight: 700; font-size: 0.95rem; color: #991b1b; background: #fef2f2;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Government 10% Cash Incentive Calculation -->
+        <div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem 1.5rem; border-left: 4px solid #d97706; background: #fffdfa;">
+            <div style="border-bottom: 1px solid #fed7aa; padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
+                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #92400e;">
+                    🎁 3. 10% Government Cash Incentive Entitlement
+                </h3>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem;">
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem; color: #92400e;">
+                        Incentive 10% Claimed (Tk.)
+                    </label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 10px; top: 8px; font-weight: 700; color: #d97706;">৳</span>
+                        <input type="number" step="0.01" name="incentive_10_bdt" id="inputIncentive10" value="{{ record.incentive_10_bdt or 0.0 }}" class="form-control" style="padding-left: 24px; font-weight: 800; font-size: 1rem; color: #92400e; background: #fef3c7;">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem; color: #92400e;">
+                        Incentive 10% Audited (Tk.)
+                    </label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 10px; top: 8px; font-weight: 700; color: #b45309;">৳</span>
+                        <input type="number" step="0.01" name="incentive_10_audited_bdt" id="inputIncentiveAudited" value="{{ record.incentive_10_audited_bdt or 0.0 }}" class="form-control" style="padding-left: 24px; font-weight: 800; font-size: 1rem; color: #78350f; background: #fef3c7;">
+                    </div>
+                </div>
+
+                <div style="display: flex; align-items: flex-end; padding-bottom: 0.25rem;">
+                    <button type="button" class="btn btn-outline" onclick="copyClaimedToAudited()" style="font-size: 0.82rem; width: 100%; border-color: #d97706; color: #92400e; background: white;">
+                        ↳ Copy Claimed to Audited
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. 10-Step Banking & Audit Compliance Checkpoints -->
+        <div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem 1.5rem;">
+            <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
+                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text-color);">
+                    🏛️ 4. Banking &amp; Regulatory Compliance Milestones
+                </h3>
+            </div>
+
+            <!-- Stage A: Certificates -->
+            <div style="margin-bottom: 1.25rem;">
+                <label style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; display: block; margin-bottom: 0.6rem;">
+                    Phase A: Mandatory Certificates
+                </label>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.75rem;">
+                    <label class="custom-control" style="display: flex; align-items: center; gap: 0.5rem; background: #f8fafc; border: 1px solid var(--border-color); padding: 0.6rem 0.8rem; border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" name="tt_certificate" {{ 'checked' if record.tt_certificate else '' }} style="width: 17px; height: 17px; accent-color: #059669;">
+                        <span style="font-size: 0.84rem; font-weight: 600;">1. TT Certificate</span>
+                    </label>
+
+                    <label class="custom-control" style="display: flex; align-items: center; gap: 0.5rem; background: #f8fafc; border: 1px solid var(--border-color); padding: 0.6rem 0.8rem; border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" name="encashment_certificate" {{ 'checked' if record.encashment_certificate else '' }} style="width: 17px; height: 17px; accent-color: #059669;">
+                        <span style="font-size: 0.84rem; font-weight: 600;">2. Encashment Cert (PRC)</span>
+                    </label>
+
+                    <label class="custom-control" style="display: flex; align-items: center; gap: 0.5rem; background: #f8fafc; border: 1px solid var(--border-color); padding: 0.6rem 0.8rem; border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" name="authorized_dealer_cert" {{ 'checked' if record.authorized_dealer_cert else '' }} style="width: 17px; height: 17px; accent-color: #059669;">
+                        <span style="font-size: 0.84rem; font-weight: 600;">3. Authorized Dealer (AD)</span>
+                    </label>
+
+                    <label class="custom-control" style="display: flex; align-items: center; gap: 0.5rem; background: #f8fafc; border: 1px solid var(--border-color); padding: 0.6rem 0.8rem; border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" name="cash_incentive_cert" {{ 'checked' if record.cash_incentive_cert else '' }} style="width: 17px; height: 17px; accent-color: #059669;">
+                        <span style="font-size: 0.84rem; font-weight: 600;">4. Cash Incentive Cert</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Stage B: Submissions -->
+            <div>
+                <label style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; display: block; margin-bottom: 0.6rem;">
+                    Phase B: Banking &amp; Regulatory Workflow
+                </label>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem;">
+                    <!-- Send to Bank -->
+                    <div style="background: #f8fafc; border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 8px;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.4rem;">
+                            <input type="checkbox" name="send_to_bank" {{ 'checked' if record.send_to_bank else '' }} style="width: 17px; height: 17px; accent-color: #059669;">
+                            <span style="font-size: 0.86rem; font-weight: 700; color: #1e3a8a;">5. Send to Bank Branch</span>
+                        </label>
+                        <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Date Sent to Bank:</label>
+                        <input type="date" name="date_send_to_bank" value="{{ record.date_send_to_bank.strftime('%Y-%m-%d') if record.date_send_to_bank else '' }}" class="form-control" style="font-size: 0.82rem; padding: 0.35rem 0.6rem;">
+                    </div>
+
+                    <!-- Send to Head Office -->
+                    <div style="background: #f8fafc; border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 8px;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.4rem;">
+                            <input type="checkbox" name="send_to_head_office" {{ 'checked' if record.send_to_head_office else '' }} style="width: 17px; height: 17px; accent-color: #059669;">
+                            <span style="font-size: 0.86rem; font-weight: 700; color: #1e3a8a;">6. Send to Head Office</span>
+                        </label>
+                        <small style="font-size: 0.75rem; color: var(--text-muted); display: block;">Forwarded to Bank Principal Office</small>
+                    </div>
+
+                    <!-- Send to Audit Office -->
+                    <div style="background: #f8fafc; border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 8px;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.4rem;">
+                            <input type="checkbox" name="send_to_audit_office" {{ 'checked' if record.send_to_audit_office else '' }} style="width: 17px; height: 17px; accent-color: #059669;">
+                            <span style="font-size: 0.86rem; font-weight: 700; color: #1e3a8a;">7. Send to CA Audit Firm</span>
+                        </label>
+                        <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Audit Certificate Date:</label>
+                        <input type="date" name="audit_certificate_date" value="{{ record.audit_certificate_date.strftime('%Y-%m-%d') if record.audit_certificate_date else '' }}" class="form-control" style="font-size: 0.82rem; padding: 0.35rem 0.6rem;">
+                    </div>
+
+                    <!-- Send to International Division -->
+                    <div style="background: #f8fafc; border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 8px;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.4rem;">
+                            <input type="checkbox" name="send_to_intl_division" {{ 'checked' if record.send_to_intl_division else '' }} style="width: 17px; height: 17px; accent-color: #059669;">
+                            <span style="font-size: 0.86rem; font-weight: 700; color: #1e3a8a;">8. Sent to International Div</span>
+                        </label>
+                        <small style="font-size: 0.75rem; color: var(--text-muted); display: block;">Bank Head Office International Division</small>
+                    </div>
+
+                    <!-- Sent to Bangladesh Bank -->
+                    <div style="background: #f0fdf4; border: 1px solid #86efac; padding: 0.75rem; border-radius: 8px;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.4rem;">
+                            <input type="checkbox" name="send_to_bangladesh_bank" {{ 'checked' if record.send_to_bangladesh_bank else '' }} style="width: 17px; height: 17px; accent-color: #059669;">
+                            <span style="font-size: 0.86rem; font-weight: 700; color: #065f46;">9. Sent to Bangladesh Bank</span>
+                        </label>
+                        <small style="font-size: 0.75rem; color: #047857; display: block;">Final lodgement with Central Bank</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. Incentive Realization & Settlement -->
+        <div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem 1.5rem; border-left: 4px solid #16a34a; background: #fbfdfb;">
+            <div style="border-bottom: 1px solid #bbf7d0; padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
+                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #14532d;">
+                    💰 5. Benefit Realization &amp; Settlement Status
+                </h3>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin-bottom: 1rem;">
+                <!-- Benefit Receivable -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem; color: #92400e;">
+                        Benefit Receivable (Tk.)
+                    </label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 10px; top: 8px; font-weight: 700; color: #d97706;">৳</span>
+                        <input type="number" step="0.01" name="benefit_receivable" id="inputBenefitReceivable" value="{{ record.benefit_receivable or 0.0 }}" class="form-control" style="padding-left: 24px; font-weight: 700; font-size: 0.95rem; color: #92400e; background: #fffbeb;">
+                    </div>
+                </div>
+
+                <!-- Benefit Received -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem; color: #15803d;">
+                        Benefit Actually Received (Tk.)
+                    </label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 10px; top: 8px; font-weight: 700; color: #16a34a;">৳</span>
+                        <input type="number" step="0.01" name="benefit_received" id="inputBenefitReceived" value="{{ record.benefit_received or 0.0 }}" class="form-control" style="padding-left: 24px; font-weight: 800; font-size: 1rem; color: #14532d; background: #dcfce7;">
+                    </div>
+                </div>
+
+                <!-- Benefit Received Date -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Benefit Received Date</label>
+                    <input type="date" name="benefit_received_date" value="{{ record.benefit_received_date.strftime('%Y-%m-%d') if record.benefit_received_date else '' }}" class="form-control" style="font-size: 0.88rem;">
+                </div>
+
+                <!-- Status -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Claim Lifecycle Status *</label>
+                    <input type="text" name="status" value="{{ record.status or 'Pending' }}" class="form-control" list="statusOptions" style="font-weight: 700; font-size: 0.88rem;">
+                    <datalist id="statusOptions">
+                        <option value="Clear & Expense in Dec-2023">
+                        <option value="Clear & Realized">
+                        <option value="Declined">
+                        <option value="Submitted to Bangladesh Bank">
+                        <option value="With CA Audit Firm">
+                        <option value="In Banking Review">
+                        <option value="Budget Allocated">
+                    </datalist>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div>
+                <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Remarks / Audit Notes</label>
+                <input type="text" name="notes" value="{{ record.notes or '' }}" class="form-control" placeholder="Optional notes, audit reference, or reasons for rejection/deductions" style="font-size: 0.88rem;">
+            </div>
+        </div>
+
+        <!-- Form Submit Bar -->
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; align-items: center;">
+            <a href="{{ url_for('remittance_dashboard') }}" class="btn btn-outline" style="padding: 0.65rem 1.4rem;">
+                Cancel
+            </a>
+            <button type="submit" class="btn btn-primary" style="padding: 0.65rem 1.75rem; font-weight: 700; font-size: 0.95rem; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);">
+                💾 Update Entry
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+function recalcAmounts() {
+    const usd = parseFloat(document.getElementById('inputRemittanceUSD').value) || 0;
+    const rate = parseFloat(document.getElementById('inputUsdRate').value) || 0;
+    
+    if (usd > 0 && rate > 0) {
+        const bdt = Math.round((usd * rate) * 100) / 100;
+        document.getElementById('inputReceivedBDT').value = bdt.toFixed(2);
+        
+        // Auto-calculate 10% Cash Incentive
+        const incentive = Math.round((bdt * 0.10) * 100) / 100;
+        document.getElementById('inputIncentive10').value = incentive.toFixed(2);
+    }
+}
+
+function copyClaimedToAudited() {
+    const claimed = document.getElementById('inputIncentive10').value;
+    document.getElementById('inputIncentiveAudited').value = claimed;
+    document.getElementById('inputBenefitReceivable').value = claimed;
+}
+</script>
+{% endblock %}

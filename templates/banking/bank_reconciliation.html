@@ -1,0 +1,457 @@
+{% extends "base.html" %}
+
+{% block title %}Monthly Bank Reconciliation - ZR-ERP ERP{% endblock %}
+
+{% block extra_head %}
+<style>
+    .recon-card-balanced { border-top: 4px solid #059669 !important; }
+    .recon-card-unbalanced { border-top: 4px solid #dc2626 !important; }
+    .recon-status-balanced { background-color: #ecfdf5 !important; border: 1px solid #a7f3d0 !important; }
+    .recon-status-unbalanced { background-color: #fef2f2 !important; border: 1px solid #fecaca !important; }
+    .recon-title-balanced { color: #065f46 !important; }
+    .recon-title-unbalanced { color: #991b1b !important; }
+    .recon-diff-zero { color: #059669 !important; }
+    .recon-diff-nonzero { color: #dc2626 !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header no-print">
+    <div>
+        <h1 class="page-title">⚖️ Month-End Bank Reconciliation</h1>
+        <p class="page-description">
+            Reconcile internal General Ledger book balances against official Bank Statement records for
+            <strong style="color: var(--accent);">{{ selected_account.name if selected_account else 'Bank' }}</strong>.
+        </p>
+    </div>
+    <div class="header-actions">
+        <form method="POST" action="{{ url_for('bank_reconciliation_auto_match') }}" style="display: inline;">
+            <input type="hidden" name="account_id" value="{{ selected_account.id if selected_account else '' }}">
+            <input type="hidden" name="month" value="{{ recon_month }}">
+            <button type="submit" class="btn btn-outline" style="border-color: #2563eb; color: #2563eb; font-weight: 600;">
+                ⚡ Auto-Match All Transactions
+            </button>
+        </form>
+        <button type="button" class="btn btn-success" onclick="openModal('saveReconModal')">
+            💾 Finalize Month-End Reconciliation
+        </button>
+        {% if selected_account %}
+        <a href="{{ url_for('bank_reconciliation_report', account_id=selected_account.id, month=recon_month) }}" target="_blank" class="btn btn-primary">
+            🖨️ View Official CPA Statement ↗
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Filter Selection Header -->
+<div class="card no-print" style="margin-bottom: 1.5rem; padding: 1rem 1.25rem;">
+    <form method="GET" action="{{ url_for('bank_reconciliation') }}" style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;">
+        <div style="flex: 1; min-width: 250px;">
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">
+                Select Bank Account
+            </label>
+            <select name="account_id" class="form-control" onchange="this.form.submit()">
+                {% for b in bank_accounts %}
+                <option value="{{ b.id }}" {% if selected_account and selected_account.id == b.id %}selected{% endif %}>
+                    {{ b.code }} &bull; {{ b.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">
+                Reconciliation Month
+            </label>
+            <select name="month" class="form-control" onchange="this.form.submit()" style="width: 170px;">
+                <option value="2026-01" {% if recon_month == '2026-01' %}selected{% endif %}>January 2026</option>
+                <option value="2026-02" {% if recon_month == '2026-02' %}selected{% endif %}>February 2026</option>
+                <option value="2026-03" {% if recon_month == '2026-03' %}selected{% endif %}>March 2026</option>
+                <option value="2026-04" {% if recon_month == '2026-04' %}selected{% endif %}>April 2026</option>
+                <option value="2026-05" {% if recon_month == '2026-05' %}selected{% endif %}>May 2026</option>
+                <option value="2026-06" {% if recon_month == '2026-06' %}selected{% endif %}>June 2026</option>
+                <option value="2026-07" {% if recon_month == '2026-07' %}selected{% endif %}>July 2026</option>
+                <option value="2025-12" {% if recon_month == '2025-12' %}selected{% endif %}>December 2025</option>
+            </select>
+        </div>
+
+        <div style="font-size: 0.85rem; color: var(--text-secondary); padding-bottom: 0.5rem;">
+            As of: <strong>{{ as_of_date.strftime('%d-%b-%Y') }}</strong>
+        </div>
+    </form>
+</div>
+
+<!-- CPA Master Reconciliation Summary Dashboard -->
+<div class="card {% if is_reconciled %}recon-card-balanced{% else %}recon-card-unbalanced{% endif %}" style="margin-bottom: 1.5rem; background: linear-gradient(to right, #ffffff, #f8fafc);">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+        
+        <!-- Bank Statement Side -->
+        <div style="border-right: 1px solid var(--border); padding-right: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+                <h3 style="font-size: 1rem; text-transform: uppercase; color: #1e40af; font-family: 'Outfit', sans-serif;">
+                    🏛️ Bank Statement Side
+                </h3>
+                <span class="badge" style="background-color: #dbeafe; color: #1e40af; font-size: 0.75rem;">External Record</span>
+            </div>
+
+            <table style="width: 100%; font-size: 0.9rem; line-height: 2;">
+                <tr>
+                    <td style="color: var(--text-secondary);">Balance per Bank Statement:</td>
+                    <td class="num-col" style="font-weight: 700; color: var(--text-primary); font-family: 'JetBrains Mono', monospace;">
+                        ৳{{ "{:,.2f}".format(stmt_balance) }}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="color: #059669;">+ Add: Deposits in Transit (Uncredited):</td>
+                    <td class="num-col" style="color: #059669; font-weight: 600; font-family: 'JetBrains Mono', monospace;">
+                        +৳{{ "{:,.2f}".format(uncredited_deposits) }}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="color: #dc2626;">- Less: Outstanding Cheques (Unpresented):</td>
+                    <td class="num-col" style="color: #dc2626; font-weight: 600; font-family: 'JetBrains Mono', monospace;">
+                        -৳{{ "{:,.2f}".format(unpresented_cheques) }}
+                    </td>
+                </tr>
+                <tr style="border-top: 2px solid #cbd5e1; font-weight: 700; font-size: 1rem;">
+                    <td style="color: #1e40af; padding-top: 0.5rem;">ADJUSTED BANK BALANCE:</td>
+                    <td class="num-col" style="color: #1e40af; padding-top: 0.5rem; font-family: 'JetBrains Mono', monospace; font-size: 1.1rem;">
+                        ৳{{ "{:,.2f}".format(adjusted_bank) }}
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- General Ledger Book Side -->
+        <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+                <h3 style="font-size: 1rem; text-transform: uppercase; color: #065f46; font-family: 'Outfit', sans-serif;">
+                    📖 General Ledger (Books) Side
+                </h3>
+                <span class="badge" style="background-color: #d1fae5; color: #065f46; font-size: 0.75rem;">Company Books</span>
+            </div>
+
+            <table style="width: 100%; font-size: 0.9rem; line-height: 2;">
+                <tr>
+                    <td style="color: var(--text-secondary);">Balance per General Ledger:</td>
+                    <td class="num-col" style="font-weight: 700; color: var(--text-primary); font-family: 'JetBrains Mono', monospace;">
+                        ৳{{ "{:,.2f}".format(book_balance) }}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="color: #059669;">+ Add: Direct Credits (Interest/Deposits):</td>
+                    <td class="num-col" style="color: #059669; font-weight: 600; font-family: 'JetBrains Mono', monospace;">
+                        +৳{{ "{:,.2f}".format(direct_credits) }}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="color: #dc2626;">- Less: Bank Charges & Debits:</td>
+                    <td class="num-col" style="color: #dc2626; font-weight: 600; font-family: 'JetBrains Mono', monospace;">
+                        -৳{{ "{:,.2f}".format(bank_charges) }}
+                    </td>
+                </tr>
+                <tr style="border-top: 2px solid #cbd5e1; font-weight: 700; font-size: 1rem;">
+                    <td style="color: #065f46; padding-top: 0.5rem;">ADJUSTED BOOK BALANCE:</td>
+                    <td class="num-col" style="color: #065f46; padding-top: 0.5rem; font-family: 'JetBrains Mono', monospace; font-size: 1.1rem;">
+                        ৳{{ "{:,.2f}".format(adjusted_book) }}
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- Reconciled Status Strip -->
+    <div class="{% if is_reconciled %}recon-status-balanced{% else %}recon-status-unbalanced{% endif %}" style="margin-top: 1.5rem; padding: 1rem 1.25rem; border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span style="font-size: 1.75rem;">{% if is_reconciled %}✅{% else %}⚠️{% endif %}</span>
+            <div>
+                <div class="{% if is_reconciled %}recon-title-balanced{% else %}recon-title-unbalanced{% endif %}" style="font-weight: 800; font-size: 1.05rem;">
+                    {% if is_reconciled %}
+                        ACCOUNTS RECONCILED & BALANCED (0.00 VARIANCE)
+                    {% else %}
+                        RECONCILIATION VARIANCE DETECTED
+                    {% endif %}
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.15rem;">
+                    {% if is_reconciled %}
+                        Adjusted Bank Balance strictly equals Adjusted General Ledger Book Balance. Books are audited and balanced.
+                    {% else %}
+                        Timing differences or unposted transactions exist between Bank Statement and General Ledger books.
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: right;">
+            <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted);">VARIANCE / DIFFERENCE</div>
+            <div class="{% if is_reconciled %}recon-diff-zero{% else %}recon-diff-nonzero{% endif %}" style="font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 800;">
+                ৳{{ "{:,.2f}".format(variance) }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Comparison Breakdown: Side by Side -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+    <!-- Left: General Ledger Items -->
+    <div class="card">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 class="card-title" style="font-size: 0.95rem;">📖 General Ledger Vouchers ({{ gl_lines|length }})</h2>
+            <span class="badge" style="font-size: 0.75rem;">Month: {{ recon_month }}</span>
+        </div>
+        <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+            <table class="table" style="font-size: 0.82rem;">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Voucher #</th>
+                        <th>Narration / Ref</th>
+                        <th class="num-col">Dr (+)</th>
+                        <th class="num-col">Cr (-)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if gl_lines %}
+                        {% for gl in gl_lines %}
+                        <tr>
+                            <td style="font-family: 'JetBrains Mono', monospace; white-space: nowrap;">
+                                {{ gl.journal_entry.date.strftime('%d-%b') }}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('view_voucher', voucher_id=gl.journal_entry_id) }}" target="_blank" style="font-weight: 600; color: var(--accent); text-decoration: none;">
+                                    {{ gl.journal_entry.voucher_no }}
+                                </a>
+                            </td>
+                            <td>
+                                <div style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ gl.journal_entry.narration }}">
+                                    {{ gl.journal_entry.narration }}
+                                </div>
+                            </td>
+                            <td class="num-col" style="color: #059669; font-weight: 600;">
+                                {% if gl.debit > 0 %}৳{{ "{:,.0f}".format(gl.debit) }}{% else %}-{% endif %}
+                            </td>
+                            <td class="num-col" style="color: #dc2626; font-weight: 600;">
+                                {% if gl.credit > 0 %}৳{{ "{:,.0f}".format(gl.credit) }}{% else %}-{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                No General Ledger entries recorded for this month.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Right: Bank Statement Items -->
+    <div class="card">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 class="card-title" style="font-size: 0.95rem;">🏛️ Bank Statement Feed ({{ stmt_lines|length }})</h2>
+            <span class="badge" style="font-size: 0.75rem;">External Feed</span>
+        </div>
+        <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+            <table class="table" style="font-size: 0.82rem;">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Particulars / Cheque</th>
+                        <th class="num-col">Withdrawal</th>
+                        <th class="num-col">Deposit</th>
+                        <th style="text-align: center;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if stmt_lines %}
+                        {% for sl in stmt_lines %}
+                        <tr>
+                            <td style="font-family: 'JetBrains Mono', monospace; white-space: nowrap;">
+                                {{ sl.txn_date.strftime('%d-%b') }}
+                            </td>
+                            <td>
+                                <div style="max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ sl.particulars }}">
+                                    {{ sl.particulars }}
+                                </div>
+                                {% if sl.cheque_ref %}
+                                <span style="font-size: 0.72rem; color: var(--text-muted);">{{ sl.cheque_ref }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="num-col" style="color: #dc2626; font-weight: 600;">
+                                {% if sl.withdrawal_dr > 0 %}৳{{ "{:,.0f}".format(sl.withdrawal_dr) }}{% else %}-{% endif %}
+                            </td>
+                            <td class="num-col" style="color: #059669; font-weight: 600;">
+                                {% if sl.deposit_cr > 0 %}৳{{ "{:,.0f}".format(sl.deposit_cr) }}{% else %}-{% endif %}
+                            </td>
+                            <td style="text-align: center;">
+                                {% if sl.is_reconciled %}
+                                    <span style="color: #059669; font-weight: 700;">✓ Cleared</span>
+                                {% else %}
+                                    <span style="color: #d97706; font-size: 0.75rem;">Pending</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                No bank statement lines imported for this month. Click "Upload Bank Statement" on the report page.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Past Saved Reconciliations Table -->
+{% if past_recons %}
+<div class="card" style="margin-top: 1.5rem;">
+    <div class="card-header">
+        <h2 class="card-title">📜 Historical Locked Reconciliations (Audit Trail)</h2>
+    </div>
+    <div class="table-responsive">
+        <table class="table" style="font-size: 0.85rem;">
+            <thead>
+                <tr>
+                    <th>Month</th>
+                    <th>Statement Date</th>
+                    <th class="num-col">Statement Balance</th>
+                    <th class="num-col">Book Balance</th>
+                    <th class="num-col">Adjusted Balance</th>
+                    <th class="num-col">Variance</th>
+                    <th style="text-align: center;">Status</th>
+                    <th>Reconciled By</th>
+                    <th style="text-align: center;">Report</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pr in past_recons %}
+                <tr>
+                    <td style="font-weight: 700; color: var(--text-primary);">{{ pr.recon_month }}</td>
+                    <td>{{ pr.statement_date.strftime('%d-%b-%Y') if pr.statement_date else '' }}</td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(pr.statement_balance) }}</td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(pr.book_balance) }}</td>
+                    <td class="num-col" style="font-weight: 700; color: #1e40af;">৳{{ "{:,.2f}".format(pr.adjusted_bank_balance) }}</td>
+                    <td class="num-col {% if pr.variance == 0 %}recon-diff-zero{% else %}recon-diff-nonzero{% endif %}" style="font-weight: 700;">
+                        ৳{{ "{:,.2f}".format(pr.variance) }}
+                    </td>
+                    <td style="text-align: center;">
+                        <span class="badge" style="background-color: #d1fae5; color: #065f46; font-size: 0.75rem;">
+                            {{ pr.status }}
+                        </span>
+                    </td>
+                    <td style="color: var(--text-secondary); font-size: 0.8rem;">
+                        {{ pr.reconciled_by }} &bull; {{ pr.reconciled_at.strftime('%d-%b-%Y') if pr.reconciled_at else '' }}
+                    </td>
+                    <td style="text-align: center;">
+                        <a href="{{ url_for('bank_reconciliation_report', account_id=pr.bank_account_id, month=pr.recon_month) }}" target="_blank" class="btn btn-outline btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">
+                            📄 Statement
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- MODAL: FINALIZE RECONCILIATION -->
+<div id="saveReconModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 550px;">
+        <div class="modal-header">
+            <h3 style="margin: 0; font-size: 1.15rem; font-family: 'Outfit', sans-serif;">💾 Finalize Month-End Bank Reconciliation</h3>
+            <button type="button" class="btn-close" onclick="closeModal('saveReconModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('save_bank_reconciliation') }}">
+            <input type="hidden" name="account_id" value="{{ selected_account.id if selected_account else '' }}">
+            <input type="hidden" name="month" value="{{ recon_month }}">
+            <input type="hidden" name="statement_date" value="{{ as_of_date.strftime('%Y-%m-%d') }}">
+            <input type="hidden" name="stmt_balance" value="{{ stmt_balance }}">
+            <input type="hidden" name="book_balance" value="{{ book_balance }}">
+            <input type="hidden" name="uncredited_deposits" value="{{ uncredited_deposits }}">
+            <input type="hidden" name="unpresented_cheques" value="{{ unpresented_cheques }}">
+            <input type="hidden" name="direct_credits" value="{{ direct_credits }}">
+            <input type="hidden" name="bank_charges" value="{{ bank_charges }}">
+            <input type="hidden" name="adjusted_bank" value="{{ adjusted_bank }}">
+            <input type="hidden" name="adjusted_book" value="{{ adjusted_book }}">
+            <input type="hidden" name="variance" value="{{ variance }}">
+
+            <div class="modal-body">
+                <div style="background-color: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span style="color: var(--text-secondary);">Account:</span>
+                        <strong>{{ selected_account.name if selected_account else '' }}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span style="color: var(--text-secondary);">Reconciliation Period:</span>
+                        <strong>{{ recon_month }} (As of {{ as_of_date.strftime('%d-%b-%Y') }})</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span style="color: var(--text-secondary);">Adjusted Balance:</span>
+                        <strong style="color: #1e40af;">৳{{ "{:,.2f}".format(adjusted_bank) }}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: var(--text-secondary);">Reconciliation Variance:</span>
+                        <strong class="{% if is_reconciled %}recon-diff-zero{% else %}recon-diff-nonzero{% endif %}">
+                            ৳{{ "{:,.2f}".format(variance) }} ({% if is_reconciled %}Balanced{% else %}Unbalanced{% endif %})
+                        </strong>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Auditor / Reconciliation Notes</label>
+                    <textarea name="notes" rows="3" class="form-control" placeholder="Add management or audit remarks...">Month-End Reconciliation for {{ recon_month }} verified against official bank statement feed.</textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('saveReconModal')">Cancel</button>
+                <button type="submit" class="btn btn-success">Lock & Save Reconciliation</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openModal(id) {
+    document.getElementById(id).style.display = 'flex';
+}
+function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
+}
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal-overlay')) {
+        event.target.style.display = 'none';
+    }
+}
+</script>
+
+<style>
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1050; backdrop-filter: blur(4px);
+}
+.modal-box {
+    background: #ffffff; border-radius: var(--radius-md);
+    width: 90%; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+}
+.modal-header {
+    padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center; background: #f8fafc;
+}
+.modal-body { padding: 1.25rem; }
+.modal-footer {
+    padding: 0.85rem 1.25rem; border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-end; gap: 0.5rem; background: #f8fafc;
+}
+.btn-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); }
+</style>
+{% endblock %}

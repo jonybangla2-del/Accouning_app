@@ -1,0 +1,717 @@
+{% extends "base.html" %}
+
+{% block title %}Cash & Bank Book - Receipts & Payments Journal{% endblock %}
+
+{% block extra_head %}
+<style>
+.cash-book-container {
+    max-width: 100%;
+    margin: 0 auto;
+}
+
+.excel-journal-card {
+    background: #ffffff;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    margin-bottom: 2rem;
+}
+
+.table-scroll-wrapper {
+    overflow-x: auto;
+    max-height: 78vh;
+    position: relative;
+}
+
+.excel-view-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    white-space: nowrap;
+}
+
+.excel-view-table th, .excel-view-table td {
+    padding: 0.35rem 0.5rem;
+    border: 1px solid #d1d5db;
+    vertical-align: middle;
+}
+
+/* Row 1 Group Headers */
+.hdr-receipts-grp {
+    background: #c2e0c6 !important;
+    color: #1b4332;
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-align: center;
+    border-bottom: 2px solid #2d6a4f !important;
+}
+
+.hdr-sep-grp {
+    background: #1f4e79 !important;
+    width: 8px;
+    padding: 0 !important;
+}
+
+.hdr-payments-grp {
+    background: #d9e1f2 !important;
+    color: #1e3a8a;
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-align: center;
+    border-bottom: 2px solid #2563eb !important;
+}
+
+.hdr-balance-grp {
+    background: #f2dcdb !important;
+    color: #881337;
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-align: center;
+    border-bottom: 2px solid #be123c !important;
+}
+
+.hdr-remarks-grp {
+    background: #f8fafc !important;
+    color: #334155;
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-align: center;
+    border-bottom: 2px solid #64748b !important;
+}
+
+/* Row 2 Sub-headers */
+.subhdr-receipts {
+    background: #e2efda;
+    color: #166534;
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-align: center;
+    position: sticky;
+    top: 26px;
+    z-index: 5;
+}
+
+.subhdr-payments {
+    background: #e9eef8;
+    color: #1e40af;
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-align: center;
+    position: sticky;
+    top: 26px;
+    z-index: 5;
+}
+
+.subhdr-balance {
+    background: #fcf1f0;
+    color: #9f1239;
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-align: center;
+    position: sticky;
+    top: 26px;
+    z-index: 5;
+}
+
+.sticky-top-1 {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+/* Cell Column Highlights as per user picture */
+.cell-premier {
+    background-color: #bdd7ee !important;
+    color: #1e3a8a;
+    font-weight: 600;
+}
+
+.cell-voucher-badge {
+    background-color: #00b050 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    text-align: center;
+    border-radius: 3px;
+    padding: 0.15rem 0.4rem;
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    text-decoration: none;
+}
+
+.cell-voucher-badge:hover {
+    background-color: #059669 !important;
+}
+
+.col-sep {
+    background: #1f4e79 !important;
+    width: 6px;
+    padding: 0 !important;
+}
+
+.num-cell {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.bold-cell {
+    font-weight: 700;
+}
+
+.row-opening {
+    background-color: #fefce8 !important;
+    font-weight: 700;
+}
+
+.row-opening td {
+    border-top: 2px solid #ca8a04 !important;
+    border-bottom: 2px solid #ca8a04 !important;
+}
+
+/* Quick Month Navigation */
+.month-pills {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.month-pill {
+    padding: 0.35rem 0.75rem;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.15s ease;
+}
+
+.month-pill:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: #eff6ff;
+}
+
+.month-pill.active {
+    background: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+/* Modal styling */
+.custom-modal-backdrop {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.6);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(3px);
+}
+
+.custom-modal-card {
+    background: #ffffff;
+    width: 90%;
+    max-width: 520px;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cash-book-container">
+    <!-- Top Header -->
+    <div class="page-header">
+        <div>
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <h1 class="page-title">📖 Cash & Bank Book</h1>
+                <span class="badge" style="background-color: #dcfce7; color: #15803d; font-weight: 700; border: 1px solid #86efac;">
+                    ★ Live Cash/Bank Journal
+                </span>
+            </div>
+            <p class="page-description">Two-sided daily Receipts, Payments & Liquidity statement corresponding exactly to your corporate Excel register.</p>
+        </div>
+        <div class="header-actions">
+            <a href="{{ url_for('export_cash_book_excel', month=selected_month) }}" class="btn btn-success" style="display: flex; align-items: center; gap: 0.4rem;" title="Download complete formatted Excel spreadsheet">
+                📥 Export to Excel (.xlsx)
+            </a>
+            <button type="button" onclick="openDateConditionModal()" class="btn btn-warning" style="display: flex; align-items: center; gap: 0.4rem; font-weight: 600; background: #d97706; color: #ffffff; border-color: #b45309;" title="Clear previous ledger data and update only within a specific date range">
+                🔄 Update by Date Condition
+            </button>
+            <button type="button" onclick="openImportModal()" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.4rem;">
+                📤 Import from Excel
+            </button>
+            <button onclick="window.print()" class="btn btn-outline">🖨️ Print</button>
+        </div>
+    </div>
+
+    <!-- Summary KPI Cards -->
+    <div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 1.25rem;">
+        <div class="metric-card" style="border-left: 4px solid #10b981;">
+            <div class="metric-label">Cash in Hand (BS-001)</div>
+            <div class="metric-value" style="color: #059669;">৳{{ "{:,.2f}".format(latest_cash) }}</div>
+            <div class="metric-sub">Period Cash Receipts: ৳{{ "{:,.2f}".format(total_receipt_cash) }}</div>
+        </div>
+
+        <div class="metric-card" style="border-left: 4px solid #2563eb;">
+            <div class="metric-label">Premier Bank (BS-002)</div>
+            <div class="metric-value" style="color: #2563eb;">৳{{ "{:,.2f}".format(latest_prem) }}</div>
+            <div class="metric-sub">Period Bank Receipts: ৳{{ "{:,.2f}".format(total_receipt_premier) }}</div>
+        </div>
+
+        <div class="metric-card" style="border-left: 4px solid #8b5cf6;">
+            <div class="metric-label">Combined Liquid Position</div>
+            <div class="metric-value" style="color: #6d28d9;">৳{{ "{:,.2f}".format(latest_cash + latest_prem) }}</div>
+            <div class="metric-sub">Total Available Liquidity</div>
+        </div>
+
+        <div class="metric-card" style="border-left: 4px solid #ef4444;">
+            <div class="metric-label">Total Period Disbursements</div>
+            <div class="metric-value text-danger">৳{{ "{:,.2f}".format(total_payment_all) }}</div>
+            <div class="metric-sub">Cash: ৳{{ "{:,.0f}".format(total_payment_cash) }} | Bank: ৳{{ "{:,.0f}".format(total_payment_premier) }}</div>
+        </div>
+    </div>
+
+    <!-- Month Navigation Filter & Search -->
+    <div class="card" style="margin-bottom: 1.25rem; padding: 1rem 1.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div class="month-pills">
+                <span style="font-size: 0.82rem; font-weight: 700; color: var(--text-secondary); margin-right: 0.4rem;">FILTER PERIOD:</span>
+                {% for m_val, m_label in month_options %}
+                <a href="{{ url_for('cash_book_report', month=m_val, search=search_query) }}" 
+                   class="month-pill {% if selected_month == m_val %}active{% endif %}">
+                    {{ m_label }}
+                </a>
+                {% endfor %}
+            </div>
+
+            <!-- Search Form -->
+            <form method="GET" action="{{ url_for('cash_book_report') }}" style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="hidden" name="month" value="{{ selected_month }}">
+                <input type="text" name="search" value="{{ search_query }}" placeholder="Search DV #, code, payee..." 
+                       class="form-control" style="width: 240px; padding: 0.4rem 0.75rem; font-size: 0.85rem;">
+                <button type="submit" class="btn btn-outline btn-sm">🔍</button>
+                {% if search_query %}
+                <a href="{{ url_for('cash_book_report', month=selected_month) }}" class="btn btn-outline btn-sm" title="Clear filter">✕</a>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <!-- Live Excel-Formatted Two-Sided Table (as per client picture) -->
+    <div class="excel-journal-card">
+        <div style="background: #0f172a; color: #f8fafc; padding: 0.6rem 1rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+            <div>
+                <strong>TBN BD LTD. — CASH & BANK BOOK JOURNAL</strong>
+                <span style="color: #94a3b8; margin-left: 0.5rem;">({{ rows|length }} Journal Rows Displayed)</span>
+            </div>
+            <div style="font-size: 0.75rem; color: #cbd5e1;">
+                Vouchers with <span style="background: #00b050; padding: 0.1rem 0.3rem; border-radius: 2px; font-weight: 700; color: #fff;">DV-####</span> are clickable to view double-entry voucher detail
+            </div>
+        </div>
+
+        <div class="table-scroll-wrapper">
+            <table class="excel-view-table">
+                <thead>
+                    <!-- Top Row: Merged Section Headers -->
+                    <tr class="sticky-top-1">
+                        <th colspan="9" class="hdr-receipts-grp">Receipts</th>
+                        <th class="hdr-sep-grp"></th>
+                        <th colspan="9" class="hdr-payments-grp">Payments</th>
+                        <th colspan="3" class="hdr-balance-grp">Balance</th>
+                        <th class="hdr-remarks-grp">Remarks / Narration</th>
+                    </tr>
+                    <!-- Second Row: Column Sub-Headers -->
+                    <tr>
+                        <!-- Receipts Columns -->
+                        <th class="subhdr-receipts" style="width: 75px;">Code</th>
+                        <th class="subhdr-receipts" style="width: 85px;">Date</th>
+                        <th class="subhdr-receipts" style="width: 75px;">Voucher</th>
+                        <th class="subhdr-receipts" style="width: 170px;">Description</th>
+                        <th class="subhdr-receipts" style="width: 60px;">Ref</th>
+                        <th class="subhdr-receipts num-cell" style="width: 95px;">Cash</th>
+                        <th class="subhdr-receipts num-cell cell-premier" style="width: 105px;">Premier Bank</th>
+                        <th class="subhdr-receipts num-cell" style="width: 70px;">Bank</th>
+                        <th class="subhdr-receipts num-cell bold-cell" style="width: 105px; background: #c2e0c6;">Total</th>
+
+                        <!-- Separator Column -->
+                        <th class="col-sep"></th>
+
+                        <!-- Payments Columns -->
+                        <th class="subhdr-payments" style="width: 85px;">Date</th>
+                        <th class="subhdr-payments" style="width: 85px;">Voucher No.</th>
+                        <th class="subhdr-payments" style="width: 75px;">Code</th>
+                        <th class="subhdr-payments" style="width: 170px;">Description</th>
+                        <th class="subhdr-payments" style="width: 60px;">Ref</th>
+                        <th class="subhdr-payments num-cell" style="width: 95px;">Cash</th>
+                        <th class="subhdr-payments num-cell" style="width: 70px;">Bank</th>
+                        <th class="subhdr-payments num-cell cell-premier" style="width: 105px;">Premier Bank</th>
+                        <th class="subhdr-payments num-cell bold-cell" style="width: 105px;">Total</th>
+
+                        <!-- Balance Columns -->
+                        <th class="subhdr-balance num-cell bold-cell" style="width: 110px;">Cash</th>
+                        <th class="subhdr-balance num-cell" style="width: 70px;">Bank</th>
+                        <th class="subhdr-balance num-cell bold-cell cell-premier" style="width: 110px;">PremierBank</th>
+
+                        <!-- Remarks Column -->
+                        <th class="hdr-remarks-grp" style="width: 320px; text-align: left;">Purpose / Payee Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr {% if r.receipt_desc == 'Opening Balance' or r.receipt_desc == 'Opeining Balance' %}class="row-opening"{% endif %}>
+                        <!-- 1. Receipts: Code -->
+                        <td style="font-family: 'JetBrains Mono', monospace; text-align: center;">
+                            {% if r.receipt_code %}
+                                <strong>{{ r.receipt_code }}</strong>
+                            {% else %}
+                                <span style="color: #cbd5e1;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 2. Receipts: Date -->
+                        <td style="text-align: center;">
+                            {% if r.receipt_date %}
+                                {{ r.receipt_date.strftime('%d-%b-%y') }}
+                            {% elif r.payment_date %}
+                                {{ r.payment_date.strftime('%d-%b-%y') }}
+                            {% endif %}
+                        </td>
+
+                        <!-- 3. Receipts: Voucher -->
+                        <td style="text-align: center; font-family: 'JetBrains Mono', monospace;">
+                            {{ r.receipt_voucher or '-' }}
+                        </td>
+
+                        <!-- 4. Receipts: Description -->
+                        <td>
+                            {% if r.receipt_desc %}
+                                <strong>{{ r.receipt_desc }}</strong>
+                            {% else %}
+                                <span style="color: #94a3b8;">#N/A</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 5. Receipts: Ref -->
+                        <td style="text-align: center;">{{ r.receipt_ref or '-' }}</td>
+
+                        <!-- 6. Receipts: Cash -->
+                        <td class="num-cell">
+                            {% if r.receipt_cash != 0 %}
+                                {{ "{:,.0f}".format(r.receipt_cash) }}
+                            {% else %}
+                                <span style="color: #cbd5e1;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 7. Receipts: Premier Bank (Blue Highlight) -->
+                        <td class="num-cell cell-premier">
+                            {% if r.receipt_premier != 0 %}
+                                {{ "{:,.0f}".format(r.receipt_premier) }}
+                            {% else %}
+                                <span style="color: #64748b;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 8. Receipts: Bank -->
+                        <td class="num-cell" style="color: #cbd5e1;">-</td>
+
+                        <!-- 9. Receipts: Total -->
+                        <td class="num-cell bold-cell" style="background: #f0fdf4;">
+                            {% if r.receipt_total != 0 %}
+                                {{ "{:,.0f}".format(r.receipt_total) }}
+                            {% else %}
+                                <span style="color: #cbd5e1;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 10. Separator -->
+                        <td class="col-sep"></td>
+
+                        <!-- 11. Payments: Date -->
+                        <td style="text-align: center;">
+                            {% if r.payment_date %}
+                                {{ r.payment_date.strftime('%d-%b-%y') }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+
+                        <!-- 12. Payments: Voucher No. (Green DV Badge) -->
+                        <td style="text-align: center;">
+                            {% if r.payment_vno and r.payment_vno.startswith('DV-') %}
+                                <a href="{{ url_for('view_voucher', voucher_id=r.payment_vno) }}" 
+                                   target="_blank" 
+                                   class="cell-voucher-badge"
+                                   title="Click to view full voucher detail in new window">
+                                    {{ r.payment_vno }}
+                                </a>
+                            {% elif r.payment_vno %}
+                                <span style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">{{ r.payment_vno }}</span>
+                            {% else %}
+                                <span style="color: #cbd5e1;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 13. Payments: Code -->
+                        <td style="font-family: 'JetBrains Mono', monospace; text-align: center;">
+                            {% if r.payment_code %}
+                                <strong>{{ r.payment_code }}</strong>
+                            {% else %}
+                                <span style="color: #cbd5e1;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 14. Payments: Description -->
+                        <td>
+                            {% if r.payment_desc %}
+                                {{ r.payment_desc }}
+                            {% else %}
+                                <span style="color: #cbd5e1;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 15. Payments: Ref -->
+                        <td style="text-align: center;">{{ r.payment_ref or '-' }}</td>
+
+                        <!-- 16. Payments: Cash -->
+                        <td class="num-cell">
+                            {% if r.payment_cash != 0 %}
+                                {{ "{:,.0f}".format(r.payment_cash) }}
+                            {% else %}
+                                <span style="color: #cbd5e1;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 17. Payments: Bank -->
+                        <td class="num-cell" style="color: #cbd5e1;">-</td>
+
+                        <!-- 18. Payments: Premier Bank (Blue Highlight) -->
+                        <td class="num-cell cell-premier">
+                            {% if r.payment_premier != 0 %}
+                                {{ "{:,.0f}".format(r.payment_premier) }}
+                            {% else %}
+                                <span style="color: #64748b;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 19. Payments: Total -->
+                        <td class="num-cell bold-cell" style="background: #f8fafc;">
+                            {% if r.payment_total != 0 %}
+                                {{ "{:,.0f}".format(r.payment_total) }}
+                            {% else %}
+                                <span style="color: #cbd5e1;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 20. Balance: Cash -->
+                        <td class="num-cell bold-cell" style="color: #1e293b;">
+                            {% if r.balance_cash != 0 %}
+                                {{ "{:,.0f}".format(r.balance_cash) }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+
+                        <!-- 21. Balance: Bank -->
+                        <td class="num-cell" style="color: #cbd5e1;">-</td>
+
+                        <!-- 22. Balance: PremierBank (Blue Highlight) -->
+                        <td class="num-cell bold-cell cell-premier">
+                            {% if r.balance_premier != 0 %}
+                                {{ "{:,.0f}".format(r.balance_premier) }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+
+                        <!-- 23. Remarks / Narration -->
+                        <td style="font-size: 0.8rem; color: #334155; white-space: normal; max-width: 320px;">
+                            {{ r.remarks or '' }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Import from Excel File -->
+<div id="importModal" class="custom-modal-backdrop">
+    <div class="custom-modal-card">
+        <div style="background: #0f172a; color: #fff; padding: 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+                📤 Import Data from Excel File
+            </h3>
+            <button onclick="closeImportModal()" style="background: transparent; border: none; color: #fff; font-size: 1.2rem; cursor: pointer;">✕</button>
+        </div>
+        <form method="POST" action="{{ url_for('import_cash_book_excel') }}" enctype="multipart/form-data" style="padding: 1.5rem;">
+            <div style="margin-bottom: 1.25rem;">
+                <label style="display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                    Select Excel Workbook (.xlsx / .xls):
+                </label>
+                <input type="file" name="excel_file" accept=".xlsx, .xls, .tsv, .csv" required class="form-control" style="padding: 0.5rem;">
+                <small style="display: block; color: var(--text-muted); margin-top: 0.5rem; font-size: 0.8rem;">
+                    Supported format: Multi-column cash book identical to your standard receipts, payments, and balance columns.
+                </small>
+            </div>
+
+            <div style="background: #f8fafc; border-left: 3px solid #2563eb; padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1.5rem; font-size: 0.82rem; color: #475569;">
+                <strong>Automatic Synchronization:</strong>
+                <ul style="margin: 0.4rem 0 0 1.2rem; padding: 0;">
+                    <li>Parses both Receipts and Payments lines</li>
+                    <li>Synchronizes General Ledger double-entry vouchers</li>
+                    <li>Auto-generates or retrieves Chart of Account codes</li>
+                    <li>Recalculates real-time running liquid balances</li>
+                </ul>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+                <button type="button" onclick="closeImportModal()" class="btn btn-outline">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.4rem;">
+                    ⚡ Upload & Process
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Update by Date Condition -->
+<div id="dateConditionModal" class="custom-modal-backdrop">
+    <div class="custom-modal-card" style="max-width: 620px;">
+        <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #fff; padding: 1.1rem 1.4rem; display: flex; justify-content: space-between; align-items: center; border-radius: 8px 8px 0 0;">
+            <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.6rem;">
+                🔄 Update by Date Condition (Clear & Replace)
+            </h3>
+            <button onclick="closeDateConditionModal()" style="background: transparent; border: none; color: #fff; font-size: 1.3rem; cursor: pointer;">✕</button>
+        </div>
+        <form method="POST" action="{{ url_for('update_cash_book_by_date_range') }}" enctype="multipart/form-data" style="padding: 1.5rem;">
+            <!-- Informational Banner -->
+            <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 0.85rem 1rem; border-radius: 4px; margin-bottom: 1.25rem; font-size: 0.83rem; color: #1e40af; line-height: 1.45;">
+                <strong>💡 Date Condition Safe Replace:</strong><br>
+                This will automatically <strong>clear previous accounts ledger data (vouchers & lines) and cash book rows</strong> strictly within your chosen date condition, then update new records for that period. This guarantees <strong>ZERO double posting</strong> and keeps Cash Book & General Ledger matched 100%!
+            </div>
+
+            <!-- Date Presets -->
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text-secondary);">
+                    QUICK PRESETS:
+                </label>
+                <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setDatePreset('2026-08-01', '2026-08-31')">August 2026</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setDatePreset('2026-07-01', '2026-07-31')">July 2026</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setDatePreset('2026-06-01', '2026-06-30')">June 2026</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setDatePreset('2026-01-01', '2026-01-31')">January 2026</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setDatePreset('2026-01-01', '2026-12-31')">Full Year 2026</button>
+                </div>
+            </div>
+
+            <!-- Date Range Condition Inputs -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                <div>
+                    <label style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                        From Date (Condition Start): *
+                    </label>
+                    <input type="date" name="from_date" id="cond_from_date" required class="form-control" value="2026-08-01" style="padding: 0.45rem 0.65rem;">
+                </div>
+                <div>
+                    <label style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                        To Date (Condition End): *
+                    </label>
+                    <input type="date" name="to_date" id="cond_to_date" required class="form-control" value="2026-08-31" style="padding: 0.45rem 0.65rem;">
+                </div>
+            </div>
+
+            <!-- Action Mode Selection -->
+            <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 0.9rem; margin-bottom: 1.25rem;">
+                <label style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                    Action Mode:
+                </label>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="radio" name="action_type" value="replace_excel" checked onchange="toggleExcelInput(true)">
+                        <span><strong>Clear previous data & import fresh data from Excel</strong> (Recommended)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="radio" name="action_type" value="clear_range" onchange="toggleExcelInput(false)">
+                        <span><strong>Clear only within date range</strong> (Wipes previous data in range without importing)</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Excel File Input -->
+            <div id="excelFileInputContainer" style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.4rem;">
+                    Select Excel Workbook (.xlsx / .xls / .tsv):
+                </label>
+                <input type="file" name="excel_file" id="cond_excel_file" accept=".xlsx, .xls, .tsv, .csv" class="form-control" style="padding: 0.45rem;">
+                <small style="display: block; color: var(--text-muted); margin-top: 0.35rem; font-size: 0.78rem;">
+                    Only rows matching your date condition will be imported and posted to the General Ledger. All other dates in the file will be safely skipped.
+                </small>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+                <button type="button" onclick="closeDateConditionModal()" class="btn btn-outline">Cancel</button>
+                <button type="submit" class="btn btn-warning" style="background: #d97706; color: #fff; font-weight: 700; border-color: #b45309; display: flex; align-items: center; gap: 0.4rem;">
+                    ⚡ Execute Update & Sync Ledger
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openDateConditionModal() {
+    document.getElementById('dateConditionModal').style.display = 'flex';
+}
+function closeDateConditionModal() {
+    document.getElementById('dateConditionModal').style.display = 'none';
+}
+function openImportModal() {
+    document.getElementById('importModal').style.display = 'flex';
+}
+function closeImportModal() {
+    document.getElementById('importModal').style.display = 'none';
+}
+function setDatePreset(fromD, toD) {
+    document.getElementById('cond_from_date').value = fromD;
+    document.getElementById('cond_to_date').value = toD;
+}
+function toggleExcelInput(show) {
+    document.getElementById('excelFileInputContainer').style.display = show ? 'block' : 'none';
+    var fileInput = document.getElementById('cond_excel_file');
+    if (show) {
+        fileInput.setAttribute('required', 'required');
+    } else {
+        fileInput.removeAttribute('required');
+    }
+}
+// Close modals on click outside
+window.onclick = function(event) {
+    var importModal = document.getElementById('importModal');
+    var condModal = document.getElementById('dateConditionModal');
+    if (event.target == importModal) {
+        importModal.style.display = "none";
+    }
+    if (event.target == condModal) {
+        condModal.style.display = "none";
+    }
+}
+</script>
+{% endblock %}

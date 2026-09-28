@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Monthly Budget - {{ budget.title }} - ZR-ERP{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+    <div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+            <span style="font-size: 1.5rem;">✏️</span>
+            <h1 class="page-title" style="margin: 0; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em;">Edit Budget: {{ budget.month_display }}</h1>
+        </div>
+        <p class="page-description" style="color: var(--text-muted); font-size: 0.88rem; margin: 0;">
+            Adjust financial ceilings or update notes for <strong style="color: var(--text-main);">{{ budget.title }}</strong>.
+        </p>
+    </div>
+
+    <div class="header-actions">
+        <a href="{{ url_for('budget_dashboard', month=budget.month_year) }}" class="btn btn-secondary">
+            ← Cancel &amp; Back
+        </a>
+    </div>
+</div>
+
+<form method="POST" action="{{ url_for('edit_budget', budget_id=budget.id) }}" id="budgetEditForm">
+    <!-- Top Metadata Card -->
+    <div class="card" style="border-radius: 14px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.04);">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin-bottom: 1.25rem;">
+            <!-- 1. Month & Year (Read-only) -->
+            <div class="form-group" style="margin: 0;">
+                <label class="form-label" style="font-weight: 700; color: #1e293b;">Budget Month</label>
+                <input type="text" class="form-control" value="{{ budget.month_display }} ({{ budget.month_year }})" disabled style="background: #f1f5f9; font-weight: 700;">
+            </div>
+
+            <!-- 2. Budget Title -->
+            <div class="form-group" style="margin: 0;">
+                <label class="form-label" style="font-weight: 700; color: #1e293b;">Budget Title / Designation</label>
+                <input type="text" name="title" class="form-control" value="{{ budget.title }}" required>
+            </div>
+
+            <!-- 3. Fiscal Year -->
+            <div class="form-group" style="margin: 0;">
+                <label class="form-label" style="font-weight: 700; color: #1e293b;">Fiscal Financial Year</label>
+                <input type="text" name="fiscal_year" class="form-control" value="{{ budget.fiscal_year or '2026-2027' }}">
+            </div>
+
+            <!-- 4. Status -->
+            <div class="form-group" style="margin: 0;">
+                <label class="form-label" style="font-weight: 700; color: #1e293b;">Budget Status</label>
+                <select name="status" class="form-control" style="font-weight: 600;">
+                    <option value="Issued" {% if budget.status == 'Issued' %}selected{% endif %}>🟢 Issued &amp; Active</option>
+                    <option value="Draft" {% if budget.status == 'Draft' %}selected{% endif %}>🟡 Draft (In Progress)</option>
+                    <option value="Closed" {% if budget.status == 'Closed' %}selected{% endif %}>🔒 Closed (Audited)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group" style="margin: 0;">
+            <label class="form-label" style="font-weight: 700; color: #1e293b;">Strategic Directives / Spending Notes</label>
+            <textarea name="notes" rows="2" class="form-control">{{ budget.notes or '' }}</textarea>
+        </div>
+    </div>
+
+    <!-- Live Sticky Bar -->
+    <div class="card" style="border-radius: 14px; padding: 1.25rem; margin-bottom: 1.5rem; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: white; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; position: sticky; top: 10px; z-index: 90; box-shadow: 0 8px 24px rgba(15,23,42,0.35);">
+        <div>
+            <div style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; font-weight: 700;">Live Consolidated Allocation</div>
+            <div style="font-size: 1.85rem; font-weight: 800; font-family: 'Outfit', sans-serif; display: flex; align-items: baseline; gap: 0.4rem;">
+                <span style="font-size: 1.35rem; color: #38bdf8;">৳</span>
+                <span id="liveTotalBudgetDisplay">{{ "{:,.2f}".format(budget.total_budgeted) }}</span>
+            </div>
+            <div style="font-size: 0.78rem; color: #cbd5e1;">
+                Allocated across <strong id="allocatedAccountsCount" style="color: #38bdf8;">{{ budget.items|length }}</strong> expense accounts
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+            <button type="button" class="btn btn-sm btn-outline" style="color: #60a5fa; border-color: rgba(96,165,250,0.4);" onclick="applyGlobalAdjustment(1.05)">
+                +5% Buffer
+            </button>
+            <button type="button" class="btn btn-sm btn-outline" style="color: #f87171; border-color: rgba(248,113,113,0.4);" onclick="applyGlobalAdjustment(0.95)">
+                -5% Cut
+            </button>
+
+            <button type="submit" class="nav-cta-btn" style="padding: 0.55rem 1.25rem; font-weight: 700; margin-left: 0.5rem; box-shadow: 0 4px 14px rgba(37,99,235,0.4);">
+                💾 Save Changes
+            </button>
+        </div>
+    </div>
+
+    <!-- Allocations Table -->
+    <div class="card" style="border-radius: 14px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.04); margin-bottom: 2rem;">
+        <div class="table-responsive">
+            <table class="table report-table" style="margin: 0;">
+                <thead>
+                    <tr>
+                        <th style="width: 100px;">Code</th>
+                        <th>Account Name &amp; Classification</th>
+                        <th style="width: 240px; text-align: right;">Monthly Budget (৳)</th>
+                        <th style="width: 150px; text-align: center;">Quick Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set current_cat = '' %}
+                    {% for acc in expense_accounts %}
+                        {% if acc.category != current_cat %}
+                            {% set current_cat = acc.category %}
+                            <tr class="report-section-header" style="background: #f1f5f9; font-weight: 800; color: #334155;">
+                                <td colspan="4" style="padding: 0.65rem 1rem; font-size: 0.85rem; letter-spacing: 0.04em;">
+                                    📌 {{ current_cat|upper }}
+                                </td>
+                            </tr>
+                        {% endif %}
+                        <tr>
+                            <td style="font-family: monospace; font-size: 0.82rem; font-weight: 700; color: #475569;">{{ acc.code }}</td>
+                            <td>
+                                <div style="font-weight: 600; color: #0f172a;">{{ acc.name }}</div>
+                                <div style="font-size: 0.74rem; color: #64748b;">{{ acc.category }}</div>
+                            </td>
+                            <td style="text-align: right;">
+                                {% set init_val = existing_items.get(acc.id, 0.0) %}
+                                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.35rem;">
+                                    <span style="font-weight: 700; color: #64748b;">৳</span>
+                                    <input type="number" 
+                                           step="100" 
+                                           min="0" 
+                                           name="allocated_{{ acc.id }}" 
+                                           id="alloc_{{ acc.id }}" 
+                                           class="form-control alloc-input" 
+                                           value="{{ "{:.0f}".format(init_val) if init_val > 0 else '' }}" 
+                                           placeholder="0.00" 
+                                           style="width: 160px; text-align: right; font-weight: 700; font-size: 0.92rem;" 
+                                           oninput="recalculateTotal()">
+                                </div>
+                            </td>
+                            <td style="text-align: center;">
+                                <button type="button" class="btn btn-outline btn-sm" style="font-size: 0.7rem; padding: 0.2rem 0.5rem;" onclick="setZero('{{ acc.id }}')">
+                                    Zero
+                                </button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</form>
+
+<script>
+function recalculateTotal() {
+    let sum = 0;
+    let count = 0;
+    document.querySelectorAll('.alloc-input').forEach(inp => {
+        const val = parseFloat(inp.value) || 0;
+        if (val > 0) {
+            sum += val;
+            count++;
+        }
+    });
+
+    document.getElementById('liveTotalBudgetDisplay').textContent = sum.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+    document.getElementById('allocatedAccountsCount').textContent = count;
+}
+
+function setZero(accId) {
+    const input = document.getElementById('alloc_' + accId);
+    if (input) {
+        input.value = '';
+        recalculateTotal();
+    }
+}
+
+function applyGlobalAdjustment(multiplier) {
+    document.querySelectorAll('.alloc-input').forEach(inp => {
+        const current = parseFloat(inp.value) || 0;
+        if (current > 0) {
+            inp.value = Math.round(current * multiplier);
+        }
+    });
+    recalculateTotal();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    recalculateTotal();
+});
+</script>
+{% endblock %}

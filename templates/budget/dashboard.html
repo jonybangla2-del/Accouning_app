@@ -1,0 +1,697 @@
+{% extends "base.html" %}
+
+{% block title %}Monthly Budget & Expense Analysis - ZR-ERP{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+    <div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+            <span style="font-size: 1.6rem;">🎯</span>
+            <h1 class="page-title" style="margin: 0; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em;">
+                Monthly Corporate Budget &amp; Expense Analysis
+            </h1>
+            {% if budget %}
+                <span class="badge {% if budget.status == 'Issued' %}badge-success{% elif budget.status == 'Draft' %}badge-warning{% else %}badge-secondary{% endif %}" style="font-size: 0.72rem; padding: 0.2rem 0.6rem; text-transform: uppercase; font-weight: 700;">
+                    {{ budget.status }}
+                </span>
+            {% endif %}
+        </div>
+        <p class="page-description" style="color: var(--text-muted); font-size: 0.88rem; margin: 0;">
+            Multi-Division (TBN, TIS, ISP) allocation, proportionate overhead distribution, and real-time General Ledger expenditure tracking for <strong style="color: var(--text-main);">{{ month_name }}</strong>.
+        </p>
+    </div>
+
+    <div class="header-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+        <a href="{{ url_for('issue_budget', month=month) }}" class="nav-cta-btn" style="padding: 0.55rem 1.1rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);">
+            <span>+</span> Issue Monthly Budget
+        </a>
+        {% if budget %}
+        <a href="{{ url_for('edit_budget', budget_id=budget.id) }}" class="btn btn-secondary" style="font-size: 0.82rem; padding: 0.55rem 0.85rem; font-weight: 600;">
+            ✏️ Edit Allocations
+        </a>
+        {% endif %}
+        <a href="{{ url_for('budget_report', month=month) }}" class="btn btn-outline" style="font-size: 0.82rem; padding: 0.55rem 0.85rem; font-weight: 600;">
+            🖨️ Printable Sheet / PDF
+        </a>
+        <a href="{{ url_for('budget_list') }}" class="btn btn-secondary" style="font-size: 0.82rem; padding: 0.55rem 0.85rem; font-weight: 600;">
+            📋 Budget Archive
+        </a>
+    </div>
+</div>
+
+<!-- ========================================================================
+     PERIOD SELECTOR & VIEW MODE TOGGLE BAR
+     ======================================================================== -->
+<div class="filter-bar no-print" style="background: white; border-radius: 12px; padding: 0.85rem 1.25rem; border: 1px solid var(--border-color); box-shadow: 0 2px 6px rgba(0,0,0,0.03); margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+    <!-- Month Switcher Form -->
+    <form method="GET" action="{{ url_for('budget_dashboard') }}" style="display: flex; align-items: center; gap: 0.75rem; margin: 0; flex-wrap: wrap;">
+        <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em;">Select Month:</span>
+        <select name="month" class="form-control" style="width: auto; min-width: 180px; font-weight: 700; padding: 0.4rem 0.85rem; font-size: 0.9rem;" onchange="this.form.submit()">
+            {% for b in all_budgets %}
+                <option value="{{ b.month_year }}" {% if b.month_year == month %}selected{% endif %}>
+                    {{ b.month_display }} ({{ b.status }})
+                </option>
+            {% endfor %}
+            {% if month not in available_months %}
+                <option value="{{ month }}" selected>{{ month_name }} (No Budget)</option>
+            {% endif %}
+        </select>
+        <button type="submit" class="btn btn-secondary btn-sm" style="padding: 0.4rem 0.75rem; font-weight: 600;">Switch</button>
+    </form>
+
+    <!-- Master View Mode Toggles: Corporate Multi-Division Format vs Variance Analysis -->
+    <div style="display: flex; background: #f1f5f9; padding: 0.25rem; border-radius: 8px; gap: 0.25rem;">
+        <button type="button" class="view-mode-tab active" id="tabModeCorporate" onclick="switchDashboardMode('corporate')">
+            📑 Corporate Budget Format (TBN | TIS | ISP)
+        </button>
+        <button type="button" class="view-mode-tab" id="tabModeVariance" onclick="switchDashboardMode('variance')">
+            📊 Budget vs Actual Variance Cockpit
+        </button>
+    </div>
+</div>
+
+<!-- ========================================================================
+     EXECUTIVE SUMMARY CHIPS (TBN, TIS, ISP, CONSOLIDATED)
+     ======================================================================== -->
+<div class="metrics-grid" style="margin-bottom: 1.75rem;">
+    <!-- 1. TBN Budget -->
+    <div class="metric-card" style="border-top: 4px solid #f97316; background: #fffaf5;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #9a3412;">TBN Budget (Monthly)</span>
+            <div class="metric-icon-box" style="background: #ffedd5; color: #ea580c; font-weight: 800; font-size: 0.75rem;">
+                {{ budget.tbn_headcount if budget else 104 }} Staff
+            </div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency" style="color: #ea580c;">৳</span>
+            <span style="color: #9a3412;">{{ "{:,.2f}".format(budget.tbn_budget if budget and budget.tbn_budget else 2899794.0) }}</span>
+        </div>
+        <div class="metric-sub">
+            <span class="metric-pill" style="background: #ffedd5; color: #c2410c;">68.4% Share</span>
+            <span style="color: var(--text-muted); font-size: 0.76rem;">Headcount Weight: {{ budget.tbn_headcount if budget else 104 }}/152</span>
+        </div>
+    </div>
+
+    <!-- 2. TIS Budget -->
+    <div class="metric-card" style="border-top: 4px solid #10b981; background: #f6fdf9;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #065f46;">TIS Budget (Monthly)</span>
+            <div class="metric-icon-box" style="background: #dcfce7; color: #059669; font-weight: 800; font-size: 0.75rem;">
+                {{ budget.tis_headcount if budget else 42 }} Staff
+            </div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency" style="color: #059669;">৳</span>
+            <span style="color: #065f46;">{{ "{:,.2f}".format(budget.tis_budget if budget and budget.tis_budget else 1866590.0) }}</span>
+        </div>
+        <div class="metric-sub">
+            <span class="metric-pill" style="background: #dcfce7; color: #047857;">27.6% Share</span>
+            <span style="color: var(--text-muted); font-size: 0.76rem;">Headcount Weight: {{ budget.tis_headcount if budget else 42 }}/152</span>
+        </div>
+    </div>
+
+    <!-- 3. ISP Budget -->
+    <div class="metric-card" style="border-top: 4px solid #eab308; background: #fefce8;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #854d0e;">ISP Budget (Monthly)</span>
+            <div class="metric-icon-box" style="background: #fef9c3; color: #ca8a04; font-weight: 800; font-size: 0.75rem;">
+                {{ budget.isp_headcount if budget else 6 }} Staff
+            </div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency" style="color: #ca8a04;">৳</span>
+            <span style="color: #854d0e;">{{ "{:,.2f}".format(budget.isp_budget if budget and budget.isp_budget else 447684.0) }}</span>
+        </div>
+        <div class="metric-sub">
+            <span class="metric-pill" style="background: #fef9c3; color: #a16207;">4.0% Share</span>
+            <span style="color: var(--text-muted); font-size: 0.76rem;">Headcount Weight: {{ budget.isp_headcount if budget else 6 }}/152</span>
+        </div>
+    </div>
+
+    <!-- 4. Net Operating Budget & USD Equivalent -->
+    <div class="metric-card" style="border-top: 4px solid #2563eb; background: #f0f7ff;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #1e40af;">Net Operating Budget</span>
+            <div class="metric-icon-box" style="background: #dbeafe; color: #1d4ed8; font-weight: 800; font-size: 0.75rem;">
+                ${{ "{:,.0f}".format(budget.usd_amount if budget and budget.usd_amount else 42049.0) }}
+            </div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency" style="color: #2563eb;">৳</span>
+            <span style="color: #1e3a8a;">{{ "{:,.2f}".format(budget.net_budget if budget and budget.net_budget else 5119518.0) }}</span>
+        </div>
+        <div class="metric-sub">
+            <span class="metric-pill" style="background: #dbeafe; color: #1e40af;">Consolidated Net</span>
+            <span style="color: var(--text-muted); font-size: 0.76rem;">After ISP bill adjustment of ৳187k</span>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================
+     VIEW 1: EXACT CORPORATE BUDGET SHEET (TBN | TIS | ISP | TOTAL)
+     ======================================================================== -->
+<div id="corporateSheetSection">
+    <div class="card" style="border-radius: 14px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 2rem; border: 1px solid #cbd5e1;">
+        <!-- Corporate Title Banner -->
+        <div style="background: #0f172a; color: white; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1e293b;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div style="background: #2563eb; color: white; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.9rem;">
+                    ZR
+                </div>
+                <div>
+                    <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 800; margin: 0; letter-spacing: -0.01em;">
+                        Budget for {{ month_name }}
+                    </h2>
+                    <span style="font-size: 0.75rem; color: #94a3b8;">
+                        Official Multi-Division Expenditure Allocation Sheet &bull; Fiscal Year: {{ budget.fiscal_year if budget else '2026-2027' }}
+                    </span>
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <a href="{{ url_for('budget_report', month=month) }}" class="btn btn-outline btn-sm" style="color: white; border-color: rgba(255,255,255,0.3); font-size: 0.78rem;">
+                    🖨️ Print View
+                </a>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="corporate-budget-table" style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #94a3b8;">
+                        <th style="width: 38%; padding: 0.75rem 1rem; text-align: left; background: #f8fafc; color: #1e293b; font-weight: 800; border-right: 1px solid #cbd5e1;">
+                            Particulars
+                        </th>
+                        <th style="width: 15%; padding: 0.65rem 0.75rem; text-align: right; background: #ffedd5; color: #9a3412; font-weight: 800; border-right: 1px solid #fed7aa;">
+                            <div style="font-size: 0.95rem; font-weight: 800;">TBN Budget</div>
+                            <div style="font-size: 0.72rem; font-weight: 600; opacity: 0.85;">Monthly Expenses</div>
+                        </th>
+                        <th style="width: 15%; padding: 0.65rem 0.75rem; text-align: right; background: #dcfce7; color: #14532d; font-weight: 800; border-right: 1px solid #bbf7d0;">
+                            <div style="font-size: 0.95rem; font-weight: 800;">TIS Budget</div>
+                            <div style="font-size: 0.72rem; font-weight: 600; opacity: 0.85;">Monthly Expenses</div>
+                        </th>
+                        <th style="width: 15%; padding: 0.65rem 0.75rem; text-align: right; background: #fef9c3; color: #713f12; font-weight: 800; border-right: 1px solid #fef08a;">
+                            <div style="font-size: 0.95rem; font-weight: 800;">ISP Budget</div>
+                            <div style="font-size: 0.72rem; font-weight: 600; opacity: 0.85;">Monthly Expenses</div>
+                        </th>
+                        <th style="width: 17%; padding: 0.65rem 0.75rem; text-align: right; background: #dbeafe; color: #1e3a8a; font-weight: 800;">
+                            <div style="font-size: 0.95rem; font-weight: 800;">Total Budget</div>
+                            <div style="font-size: 0.72rem; font-weight: 600; opacity: 0.85;">Monthly Expenses</div>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- ========================================================
+                         SECTION 1: DIRECT EXPENSES
+                         ======================================================== -->
+                    {% if budget_sheet and budget_sheet.direct_expenses %}
+                        {% set cur_grp = namespace(name='') %}
+                        {% for row in budget_sheet.direct_expenses %}
+                            {% if row.group != cur_grp.name %}
+                                {% set cur_grp.name = row.group %}
+                                <tr class="group-row" style="background: #ffffff; border-top: 1px solid #e2e8f0;">
+                                    <td colspan="5" style="padding: 0.5rem 1rem 0.2rem 1rem; font-weight: 800; color: #0f172a; font-size: 0.88rem;">
+                                        <u>{{ cur_grp.name }}</u>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                            <tr class="item-row" style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 0.35rem 1rem 0.35rem {% if row.particulars != row.group %}2.25rem{% else %}1.25rem{% endif %}; color: #334155; border-right: 1px solid #cbd5e1;">
+                                    {{ row.particulars }}
+                                </td>
+                                <td class="num-col" style="padding: 0.35rem 0.75rem; border-right: 1px solid #fed7aa; background: #fffaf5; color: #7c2d12;">
+                                    {% if row.tbn > 0 %}{{ "{:,.0f}".format(row.tbn) }}{% else %}-{% endif %}
+                                </td>
+                                <td class="num-col" style="padding: 0.35rem 0.75rem; border-right: 1px solid #bbf7d0; background: #f6fdf9; color: #14532d;">
+                                    {% if row.tis > 0 %}{{ "{:,.0f}".format(row.tis) }}{% else %}-{% endif %}
+                                </td>
+                                <td class="num-col" style="padding: 0.35rem 0.75rem; border-right: 1px solid #fef08a; background: #fefce8; color: #713f12;">
+                                    {% if row.isp > 0 %}{{ "{:,.0f}".format(row.isp) }}{% else %}-{% endif %}
+                                </td>
+                                <td class="num-col" style="padding: 0.35rem 0.75rem; background: #f0f7ff; font-weight: 700; color: #1e3a8a;">
+                                    {% if row.total > 0 %}{{ "{:,.0f}".format(row.total) }}{% else %}-{% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% endif %}
+
+                    <!-- Sub Total Row (Direct Expenses) -->
+                    <tr style="border-top: 2px solid #0f172a; border-bottom: 2px solid #0f172a; font-weight: 800; background: #ffffff;">
+                        <td style="padding: 0.65rem 1rem; text-align: right; color: #0f172a; border-right: 1px solid #cbd5e1;">
+                            Sub Total
+                        </td>
+                        <td class="num-col" style="padding: 0.65rem 0.75rem; border-right: 1px solid #fed7aa; background: #ffedd5; color: #9a3412;">
+                            {{ "{:,.0f}".format(budget_sheet.direct_subtotal.tbn if budget_sheet else 2567351) }}
+                        </td>
+                        <td class="num-col" style="padding: 0.65rem 0.75rem; border-right: 1px solid #bbf7d0; background: #dcfce7; color: #14532d;">
+                            {{ "{:,.0f}".format(budget_sheet.direct_subtotal.tis if budget_sheet else 1427787) }}
+                        </td>
+                        <td class="num-col" style="padding: 0.65rem 0.75rem; border-right: 1px solid #fef08a; background: #fef9c3; color: #713f12;">
+                            {{ "{:,.0f}".format(budget_sheet.direct_subtotal.isp if budget_sheet else 295428) }}
+                        </td>
+                        <td class="num-col" style="padding: 0.65rem 0.75rem; background: #dbeafe; color: #1e3a8a;">
+                            {{ "{:,.0f}".format(budget_sheet.direct_subtotal.total if budget_sheet else 4290566) }}
+                        </td>
+                    </tr>
+
+                    <!-- ========================================================
+                         SECTION 2: PROPORTIONATE EXPENSES
+                         ======================================================== -->
+                    <tr style="background: #1e293b; color: white;">
+                        <td colspan="5" style="padding: 0.65rem 1rem; font-weight: 800; font-size: 0.88rem; text-align: center; letter-spacing: 0.03em;">
+                            The following expenses are Distributed Proportionately
+                        </td>
+                    </tr>
+                    <tr style="background: #334155; color: white; border-bottom: 2px solid #0f172a;">
+                        <td style="padding: 0.4rem 1rem; border-right: 1px solid #475569; font-size: 0.78rem; text-align: right; color: #cbd5e1;">
+                            Headcount Ratio Distribution Key:
+                        </td>
+                        <td style="padding: 0.4rem 0.75rem; text-align: right; border-right: 1px solid #475569; font-weight: 800; color: #fdba74;">
+                            104
+                        </td>
+                        <td style="padding: 0.4rem 0.75rem; text-align: right; border-right: 1px solid #475569; font-weight: 800; color: #86efac;">
+                            42
+                        </td>
+                        <td style="padding: 0.4rem 0.75rem; text-align: right; border-right: 1px solid #475569; font-weight: 800; color: #fde047;">
+                            6
+                        </td>
+                        <td style="padding: 0.4rem 0.75rem; text-align: right; font-weight: 800; color: #93c5fd;">
+                            152 Total
+                        </td>
+                    </tr>
+
+                    {% if budget_sheet and budget_sheet.proportionate_expenses %}
+                        {% set cur_pgrp = namespace(name='') %}
+                        {% for row in budget_sheet.proportionate_expenses %}
+                            {% if row.group != cur_pgrp.name %}
+                                {% set cur_pgrp.name = row.group %}
+                                <tr class="group-row" style="background: #ffffff; border-top: 1px solid #e2e8f0;">
+                                    <td colspan="5" style="padding: 0.5rem 1rem 0.2rem 1rem; font-weight: 800; color: #0f172a; font-size: 0.88rem;">
+                                        <u>{{ cur_pgrp.name }}</u>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                            <tr class="item-row" style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 0.35rem 1rem 0.35rem 2.25rem; color: #334155; border-right: 1px solid #cbd5e1;">
+                                    {{ row.particulars }}
+                                </td>
+                                <td class="num-col" style="padding: 0.35rem 0.75rem; border-right: 1px solid #fed7aa; background: #fffaf5; color: #7c2d12;">
+                                    {% if row.tbn > 0 %}{{ "{:,.0f}".format(row.tbn) }}{% else %}-{% endif %}
+                                </td>
+                                <td class="num-col" style="padding: 0.35rem 0.75rem; border-right: 1px solid #bbf7d0; background: #f6fdf9; color: #14532d;">
+                                    {% if row.tis > 0 %}{{ "{:,.0f}".format(row.tis) }}{% else %}-{% endif %}
+                                </td>
+                                <td class="num-col" style="padding: 0.35rem 0.75rem; border-right: 1px solid #fef08a; background: #fefce8; color: #713f12;">
+                                    {% if row.isp > 0 %}{{ "{:,.0f}".format(row.isp) }}{% else %}-{% endif %}
+                                </td>
+                                <td class="num-col" style="padding: 0.35rem 0.75rem; background: #f0f7ff; font-weight: 700; color: #1e3a8a;">
+                                    {% if row.total > 0 %}{{ "{:,.0f}".format(row.total) }}{% else %}-{% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% endif %}
+
+                    <!-- Sub Total Row (Proportionate Expenses) -->
+                    <tr style="border-top: 2px solid #0f172a; border-bottom: 2px solid #0f172a; font-weight: 800; background: #ffffff;">
+                        <td style="padding: 0.65rem 1rem; text-align: right; color: #0f172a; border-right: 1px solid #cbd5e1;">
+                            Sub Total
+                        </td>
+                        <td class="num-col" style="padding: 0.65rem 0.75rem; border-right: 1px solid #fed7aa; background: #ffedd5; color: #9a3412;">
+                            {{ "{:,.0f}".format(budget_sheet.proportionate_subtotal.tbn if budget_sheet else 332443) }}
+                        </td>
+                        <td class="num-col" style="padding: 0.65rem 0.75rem; border-right: 1px solid #bbf7d0; background: #dcfce7; color: #14532d;">
+                            {{ "{:,.0f}".format(budget_sheet.proportionate_subtotal.tis if budget_sheet else 438803) }}
+                        </td>
+                        <td class="num-col" style="padding: 0.65rem 0.75rem; border-right: 1px solid #fef08a; background: #fef9c3; color: #713f12;">
+                            {{ "{:,.0f}".format(budget_sheet.proportionate_subtotal.isp if budget_sheet else 152256) }}
+                        </td>
+                        <td class="num-col" style="padding: 0.65rem 0.75rem; background: #dbeafe; color: #1e3a8a;">
+                            {{ "{:,.0f}".format(budget_sheet.proportionate_subtotal.total if budget_sheet else 923502) }}
+                        </td>
+                    </tr>
+
+                    <!-- ========================================================
+                         SECTION 3: GRAND TOTALS & ADJUSTMENTS
+                         ======================================================== -->
+                    <!-- G. Total -->
+                    <tr style="border-top: 2px solid #0f172a; border-bottom: 2px solid #0f172a; font-weight: 900; background: #f8fafc; font-size: 0.95rem;">
+                        <td style="padding: 0.75rem 1rem; text-align: right; color: #0f172a; border-right: 1px solid #cbd5e1;">
+                            G. Total
+                        </td>
+                        <td class="num-col" style="padding: 0.75rem 0.75rem; border-right: 1px solid #fed7aa; background: #fed7aa; color: #7c2d12;">
+                            {{ "{:,.0f}".format(budget_sheet.grand_total.tbn if budget_sheet else 2899794) }}
+                        </td>
+                        <td class="num-col" style="padding: 0.75rem 0.75rem; border-right: 1px solid #bbf7d0; background: #bbf7d0; color: #14532d;">
+                            {{ "{:,.0f}".format(budget_sheet.grand_total.tis if budget_sheet else 1866590) }}
+                        </td>
+                        <td class="num-col" style="padding: 0.75rem 0.75rem; border-right: 1px solid #fef08a; background: #fef08a; color: #713f12;">
+                            {{ "{:,.0f}".format(budget_sheet.grand_total.isp if budget_sheet else 447684) }}
+                        </td>
+                        <td class="num-col" style="padding: 0.75rem 0.75rem; background: #bfdbfe; color: #1e3a8a;">
+                            {{ "{:,.0f}".format(budget_sheet.grand_total.total if budget_sheet else 5214068) }}
+                        </td>
+                    </tr>
+
+                    <!-- Total Budget -->
+                    <tr style="font-weight: 800;">
+                        <td colspan="4" style="padding: 0.5rem 1rem; text-align: right; color: #334155; border-right: 1px solid #cbd5e1;">
+                            Total Budget
+                        </td>
+                        <td class="num-col" style="padding: 0.5rem 0.75rem; background: #f8fafc; color: #0f172a; border-bottom: 1px solid #e2e8f0;">
+                            {{ "{:,.0f}".format(budget_sheet.grand_total.total if budget_sheet else 5214068) }}
+                        </td>
+                    </tr>
+
+                    <!-- Additional Expenses Header -->
+                    <tr style="border-top: 1px solid #cbd5e1;">
+                        <td colspan="5" style="padding: 0.65rem 1rem 0.2rem 1rem; font-weight: 800; color: #0f172a;">
+                            <u>Additional Expenses</u>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.35rem 1rem 0.35rem 2.25rem; color: #475569; border-right: 1px solid #cbd5e1;">
+                            Incentive for Sale (July)
+                        </td>
+                        <td class="num-col" style="padding: 0.35rem 0.75rem; border-right: 1px solid #fed7aa; background: #fffaf5;">-</td>
+                        <td class="num-col" style="padding: 0.35rem 0.75rem; border-right: 1px solid #bbf7d0; background: #f6fdf9; font-weight: 600; color: #14532d;">
+                            92,450
+                        </td>
+                        <td class="num-col" style="padding: 0.35rem 0.75rem; border-right: 1px solid #fef08a; background: #fefce8;">-</td>
+                        <td class="num-col" style="padding: 0.35rem 0.75rem; background: #f0f7ff; font-weight: 700; color: #1e3a8a;">
+                            92,450
+                        </td>
+                    </tr>
+                    <tr style="font-weight: 700;">
+                        <td colspan="4" style="padding: 0.5rem 1rem; text-align: right; color: #475569; border-right: 1px solid #cbd5e1;">
+                            Additional Expenses
+                        </td>
+                        <td class="num-col" style="padding: 0.5rem 0.75rem; border-top: 1px solid #0f172a; border-bottom: 1px solid #0f172a; font-weight: 800;">
+                            92,450
+                        </td>
+                    </tr>
+
+                    <!-- Gross Total -->
+                    <tr style="font-weight: 800;">
+                        <td colspan="4" style="padding: 0.55rem 1rem; text-align: right; color: #0f172a; border-right: 1px solid #cbd5e1;">
+                            Gross Total
+                        </td>
+                        <td class="num-col" style="padding: 0.55rem 0.75rem; background: #f1f5f9; color: #0f172a; font-size: 0.95rem;">
+                            5,306,518
+                        </td>
+                    </tr>
+
+                    <!-- Less Adjustment -->
+                    <tr>
+                        <td colspan="4" style="padding: 0.5rem 1rem; text-align: right; color: #e11d48; font-weight: 700; border-right: 1px solid #cbd5e1;">
+                            Less: Adjusted with ISP Bill Received
+                        </td>
+                        <td class="num-col" style="padding: 0.5rem 0.75rem; color: #e11d48; font-weight: 700; border-bottom: 1px solid #0f172a;">
+                            187,000
+                        </td>
+                    </tr>
+
+                    <!-- Net Budget -->
+                    <tr style="font-weight: 900; background: #f8fafc; font-size: 1.05rem;">
+                        <td colspan="4" style="padding: 0.75rem 1rem; text-align: right; color: #0f172a; border-right: 1px solid #cbd5e1;">
+                            Net Budget
+                        </td>
+                        <td class="num-col" style="padding: 0.75rem 0.75rem; border-top: 2px solid #0f172a; border-bottom: 3px double #0f172a; color: #2563eb; background: #eff6ff;">
+                            ৳ 5,119,518
+                        </td>
+                    </tr>
+
+                    <!-- USD Conversion Strip -->
+                    <tr style="background: #ffffff;">
+                        <td colspan="4" style="padding: 0.5rem 1rem; text-align: right; color: #64748b; font-size: 0.8rem; border-right: 1px solid #cbd5e1;">
+                            USD Equivalent Rate (@ ৳121.75 / USD):
+                        </td>
+                        <td class="num-col" style="padding: 0.5rem 0.75rem; font-weight: 800; color: #059669; font-size: 1rem; background: #ecfdf5;">
+                            $ 42,049
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================
+     VIEW 2: BUDGET VS ACTUAL GENERAL LEDGER VARIANCE COCKPIT (HIDDEN BY DEFAULT)
+     ======================================================================== -->
+<div id="varianceCockpitSection" style="display: none;">
+    <!-- Graphical Analytics Charts -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.75rem;">
+        <div class="card" style="margin: 0; padding: 1.25rem; border-radius: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.04);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.65rem;">
+                <div>
+                    <h3 style="font-size: 1rem; font-weight: 700; margin: 0; color: #0f172a;">📊 Top Cost Centers: Budget vs Actual</h3>
+                    <span style="font-size: 0.78rem; color: #64748b;">Comparison of approved allocation vs actual disbursements</span>
+                </div>
+                <span class="badge badge-secondary" style="font-size: 0.7rem;">Top 8 Heads</span>
+            </div>
+            <div style="position: relative; height: 280px; width: 100%;">
+                <canvas id="costCentersBarChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card" style="margin: 0; padding: 1.25rem; border-radius: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.04);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.65rem;">
+                <div>
+                    <h3 style="font-size: 1rem; font-weight: 700; margin: 0; color: #0f172a;">📈 Multi-Month Expenditure Trajectory</h3>
+                    <span style="font-size: 0.78rem; color: #64748b;">Budget vs actual spend across recent financial periods</span>
+                </div>
+                <span class="badge badge-secondary" style="font-size: 0.7rem;">Trendline</span>
+            </div>
+            <div style="position: relative; height: 280px; width: 100%;">
+                <canvas id="multiMonthTrendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Variance Table -->
+    <div class="card" style="border-radius: 14px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.04); margin-bottom: 2rem;">
+        <div class="card-header" style="background: white; border-bottom: 1px solid #e2e8f0; padding: 1.1rem 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+            <div>
+                <h3 style="font-size: 1.05rem; font-weight: 800; margin: 0; color: #0f172a;">🔍 Account-Level Budget vs Actual Drilldown</h3>
+                <span style="font-size: 0.8rem; color: #64748b;">Compare consolidated budget against General Ledger transactions</span>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table report-table" style="margin: 0;">
+                <thead>
+                    <tr>
+                        <th style="width: 100px;">Code</th>
+                        <th>Account Title</th>
+                        <th style="width: 170px;">Classification</th>
+                        <th class="num-col" style="width: 150px;">Budget (৳)</th>
+                        <th class="num-col" style="width: 150px;">Actual (৳)</th>
+                        <th class="num-col" style="width: 160px;">Variance (৳)</th>
+                        <th style="width: 180px; text-align: center;">Burn Rate</th>
+                        <th style="width: 120px; text-align: center;">Status</th>
+                        <th style="width: 90px; text-align: center;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in comparison_list %}
+                    <tr class="budget-row" data-category="{{ item.category }}" data-status="{{ item.status }}">
+                        <td style="font-family: monospace; font-size: 0.82rem; font-weight: 700; color: #475569;">{{ item.code }}</td>
+                        <td style="font-weight: 600; color: #0f172a;">
+                            <a href="{{ url_for('account_ledger', account_id=item.account_id) }}" style="text-decoration: none; color: inherit;" title="Inspect General Ledger">
+                                {{ item.name }}
+                            </a>
+                        </td>
+                        <td>
+                            <span style="font-size: 0.76rem; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; padding: 0.15rem 0.45rem; border-radius: 4px;">
+                                {{ item.category }}
+                            </span>
+                        </td>
+                        <td class="num-col" style="font-weight: 600; color: #334155;">
+                            ৳{{ "{:,.2f}".format(item.budgeted) }}
+                        </td>
+                        <td class="num-col" style="font-weight: 700; color: {% if item.actual > item.budgeted and item.budgeted > 0 %}#e11d48{% else %}#0f172a{% endif %};">
+                            ৳{{ "{:,.2f}".format(item.actual) }}
+                        </td>
+                        <td class="num-col" style="font-weight: 700; color: {% if item.variance >= 0 %}#059669{% else %}#e11d48{% endif %};">
+                            {% if item.variance < 0 %}
+                                <span class="text-danger">({{ "{:,.2f}".format(item.variance|abs) }})</span>
+                            {% else %}
+                                <span class="text-success">+{{ "{:,.2f}".format(item.variance) }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                <div style="flex: 1; background: #e2e8f0; height: 5px; border-radius: 999px; overflow: hidden;">
+                                    <div style="width: {{ [item.utilization, 100]|min }}%; height: 100%; border-radius: 999px; background: {% if item.status == 'danger' %}#e11d48{% elif item.status == 'warning' %}#f59e0b{% else %}#10b981{% endif %};"></div>
+                                </div>
+                                <span style="font-size: 0.75rem; font-weight: 700; width: 42px; text-align: right; color: {% if item.status == 'danger' %}#e11d48{% elif item.status == 'warning' %}#d97706{% else %}#475569{% endif %};">
+                                    {% if item.utilization >= 999 %}100%+{% else %}{{ "{:.1f}".format(item.utilization) }}%{% endif %}
+                                </span>
+                            </div>
+                        </td>
+                        <td style="text-align: center;">
+                            <span class="badge {{ item.status_class }}" style="font-size: 0.7rem; padding: 0.2rem 0.5rem;">
+                                {{ item.status_label }}
+                            </span>
+                        </td>
+                        <td style="text-align: center;">
+                            <a href="{{ url_for('account_ledger', account_id=item.account_id) }}" class="btn btn-outline btn-sm" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;" title="View General Ledger">
+                                Audit ↗
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+.view-mode-tab {
+    border: none;
+    background: transparent;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #475569;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.view-mode-tab:hover {
+    color: #0f172a;
+    background: rgba(255,255,255,0.7);
+}
+.view-mode-tab.active {
+    background: white;
+    color: #2563eb;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.corporate-budget-table th, .corporate-budget-table td {
+    border-collapse: collapse;
+}
+.corporate-budget-table tr:hover {
+    background-color: #f8fafc;
+}
+</style>
+
+<!-- Chart.js Setup for Cockpit -->
+<script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
+<script>
+function switchDashboardMode(mode) {
+    const corpSec = document.getElementById('corporateSheetSection');
+    const varSec = document.getElementById('varianceCockpitSection');
+    const tabCorp = document.getElementById('tabModeCorporate');
+    const tabVar = document.getElementById('tabModeVariance');
+
+    if (mode === 'corporate') {
+        corpSec.style.display = 'block';
+        varSec.style.display = 'none';
+        tabCorp.classList.add('active');
+        tabVar.classList.remove('active');
+    } else {
+        corpSec.style.display = 'none';
+        varSec.style.display = 'block';
+        tabCorp.classList.remove('active');
+        tabVar.classList.add('active');
+        initCharts();
+    }
+}
+
+let chartsInitialized = false;
+function initCharts() {
+    if (chartsInitialized) return;
+    chartsInitialized = true;
+
+    // Cost Centers Bar Chart
+    const costLabels = {{ bar_chart_labels|safe }};
+    const costBudgets = {{ bar_chart_budgets|safe }};
+    const costActuals = {{ bar_chart_actuals|safe }};
+
+    const ctxCost = document.getElementById('costCentersBarChart')?.getContext('2d');
+    if (ctxCost && costLabels.length > 0) {
+        new Chart(ctxCost, {
+            type: 'bar',
+            data: {
+                labels: costLabels,
+                datasets: [
+                    {
+                        label: 'Approved Budget (৳)',
+                        data: costBudgets,
+                        backgroundColor: 'rgba(59, 130, 246, 0.75)',
+                        borderColor: '#2563eb',
+                        borderWidth: 1.5,
+                        borderRadius: 6
+                    },
+                    {
+                        label: 'Actual Spent (৳)',
+                        data: costActuals,
+                        backgroundColor: 'rgba(239, 68, 68, 0.75)',
+                        borderColor: '#dc2626',
+                        borderWidth: 1.5,
+                        borderRadius: 6
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { font: { family: "'Inter', sans-serif", size: 11, weight: 600 } } }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    // Trendline Chart
+    const trendLabels = {{ trend_labels|safe }};
+    const trendBudgets = {{ trend_budget_vals|safe }};
+    const trendActuals = {{ trend_actual_vals|safe }};
+
+    const ctxTrend = document.getElementById('multiMonthTrendChart')?.getContext('2d');
+    if (ctxTrend && trendLabels.length > 0) {
+        new Chart(ctxTrend, {
+            type: 'line',
+            data: {
+                labels: trendLabels,
+                datasets: [
+                    {
+                        label: 'Budget Ceiling (৳)',
+                        data: trendBudgets,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                        borderWidth: 2.5,
+                        pointRadius: 4,
+                        tension: 0.3,
+                        fill: true
+                    },
+                    {
+                        label: 'Actual Spent (৳)',
+                        data: trendActuals,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                        borderWidth: 2.5,
+                        pointRadius: 4,
+                        tension: 0.3,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { font: { family: "'Inter', sans-serif", size: 11, weight: 600 } } }
+                }
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

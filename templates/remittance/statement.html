@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remittance, Incentive & Budget Statement - ZR-ERP</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        @page {
+            size: A3 landscape;
+            margin: 10mm 8mm;
+        }
+
+        body {
+            background-color: #f8fafc;
+            color: #0f172a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 1.5rem;
+            font-size: 11px;
+        }
+
+        .statement-container {
+            max-width: 98%;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        }
+
+        .no-print-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1e293b;
+            color: #ffffff;
+            padding: 0.75rem 1.25rem;
+            border-radius: 6px;
+            margin-bottom: 1.5rem;
+        }
+
+        .statement-header {
+            text-align: center;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 1rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .company-name {
+            font-size: 1.6rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: #0f172a;
+            margin: 0 0 0.25rem 0;
+        }
+
+        .report-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #1e3a8a;
+            margin: 0 0 0.35rem 0;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .meta-line {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin: 0;
+        }
+
+        /* Spreadsheet Table */
+        .statement-table-wrap {
+            overflow-x: auto;
+            border: 1px solid #cbd5e1;
+            margin-bottom: 1.5rem;
+        }
+
+        table.sheet-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+            white-space: nowrap;
+        }
+
+        table.sheet-table th, table.sheet-table td {
+            border: 1px solid #cbd5e1;
+            padding: 4px 6px;
+            vertical-align: middle;
+        }
+
+        table.sheet-table th {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        table.sheet-table td.text-right {
+            text-align: right;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        table.sheet-table td.text-center {
+            text-align: center;
+        }
+
+        .bg-cyan {
+            background-color: #00e5ff !important;
+            color: #000000 !important;
+            font-weight: 700;
+        }
+
+        .bg-orange {
+            background-color: #ff9100 !important;
+            color: #ffffff !important;
+            font-weight: 700;
+        }
+
+        .bg-green {
+            background-color: #00e676 !important;
+            color: #000000 !important;
+            font-weight: 700;
+        }
+
+        .bg-lime {
+            background-color: #86efac !important;
+            color: #064e3b !important;
+            font-weight: 600;
+        }
+
+        .bg-red {
+            background-color: #ef4444 !important;
+            color: #ffffff !important;
+            font-weight: 700;
+        }
+
+        .bg-yellow {
+            background-color: #fef08a !important;
+            color: #854d0e !important;
+            font-weight: 600;
+        }
+
+        .text-red-date {
+            color: #dc2626 !important;
+            font-weight: 700;
+        }
+
+        .text-negative {
+            color: #b91c1c;
+            font-weight: 600;
+        }
+
+        .total-row {
+            background-color: #f8fafc;
+            font-weight: 800;
+            border-top: 2px solid #0f172a;
+            border-bottom: 2px solid #0f172a;
+        }
+
+        /* Signatures block */
+        .signatures-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2rem;
+            margin-top: 3.5rem;
+            padding-top: 1rem;
+        }
+
+        .signature-box {
+            text-align: center;
+            border-top: 1px dashed #64748b;
+            padding-top: 0.5rem;
+        }
+
+        .sig-title {
+            font-weight: 700;
+            font-size: 0.82rem;
+            color: #0f172a;
+        }
+
+        .sig-sub {
+            font-size: 0.72rem;
+            color: #64748b;
+        }
+
+        @media print {
+            body {
+                background: #ffffff;
+                padding: 0;
+            }
+            .no-print-bar {
+                display: none !important;
+            }
+            .statement-container {
+                box-shadow: none;
+                padding: 0;
+                max-width: 100%;
+            }
+            table.sheet-table th {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .bg-cyan, .bg-orange, .bg-green, .bg-lime, .bg-red, .bg-yellow {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="statement-container">
+    <!-- Non-printable top action bar -->
+    <div class="no-print-bar">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <a href="{{ url_for('remittance_dashboard') }}" style="color: #94a3b8; text-decoration: none; font-size: 0.85rem;">
+                ← Back to Remittance Cockpit
+            </a>
+            <span style="color: #475569;">|</span>
+            <span style="font-weight: 700; font-size: 0.9rem;">Official Statement &bull; Bangladesh Bank Cash Incentive Form</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+            <button onclick="window.print()" class="btn btn-primary" style="font-size: 0.82rem; padding: 0.4rem 0.9rem; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                🖨️ Print / Save PDF
+            </button>
+        </div>
+    </div>
+
+    <!-- Official Report Header -->
+    <div class="statement-header">
+        <h1 class="company-name">ZR-ERP CORPORATE GROUP</h1>
+        <h2 class="report-title">Statement of Inward Remittance, 10% Cash Incentive &amp; Budget Deficit</h2>
+        <p class="meta-line">
+            Export Proceeds Compliance Lifecycle under Bangladesh Bank Foreign Exchange Guidelines &bull; 
+            Generated: {{ generated_at.strftime('%d-%b-%Y %H:%M UTC') }}
+        </p>
+    </div>
+
+    <!-- The 28-Column Spreadsheet Table matching user's image exactly -->
+    <div class="statement-table-wrap">
+        <table class="sheet-table">
+            <thead>
+                <tr>
+                    <th rowspan="2" style="min-width: 65px;">Date</th>
+                    <th rowspan="2" style="min-width: 130px;">Particulars</th>
+                    <th colspan="3" style="background: #e2e8f0;">Budget &amp; Cash Deficit</th>
+                    <th rowspan="2" style="min-width: 60px;">Deed no</th>
+                    <th rowspan="2" style="min-width: 80px;">Invoice no</th>
+                    <th rowspan="2" style="min-width: 50px;">Rate $</th>
+                    <th rowspan="2" style="min-width: 70px;">Remittance $</th>
+                    <th rowspan="2" style="min-width: 65px;">Send by</th>
+                    <th rowspan="2" style="min-width: 65px;">Date</th>
+                    <th rowspan="2" style="min-width: 75px;">Incentive 10% Tk</th>
+                    <th rowspan="2" style="min-width: 75px;">Incentive 10% Audited Tk</th>
+                    <th colspan="4" style="background: #e2e8f0;">Compliance Certificates</th>
+                    <th colspan="2" style="background: #fed7aa;">Bank Submission</th>
+                    <th rowspan="2" style="min-width: 65px;">Send to Head office</th>
+                    <th colspan="2" style="background: #bbf7d0;">Audit Office</th>
+                    <th rowspan="2" style="min-width: 75px;">Sent to International Division</th>
+                    <th rowspan="2" style="min-width: 80px;">Sent to Bangladesh Bank</th>
+                    <th rowspan="2" style="min-width: 75px;">Benefit Receivable</th>
+                    <th rowspan="2" style="min-width: 75px;">Benefit Received</th>
+                    <th rowspan="2" style="min-width: 70px;">Benefit Received Date</th>
+                    <th rowspan="2" style="min-width: 140px;">Status</th>
+                </tr>
+                <tr>
+                    <!-- Under Budget & Cash Deficit -->
+                    <th style="min-width: 75px;">Budget</th>
+                    <th style="min-width: 75px;">Received</th>
+                    <th style="min-width: 80px;">Balance</th>
+
+                    <!-- Under Compliance Certificates -->
+                    <th style="min-width: 50px;">TT certificate</th>
+                    <th style="min-width: 65px;">Encashment Certificate</th>
+                    <th style="min-width: 60px;">Authorized dealer</th>
+                    <th style="min-width: 65px;">Cash incentive Certificate</th>
+
+                    <!-- Under Bank Submission -->
+                    <th style="min-width: 50px;">Send to Bank</th>
+                    <th style="min-width: 70px;">Date of Send to Bank</th>
+
+                    <!-- Under Audit Office -->
+                    <th style="min-width: 65px;">Send to audit office</th>
+                    <th style="min-width: 75px;">Audit Certificate Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in records %}
+                <tr>
+                    <!-- 1. Date -->
+                    <td class="text-center">{{ r.date.strftime('%d-%b-%y') if r.date else '' }}</td>
+
+                    <!-- 2. Particulars -->
+                    <td>{{ r.particulars }}</td>
+
+                    <!-- 3. Budget -->
+                    <td class="text-right">
+                        {% if r.budget_amount > 0 %}
+                            {{ "{:,.0f}".format(r.budget_amount) }}
+                        {% endif %}
+                    </td>
+
+                    <!-- 4. Received -->
+                    <td class="text-right">
+                        {% if r.received_bdt > 0 %}
+                            {{ "{:,.0f}".format(r.received_bdt) }}
+                        {% endif %}
+                    </td>
+
+                    <!-- 5. Balance (with parenthesis for deficit) -->
+                    <td class="text-right {% if r.calculated_balance < 0 %}text-negative{% endif %}">
+                        {% if r.calculated_balance < 0 %}
+                            ({{ "{:,.0f}".format(r.calculated_balance | abs) }})
+                        {% elif r.calculated_balance > 0 %}
+                            {{ "{:,.0f}".format(r.calculated_balance) }}
+                        {% else %}
+                            0
+                        {% endif %}
+                    </td>
+
+                    <!-- 6. Deed no -->
+                    <td class="text-center">{{ r.deal_no or '' }}</td>
+
+                    <!-- 7. Invoice no (colored chips) -->
+                    <td class="text-center {% if r.invoice_no == '020122' %}bg-cyan{% elif r.invoice_no == '0331202201' or r.invoice_no == '03312022PL' %}bg-orange{% elif r.invoice_no == '02052022' %}bg-green{% endif %}">
+                        {{ r.invoice_no or '' }}
+                    </td>
+
+                    <!-- 8. Rate $ -->
+                    <td class="text-right {% if r.invoice_no == '0331202201' or r.invoice_no == '02052022' or r.invoice_no == '03312022PL' %}bg-green{% endif %}">
+                        {% if r.usd_rate > 0 %}{{ "{:.2f}".format(r.usd_rate) }}{% endif %}
+                    </td>
+
+                    <!-- 9. Remittance $ -->
+                    <td class="text-right {% if r.invoice_no == '03312022PL' %}bg-yellow{% endif %}">
+                        {% if r.remittance_usd > 0 %}${{ "{:,.0f}".format(r.remittance_usd) }}{% endif %}
+                    </td>
+
+                    <!-- 10. Send by -->
+                    <td>{{ r.sent_by or '' }}</td>
+
+                    <!-- 11. Date (Remittance Date) -->
+                    <td class="text-center">{{ r.remittance_date.strftime('%d-%b-%y') if r.remittance_date else '' }}</td>
+
+                    <!-- 12. Incentive 10% Tk -->
+                    <td class="text-right {% if r.invoice_no == '020122' %}bg-orange{% elif r.invoice_no == '0331202201' or r.invoice_no == '03312022PL' %}bg-cyan{% elif r.invoice_no == '02052022' %}bg-red{% endif %}">
+                        {% if r.incentive_10_bdt > 0 %}{{ "{:,.0f}".format(r.incentive_10_bdt) }}{% endif %}
+                    </td>
+
+                    <!-- 13. Incentive 10% Audited Tk -->
+                    <td class="text-right">
+                        {% if r.incentive_10_audited_bdt > 0 %}{{ "{:,.0f}".format(r.incentive_10_audited_bdt) }}{% endif %}
+                    </td>
+
+                    <!-- 14. TT certificate -->
+                    <td class="text-center">{{ 'Yes' if r.tt_certificate else '' }}</td>
+
+                    <!-- 15. Encashment Certificate -->
+                    <td class="text-center">{{ 'Yes' if r.encashment_certificate else '' }}</td>
+
+                    <!-- 16. Authorized dealer -->
+                    <td class="text-center">{{ 'Yes' if r.authorized_dealer_cert else '' }}</td>
+
+                    <!-- 17. Cash incentive Certificate -->
+                    <td class="text-center">{{ 'Yes' if r.cash_incentive_cert else '' }}</td>
+
+                    <!-- 18. Send to Bank -->
+                    <td class="text-center">{{ 'Yes' if r.send_to_bank else '' }}</td>
+
+                    <!-- 19. Date of Send to Bank -->
+                    <td class="text-center text-red-date">
+                        {{ r.date_send_to_bank.strftime('%m/%d/%Y') if r.date_send_to_bank else '' }}
+                    </td>
+
+                    <!-- 20. Send to Head office -->
+                    <td class="text-center">{{ 'Yes' if r.send_to_head_office else '' }}</td>
+
+                    <!-- 21. Send to audit office -->
+                    <td class="text-center {% if r.send_to_audit_office %}bg-lime{% endif %}">
+                        {{ 'Yes' if r.send_to_audit_office else '' }}
+                    </td>
+
+                    <!-- 22. Audit Certificate Date -->
+                    <td class="text-center">
+                        {{ r.audit_certificate_date.strftime('%m/%d/%Y') if r.audit_certificate_date else '' }}
+                    </td>
+
+                    <!-- 23. Sent to International Division -->
+                    <td class="text-center">{{ 'Yes' if r.send_to_intl_division else '' }}</td>
+
+                    <!-- 24. Sent to Bangladesh Bank -->
+                    <td class="text-center {% if r.send_to_bangladesh_bank and r.status != 'Declined' %}bg-lime{% endif %}">
+                        {{ 'Yes' if r.send_to_bangladesh_bank else '' }}
+                    </td>
+
+                    <!-- 25. Benefit Receivable -->
+                    <td class="text-right {% if r.benefit_receivable > 0 and r.status != 'Declined' %}bg-orange{% elif r.status == 'Declined' %}bg-red{% endif %}">
+                        {% if r.benefit_receivable > 0 %}{{ "{:,.0f}".format(r.benefit_receivable) }}{% endif %}
+                    </td>
+
+                    <!-- 26. Benefit Received -->
+                    <td class="text-right {% if r.benefit_received > 0 %}bg-green{% endif %}">
+                        {% if r.benefit_received > 0 %}{{ "{:,.0f}".format(r.benefit_received) }}{% endif %}
+                    </td>
+
+                    <!-- 27. Benefit Received Date -->
+                    <td class="text-center">
+                        {{ r.benefit_received_date.strftime('%m/%d/%Y') if r.benefit_received_date else '' }}
+                    </td>
+
+                    <!-- 28. Status -->
+                    <td class="text-center {% if r.status == 'Declined' %}text-red-date{% endif %}" style="font-weight: 700;">
+                        {{ r.status or '' }}
+                    </td>
+                </tr>
+                {% endfor %}
+
+                <!-- Grand Total Row -->
+                <tr class="total-row">
+                    <td colspan="2" class="text-center">TOTAL / RUNNING POSITION</td>
+                    <td class="text-right">{{ "{:,.0f}".format(total_budget_issued) }}</td>
+                    <td class="text-right">{{ "{:,.0f}".format(total_received_bdt) }}</td>
+                    <td class="text-right {% if records and records[-1].calculated_balance < 0 %}text-negative{% endif %}">
+                        {% if records and records[-1].calculated_balance < 0 %}
+                            ({{ "{:,.0f}".format(records[-1].calculated_balance | abs) }})
+                        {% elif records %}
+                            {{ "{:,.0f}".format(records[-1].calculated_balance) }}
+                        {% endif %}
+                    </td>
+                    <td colspan="3"></td>
+                    <td class="text-right">${{ "{:,.0f}".format(total_remittance_usd) }}</td>
+                    <td colspan="2"></td>
+                    <td class="text-right">{{ "{:,.0f}".format(total_incentive_claimed) }}</td>
+                    <td colspan="12"></td>
+                    <td class="text-right" style="background: #ffedd5;">{{ "{:,.0f}".format(records | sum(attribute='benefit_receivable')) }}</td>
+                    <td class="text-right" style="background: #bbf7d0;">{{ "{:,.0f}".format(total_benefit_received) }}</td>
+                    <td colspan="2"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Official Corporate Signatures -->
+    <div class="signatures-grid">
+        <div class="signature-box">
+            <div class="sig-title">Prepared By</div>
+            <div class="sig-sub">Officer, Remittance &amp; Forex</div>
+        </div>
+        <div class="signature-box">
+            <div class="sig-title">Checked &amp; Audited By</div>
+            <div class="sig-sub">Internal Auditor / Compliance</div>
+        </div>
+        <div class="signature-box">
+            <div class="sig-title">Verified By</div>
+            <div class="sig-sub">Head of Accounts &amp; Finance</div>
+        </div>
+        <div class="signature-box">
+            <div class="sig-title">Approved By</div>
+            <div class="sig-sub">Managing Director / CEO</div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

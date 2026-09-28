@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Voucher {{ voucher.voucher_no }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">✏️ Edit Accounting Voucher</h1>
+        <p class="page-description">Modify voucher details and double-entry transaction lines for {{ voucher.voucher_no }}.</p>
+    </div>
+    <div class="header-actions">
+        <a href="{{ url_for('view_voucher', voucher_id=voucher.id) }}" class="btn btn-outline">← Back to Slip</a>
+        <a href="{{ url_for('voucher_list') }}" class="btn btn-secondary">Voucher Register</a>
+    </div>
+</div>
+
+<form id="voucher-form" method="POST" action="{{ url_for('edit_voucher', voucher_id=voucher.id) }}" enctype="multipart/form-data">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Voucher Header Details</h2>
+            <span class="badge badge-{{ voucher.voucher_type|lower }}">{{ voucher.voucher_type }} Voucher</span>
+        </div>
+        <div class="card-body">
+            <div class="form-row">
+                <div class="form-col" style="max-width: 220px;">
+                    <label class="form-label" for="voucher_type">Voucher Type *</label>
+                    <select name="voucher_type" id="voucher_type" class="form-select" required>
+                        <option value="Payment" {% if voucher.voucher_type == 'Payment' %}selected{% endif %}>Payment Voucher (PV)</option>
+                        <option value="Receipt" {% if voucher.voucher_type == 'Receipt' %}selected{% endif %}>Receipt Voucher (RV)</option>
+                        <option value="Journal" {% if voucher.voucher_type == 'Journal' %}selected{% endif %}>Journal Voucher (JV)</option>
+                        <option value="Contra" {% if voucher.voucher_type == 'Contra' %}selected{% endif %}>Contra Voucher (CV)</option>
+                    </select>
+                </div>
+
+                <div class="form-col" style="max-width: 220px;">
+                    <label class="form-label" for="voucher_no">Voucher No *</label>
+                    <input type="text" name="voucher_no" id="voucher_no" class="form-control" value="{{ voucher.voucher_no }}" required style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">
+                </div>
+
+                <div class="form-col" style="max-width: 200px;">
+                    <label class="form-label" for="date">Transaction Date *</label>
+                    <input type="date" name="date" id="date" class="form-control" value="{{ voucher.date.strftime('%Y-%m-%d') if voucher.date else '' }}" required>
+                </div>
+
+                <div class="form-col">
+                    <label class="form-label" for="reference">Reference / Cheque / Bill #</label>
+                    <input type="text" name="reference" id="reference" class="form-control" value="{{ voucher.reference or '' }}" placeholder="e.g. CHQ-98421">
+                </div>
+            </div>
+
+            <div class="form-row" style="margin-top: 1rem; align-items: flex-start;">
+                <div class="form-col" style="flex: 2;">
+                    <label class="form-label" for="narration">Narration / Description *</label>
+                    <input type="text" name="narration" id="narration" class="form-control" value="{{ voucher.narration }}" required>
+                </div>
+                <div class="form-col" style="flex: 1; max-width: 380px;">
+                    <label class="form-label" for="attachment" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><strong style="color: #2563eb;">📎 Supporting Document</strong></span>
+                        <span style="font-size: 0.72rem; color: var(--text-muted);">PDF, Image, Scan, Bill</span>
+                    </label>
+                    <input type="file" name="attachment" id="attachment" class="form-control" accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.docx,.doc" style="padding: 0.38rem 0.6rem; font-size: 0.85rem; border: 1.5px dashed #cbd5e1; background: #f8fafc;">
+                    {% if voucher.attachment %}
+                    <div style="margin-top: 0.4rem; font-size: 0.8rem; display: flex; align-items: center; justify-content: space-between; background: #f0fdf4; padding: 0.3rem 0.6rem; border-radius: 4px; border: 1px solid #bbf7d0;">
+                        <span>Current: <a href="{{ url_for('static', filename='uploads/vouchers/' ~ voucher.attachment) }}" target="_blank" style="font-weight: 600; color: #15803d;">{{ voucher.original_filename or voucher.attachment }}</a></span>
+                        <label style="margin: 0; font-size: 0.75rem; color: #dc2626; cursor: pointer; display: flex; align-items: center; gap: 0.2rem;">
+                            <input type="checkbox" name="remove_attachment" value="1"> Remove
+                        </label>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Voucher Line Items Table -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Transaction Particulars (Double-Entry Lines)</h2>
+            <button type="button" id="add-line-btn" class="btn btn-outline btn-sm">+ Add Line Item</button>
+        </div>
+        <div class="card-body" style="padding-bottom: 0.5rem;">
+            <div class="table-responsive">
+                <table class="voucher-lines-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 35%;">Ledger Account *</th>
+                            <th style="width: 30%;">Particulars / Line Memo</th>
+                            <th style="width: 15%; text-align: right;">Debit (৳)</th>
+                            <th style="width: 15%; text-align: right;">Credit (৳)</th>
+                            <th style="width: 5%; text-align: center;">✕</th>
+                        </tr>
+                    </thead>
+                    <tbody id="voucher-lines-body">
+                        {% for line in voucher.lines %}
+                        <tr>
+                            <td>
+                                <select name="account_id[]" class="form-select account-select" required>
+                                    <option value="" disabled>-- Select Ledger Account --</option>
+                                    {% for acc in accounts %}
+                                        <option value="{{ acc.id }}" {% if acc.id == line.account_id %}selected{% endif %}>
+                                            [{{ acc.code }}] {{ acc.name }} ({{ acc.type }})
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <input type="text" name="particulars[]" value="{{ line.particulars or '' }}" placeholder="Line memo..." class="form-control">
+                            </td>
+                            <td>
+                                <input type="number" step="0.01" min="0" name="debit[]" value="{{ '{:.2f}'.format(line.debit) if line.debit > 0 else '' }}" placeholder="0.00" class="form-control debit-input num-input">
+                            </td>
+                            <td>
+                                <input type="number" step="0.01" min="0" name="credit[]" value="{{ '{:.2f}'.format(line.credit) if line.credit > 0 else '' }}" placeholder="0.00" class="form-control credit-input num-input">
+                            </td>
+                            <td style="text-align: center;">
+                                <button type="button" class="btn btn-outline btn-sm remove-line-btn" title="Delete row" style="color: var(--danger); border-color: var(--border);">🗑</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Totals & Double-Entry Balance Bar -->
+            <div class="voucher-totals-bar">
+                <div class="balance-status">
+                    <span style="font-weight: 600;">Status:</span>
+                    <span id="balance-status-badge" class="badge badge-balanced">✓ Balanced</span>
+                    <span style="color: var(--text-muted); font-size: 0.85rem; margin-left: 0.5rem;">Difference: <strong id="balance-diff" style="color: var(--text-primary); font-family: 'JetBrains Mono', monospace;">৳0.00</strong></span>
+                </div>
+                <div class="totals-group">
+                    <div>
+                        <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Total Debit: </span>
+                        <strong id="total-debit" style="color: #2563eb;">৳0.00</strong>
+                    </div>
+                    <div>
+                        <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Total Credit: </span>
+                        <strong id="total-credit" style="color: #059669;">৳0.00</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-bottom: 1rem;">
+                <a href="{{ url_for('view_voucher', voucher_id=voucher.id) }}" class="btn btn-outline">Cancel</a>
+                <button type="submit" id="submit-voucher-btn" class="btn btn-primary">
+                    ✓ Update & Save Voucher
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/voucher.js') }}"></script>
+{% endblock %}

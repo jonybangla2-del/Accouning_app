@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "smtp_server": "smtp.gmail.com",
+  "smtp_port": 587,
+  "smtp_user": "jonybangla2@gmail.com",
+  "smtp_password": "",
+  "use_tls": true,
+  "sender_name": "ZR-ERP Security System"
+}

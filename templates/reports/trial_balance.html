@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Trial Balance{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">⚖️ Trial Balance</h1>
+        <p class="page-description">Verification of ledger debit and credit equality as of selected date.</p>
+    </div>
+    <div class="header-actions">
+        <button onclick="window.print()" class="btn btn-outline">🖨️ Print / Save PDF</button>
+        <a href="{{ url_for('reports_hub') }}" class="btn btn-secondary">← Reports Hub</a>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<form method="GET" action="{{ url_for('trial_balance') }}" class="filter-bar no-print">
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <label class="form-label" style="margin-bottom: 0;">As of Date:</label>
+        <input type="date" name="as_of_date" class="form-control" value="{{ as_of_date }}" style="width: 170px;">
+        <button type="submit" class="btn btn-primary btn-sm">Generate Report</button>
+    </div>
+
+    <div style="margin-left: auto;">
+        {% if is_balanced %}
+            <span class="badge badge-balanced">✓ Trial Balance Balanced</span>
+        {% else %}
+            <span class="badge badge-unbalanced">⚠ Out of Balance (Diff: ৳{{ "{:,.2f}".format(diff) }})</span>
+        {% endif %}
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-header" style="text-align: center; display: block; border-bottom: 2px solid var(--primary);">
+        <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.35rem; color: var(--primary);">LEDGERPRO ENTERPRISE</h2>
+        <div style="font-size: 1.1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin: 0.25rem 0;">Trial Balance</div>
+        <div style="font-size: 0.9rem; color: var(--text-secondary);">As of {{ as_of_date_obj.strftime('%d %B, %Y') if as_of_date_obj else as_of_date }}</div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table report-table">
+            <thead>
+                <tr>
+                    <th style="width: 90px;">Code</th>
+                    <th>Account Title</th>
+                    <th style="width: 110px;">Type</th>
+                    <th class="num-col" style="width: 130px;">Period Dr (৳)</th>
+                    <th class="num-col" style="width: 130px;">Period Cr (৳)</th>
+                    <th class="num-col" style="width: 150px;">Closing Debit (৳)</th>
+                    <th class="num-col" style="width: 150px;">Closing Credit (৳)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text-secondary);">
+                        {{ row.account.code }}
+                    </td>
+                    <td>
+                        <strong style="color: var(--text-primary);">{{ row.account.name }}</strong>
+                        <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 0.4rem;">({{ row.account.category }})</span>
+                    </td>
+                    <td>
+                        <span class="badge badge-{{ row.account.type|lower }}">{{ row.account.type }}</span>
+                    </td>
+                    <td class="num-col">
+                        {{ "{:,.2f}".format(row.period_dr) if row.period_dr > 0 else '—' }}
+                    </td>
+                    <td class="num-col">
+                        {{ "{:,.2f}".format(row.period_cr) if row.period_cr > 0 else '—' }}
+                    </td>
+                    <td class="num-col" style="font-weight: 600; color: #1e40af;">
+                        {{ "{:,.2f}".format(row.closing_dr) if row.closing_dr > 0 else '—' }}
+                    </td>
+                    <td class="num-col" style="font-weight: 600; color: #065f46;">
+                        {{ "{:,.2f}".format(row.closing_cr) if row.closing_cr > 0 else '—' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="report-total-row">
+                    <td colspan="3" style="text-align: right; text-transform: uppercase;">Total Trial Balance:</td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(total_period_dr) }}</td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(total_period_cr) }}</td>
+                    <td class="num-col" style="color: #2563eb;">৳{{ "{:,.2f}".format(total_closing_dr) }}</td>
+                    <td class="num-col" style="color: #059669;">৳{{ "{:,.2f}".format(total_closing_cr) }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div class="card-body" style="background-color: #f8fafc; border-top: 1px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                <em>Auditor's Note: Total Debits equal Total Credits. Books of Accounts are mathematically reconciled.</em>
+            </div>
+            <div>
+                {% if is_balanced %}
+                    <span class="badge badge-balanced" style="font-size: 0.9rem;">✓ Balanced (Net Diff: ৳0.00)</span>
+                {% else %}
+                    <span class="badge badge-unbalanced" style="font-size: 0.9rem;">⚠ Unbalanced: ৳{{ "{:,.2f}".format(diff) }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

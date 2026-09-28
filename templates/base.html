@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Accounting System{% endblock %} - ZR-ERP</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <a href="{{ url_for('home') }}" class="nav-brand" title="ZR-ERP Enterprise Home Portal">
+                <div class="brand-icon">⚖</div>
+                <div>
+                    <div class="brand-title">ZR-ERP</div>
+                    <div class="brand-subtitle">Enterprise Accounting</div>
+                </div>
+            </a>
+
+            <!-- Multi-Company Quick Switcher -->
+            {% if active_company %}
+            <div class="nav-dropdown">
+                <a href="#" class="company-switcher-btn" title="Active Enterprise Database">
+                    <span class="live-dot"></span>
+                    <span>{{ active_company.name }}</span>
+                    <span class="badge" style="background: rgba(255,255,255,0.15); color: #93c5fd; font-size: 0.68rem; padding: 0.1rem 0.35rem; font-family: monospace;">{{ active_company.code }}</span>
+                    {% if active_company.is_locked %}<span title="Password Protected Profile">🔒</span>{% endif %}
+                    <span style="font-size: 0.65rem; opacity: 0.7;">▾</span>
+                </a>
+                <div class="dropdown-menu" style="min-width: 280px;">
+                    <div style="padding: 0.5rem 0.85rem; font-size: 0.7rem; text-transform: uppercase; color: #94a3b8; font-weight: 700; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        Switch Active Company
+                    </div>
+                    {% for c in all_companies %}
+                    <a href="{{ url_for('switch_company', cid=c.id) }}" class="dropdown-item" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>
+                            {{ c.name }}
+                            {% if c.is_locked %}<span title="Locked by Admin Password" style="font-size: 0.8rem;">🔒</span>{% endif %}
+                        </span>
+                        {% if active_company.id == c.id %}
+                        <span style="color: #10b981; font-weight: 800; font-size: 0.85rem;">✓ Active</span>
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                    <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 0.35rem 0;"></div>
+                    <a href="{{ url_for('configuration_hub') }}" class="dropdown-item" style="color: #38bdf8; font-weight: 600;">
+                        ⚙️ Software Configuration &amp; Transfer
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <ul class="nav-menu">
+            <li><a href="{{ url_for('home') }}" class="nav-link {% if request.endpoint == 'home' %}active{% endif %}">🏠 Home</a></li>
+            <li><a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">📊 Dashboard</a></li>
+            <li><a href="{{ url_for('chart_of_accounts') }}" class="nav-link {% if 'account' in request.endpoint %}active{% endif %}">📑 Accounts</a></li>
+            <li><a href="{{ url_for('voucher_list') }}" class="nav-link {% if 'voucher' in request.endpoint %}active{% endif %}">📖 Vouchers</a></li>
+            
+            <li class="nav-dropdown">
+                <a href="{{ url_for('budget_dashboard') }}" class="nav-link {% if 'budget' in request.endpoint %}active{% endif %}" style="{% if 'budget' in request.endpoint %}color: #38bdf8;{% endif %}">
+                    🎯 Budget &amp; Expenses ▾
+                </a>
+                <div class="dropdown-menu">
+                    <a href="{{ url_for('budget_dashboard') }}" class="dropdown-item" style="color: #38bdf8; font-weight: 700;">📊 Budget vs Expense Cockpit</a>
+                    <a href="{{ url_for('issue_budget') }}" class="dropdown-item" style="color: #34d399; font-weight: 600;">📝 Issue Monthly Budget</a>
+                    <a href="{{ url_for('budget_list') }}" class="dropdown-item" style="color: #fbbf24; font-weight: 600;">📋 Monthly Budget Archive</a>
+                    <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 0.25rem 0;"></div>
+                    <a href="{{ url_for('budget_report') }}" class="dropdown-item">🖨️ Printable Variance Report</a>
+                </div>
+            </li>
+            
+            <li class="nav-dropdown">
+                <a href="{{ url_for('remittance_dashboard') }}" class="nav-link {% if 'remittance' in request.endpoint %}active{% endif %}" style="{% if 'remittance' in request.endpoint %}color: #34d399;{% endif %}">
+                    💵 Remittance &amp; Incentive ▾
+                </a>
+                <div class="dropdown-menu">
+                    <a href="{{ url_for('remittance_dashboard') }}" class="dropdown-item" style="color: #34d399; font-weight: 700;">📊 Remittance &amp; Incentive Statement</a>
+                    <a href="{{ url_for('create_remittance_entry') }}" class="dropdown-item" style="color: #60a5fa; font-weight: 600;">+ Record Remittance / Inflow</a>
+                    <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 0.25rem 0;"></div>
+                    <a href="{{ url_for('remittance_statement_report') }}" class="dropdown-item">🖨️ Bangladesh Bank Statement</a>
+                </div>
+            </li>
+            
+            <li class="nav-dropdown">
+                <a href="{{ url_for('employee_list') }}" class="nav-link {% if 'employee' in request.endpoint or 'payroll' in request.endpoint or 'document' in request.endpoint or 'fund' in request.endpoint or 'salary' in request.endpoint %}active{% endif %}">
+                    👥 HR &amp; Payroll ▾
+                </a>
+                <div class="dropdown-menu" style="min-width: 250px;">
+                    <a href="{{ url_for('monthly_salary_sheets') }}" class="dropdown-item" style="color: #38bdf8; font-weight: 700;">📋 Monthly Salary Sheets (32-Col)</a>
+                    <a href="{{ url_for('employee_bank_info') }}" class="dropdown-item" style="color: #10b981; font-weight: 700;">🏦 Employee Bank Info (EFT / BEFTN)</a>
+                    <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 0.25rem 0;"></div>
+                    <a href="{{ url_for('employee_list') }}" class="dropdown-item" style="color: #60a5fa; font-weight: 600;">👨‍💼 Employee Database</a>
+                    <a href="{{ url_for('salary_history_dashboard') }}" class="dropdown-item" style="color: #f59e0b; font-weight: 600;">📜 Historical Salary Registry</a>
+                    <a href="{{ url_for('employee_salary_report') }}" class="dropdown-item" style="color: #10b981; font-weight: 600;">📊 Career Paid Report</a>
+                    <a href="{{ url_for('fund_contributions_dashboard') }}" class="dropdown-item" style="color: #34d399; font-weight: 600;">💰 Contribution Fund (PF)</a>
+                    <a href="{{ url_for('documents_hub') }}" class="dropdown-item" style="color: #a78bfa; font-weight: 600;">📜 Certificates &amp; Documents</a>
+                    <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 0.25rem 0;"></div>
+                    <a href="{{ url_for('payroll_dashboard') }}" class="dropdown-item">⚡ Monthly Payroll Runs</a>
+                </div>
+            </li>
+            
+            <li class="nav-dropdown">
+                <a href="{{ url_for('reports_hub') }}" class="nav-link {% if 'report' in request.endpoint or 'reconciliation' in request.endpoint or 'statement' in request.endpoint or 'balance' in request.endpoint or 'receipts' in request.endpoint or 'income' in request.endpoint %}active{% endif %}">
+                    📈 Reports ▾
+                </a>
+                <div class="dropdown-menu" style="min-width: 250px;">
+                    <a href="{{ url_for('cash_book_report') }}" class="dropdown-item" style="color: #34d399; font-weight: 600;">📖 Cash &amp; Bank Book</a>
+                    <a href="{{ url_for('bank_statement_report') }}" class="dropdown-item" style="color: #60a5fa; font-weight: 600;">📑 Bank Statement Report</a>
+                    <a href="{{ url_for('bank_reconciliation') }}" class="dropdown-item" style="color: #fbbf24; font-weight: 600;">⚖️ Bank Reconciliation</a>
+                    <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 0.25rem 0;"></div>
+                    <a href="{{ url_for('trial_balance') }}" class="dropdown-item">⚖ Trial Balance</a>
+                    <a href="{{ url_for('receipts_payments') }}" class="dropdown-item">💵 Receipts &amp; Payments</a>
+                    <a href="{{ url_for('income_expenditure') }}" class="dropdown-item">📊 Income &amp; Expenditure</a>
+                    <a href="{{ url_for('balance_sheet') }}" class="dropdown-item">🏛 Balance Sheet</a>
+                </div>
+            </li>
+
+            <li>
+                <a href="{{ url_for('configuration_hub') }}" class="nav-link {% if 'configuration' in request.endpoint %}active{% endif %}" style="color: #38bdf8; font-weight: 600;">
+                    ⚙️ Configuration
+                </a>
+            </li>
+
+            {% if current_user and current_user.role == 'Admin' %}
+            <li><a href="{{ url_for('user_settings') }}" class="nav-link {% if 'settings' in request.endpoint or 'user' in request.endpoint %}active{% endif %}">👤 Users</a></li>
+            {% endif %}
+
+            <li style="margin-left: 0.35rem;">
+                <a href="{{ url_for('create_voucher') }}" class="nav-cta-btn">
+                    <span>+</span> Post Voucher
+                </a>
+            </li>
+
+            {% if current_user %}
+            <li class="user-profile-chip">
+                <div class="user-avatar" title="{{ current_user.full_name or current_user.username }}">
+                    {{ (current_user.username[:1] or 'U')|upper }}
+                </div>
+                <div style="display: flex; flex-direction: column;">
+                    <span style="color: #f1f5f9; font-weight: 600; line-height: 1.1;">{{ current_user.username }}</span>
+                    <span class="badge {% if current_user.role == 'Admin' %}badge-admin{% else %}badge-user{% endif %}" style="font-size: 0.6rem; padding: 0.08rem 0.35rem; margin-top: 2px;">
+                        {{ current_user.role }}
+                    </span>
+                </div>
+                <a href="{{ url_for('logout') }}" title="Sign Out Safely" style="color: #94a3b8; text-decoration: none; margin-left: 0.25rem; font-size: 1.1rem; transition: color 0.15s ease;" onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='#94a3b8'">🚪</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages no-print">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category if category != 'message' else 'info' }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <footer style="text-align: center; padding: 2rem; color: #94a3b8; font-size: 0.85rem; border-top: 1px solid var(--border); margin-top: auto;" class="no-print">
+        ZR-ERP Professional Double-Entry Accounting &bull; Multi-Company Edition &bull; Multi-User & Payroll Enabled &copy; {{ now.year if now else 2026 }}
+    </footer>
+
+    <style>
+        /* Global Modal Overlay & Dialog Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.65);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1050;
+            backdrop-filter: blur(4px);
+            padding: 1rem;
+        }
+        .modal-box {
+            background: #ffffff;
+            border-radius: var(--radius-md, 10px);
+            width: 100%;
+            max-width: 600px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+            overflow: hidden;
+            animation: modalFadeIn 0.2s ease-out;
+        }
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .modal-header {
+            padding: 1.15rem 1.5rem;
+            border-bottom: 1px solid var(--border, #e2e8f0);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+        }
+        .modal-body {
+            padding: 1.5rem;
+            max-height: calc(85vh - 140px);
+            overflow-y: auto;
+        }
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border, #e2e8f0);
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            background: #f8fafc;
+        }
+        .btn-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            line-height: 1;
+            cursor: pointer;
+            color: var(--text-muted, #94a3b8);
+            transition: color 0.15s ease;
+        }
+        .btn-close:hover {
+            color: var(--text-primary, #0f172a);
+        }
+    </style>
+
+    <script>
+        function openModal(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeModal(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+        }
+
+        window.addEventListener('click', function(event) {
+            if (event.target.classList.contains('modal-overlay')) {
+                event.target.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                document.querySelectorAll('.modal-overlay').forEach(function(m) {
+                    m.style.display = 'none';
+                });
+                document.body.style.overflow = '';
+            }
+        });
+    </script>
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

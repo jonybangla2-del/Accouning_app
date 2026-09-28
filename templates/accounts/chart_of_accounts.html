@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}Chart of Accounts & Subledgers{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">📑 Chart of Accounts (COA) & Subledgers</h1>
+        <p class="page-description">Standardized multi-level hierarchy of main ledgers and subsidiary subledgers.</p>
+    </div>
+    <div class="header-actions" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+        <button type="button" class="btn btn-danger" onclick="openClearLedgerModal()" style="display: inline-flex; align-items: center; gap: 0.4rem; background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border: none; font-weight: 600; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);">
+            🗑️ Clear Ledger Data (Date Condition)
+        </button>
+        <a href="{{ url_for('sync_all_cash_book_to_gl') }}" class="btn btn-outline" style="border-color: #10b981; color: #059669; font-weight: 600; display: inline-flex; align-items: center; gap: 0.4rem;" title="Synchronize all Cash & Bank entries to General Ledger">
+            🔄 Sync with Cash & Bank Book
+        </a>
+        <a href="{{ url_for('add_account') }}" class="btn btn-primary">+ Add New Ledger / Subledger</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 100px;">Code</th>
+                    <th>Account Title & Hierarchy</th>
+                    <th style="width: 110px;">Type</th>
+                    <th style="width: 180px;">Classification</th>
+                    <th style="width: 120px; text-align: center;">Liquid Fund</th>
+                    <th class="num-col" style="width: 150px;">Balance</th>
+                    <th style="width: 130px; text-align: center;" class="no-print">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for acc in accounts %}
+                <tr {% if acc.parent_id %}style="background-color: #fcfdfe;"{% endif %}>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">
+                        <a href="{{ url_for('account_ledger', account_id=acc.id) }}" target="_blank" style="text-decoration: none; color: var(--accent);" title="View Detailed Ledger Statement in New Window">
+                            {{ acc.code }}
+                        </a>
+                    </td>
+                    <td>
+                        {% if acc.parent_id %}
+                            <div style="padding-left: 1.5rem; display: flex; align-items: center; gap: 0.4rem;">
+                                <span style="color: var(--accent); font-weight: bold;">↳</span>
+                                <a href="{{ url_for('account_ledger', account_id=acc.id) }}" target="_blank" style="text-decoration: none; color: inherit;" title="View Detailed Ledger Statement in New Window">
+                                    <strong style="color: var(--text-primary); cursor: pointer;">{{ acc.name }}</strong>
+                                </a>
+                                <span class="badge" style="background-color: #f1f5f9; color: var(--text-secondary); font-size: 0.7rem;">Subledger of {{ acc.parent.name }}</span>
+                            </div>
+                        {% else %}
+                            <a href="{{ url_for('account_ledger', account_id=acc.id) }}" target="_blank" style="text-decoration: none; color: inherit;" title="View Detailed Ledger Statement in New Window">
+                                <strong style="color: var(--text-primary); font-size: 0.95rem; cursor: pointer;">{{ acc.name }}</strong>
+                            </a>
+                            {% if acc.subledgers %}
+                                <span class="badge" style="background-color: #e0e7ff; color: #4338ca; font-size: 0.7rem; margin-left: 0.35rem;">
+                                    {{ acc.subledgers|length }} Subledgers
+                                </span>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge badge-{{ acc.type|lower }}">{{ acc.type }}</span>
+                    </td>
+                    <td style="color: var(--text-secondary); font-size: 0.85rem;">{{ acc.category }}</td>
+                    <td style="text-align: center;">
+                        {% if acc.is_cash_or_bank %}
+                            <span class="badge" style="background-color: #d1fae5; color: #065f46;">💵 Liquid</span>
+                        {% else %}
+                            <span style="color: var(--text-muted); font-size: 0.8rem;">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="num-col {% if acc.balance < 0 %}text-danger{% endif %}" style="font-weight: 700;">
+                        ৳{{ "{:,.2f}".format(acc.balance) }}
+                    </td>
+                    <td style="text-align: center;" class="no-print">
+                        <div style="display: flex; gap: 0.35rem; justify-content: center;">
+                            <a href="{{ url_for('account_ledger', account_id=acc.id) }}" target="_blank" class="btn btn-outline btn-sm" title="View Ledger Report in New Window" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: #059669; border-color: #a7f3d0; background-color: #f0fdf4;">
+                                📖 Ledger
+                            </a>
+                            <a href="{{ url_for('edit_account', account_id=acc.id) }}" class="btn btn-outline btn-sm" title="Edit Ledger" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: #2563eb;">
+                                ✏️ Edit
+                            </a>
+                            <form method="POST" action="{{ url_for('delete_account', account_id=acc.id) }}" onsubmit="return confirm('Delete account [{{ acc.code }}] {{ acc.name }}?');" style="display: inline;">
+                                <button type="submit" class="btn btn-outline btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--danger); border-color: var(--border);" title="Delete Ledger">
+                                    🗑
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal: Clear All Data from All Ledgers by Date Condition -->
+<div id="clearLedgerModal" class="custom-modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); z-index: 1050; align-items: center; justify-content: center; padding: 1rem;">
+    <div class="custom-modal-card" style="background: #ffffff; border-radius: 12px; max-width: 620px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); overflow: hidden; animation: modalFadeIn 0.2s ease-out;">
+        <div style="background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%); color: #fff; padding: 1.1rem 1.4rem; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.6rem;">
+                🗑️ Clear All Ledger Data (Date Condition)
+            </h3>
+            <button type="button" onclick="closeClearLedgerModal()" style="background: transparent; border: none; color: #fff; font-size: 1.3rem; cursor: pointer;">✕</button>
+        </div>
+        <form method="POST" action="{{ url_for('clear_ledger_data_by_date') }}" onsubmit="return confirmClearAction()" style="padding: 1.5rem;">
+            <!-- Warning Banner -->
+            <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 0.85rem 1rem; border-radius: 4px; margin-bottom: 1.25rem; font-size: 0.83rem; color: #991b1b; line-height: 1.45;">
+                <strong>⚠️ Caution / Clear Ledger Data:</strong><br>
+                This will permanently delete all <strong>Journal Entries (Payment, Receipt, Contra, Journal)</strong> and their <strong>Transaction Lines</strong> across all ledgers strictly within your selected date range. All ledger account balances will be automatically recalculated!
+            </div>
+
+            <!-- Date Presets -->
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text-secondary);">
+                    QUICK MONTH / YEAR PRESETS:
+                </label>
+                <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setClearPreset('2026-08-01', '2026-08-31')">August 2026</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setClearPreset('2026-07-01', '2026-07-31')">July 2026</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setClearPreset('2026-06-01', '2026-06-30')">June 2026</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setClearPreset('2026-05-01', '2026-05-31')">May 2026</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setClearPreset('2026-04-01', '2026-04-30')">April 2026</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setClearPreset('2026-03-01', '2026-03-31')">March 2026</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setClearPreset('2026-02-01', '2026-02-28')">February 2026</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setClearPreset('2026-01-01', '2026-01-31')">January 2026</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setClearPreset('2026-01-01', '2026-12-31')">Full Year 2026</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setClearPreset('2020-01-01', '2030-12-31')" style="color: #b91c1c; border-color: #fca5a5;">All Records (History)</button>
+                </div>
+            </div>
+
+            <!-- Date Range Condition Inputs -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                <div>
+                    <label style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                        From Date (Condition Start): *
+                    </label>
+                    <input type="date" name="from_date" id="clear_from_date" required class="form-control" value="2026-01-01" style="padding: 0.45rem 0.65rem; width: 100%;">
+                </div>
+                <div>
+                    <label style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                        To Date (Condition End): *
+                    </label>
+                    <input type="date" name="to_date" id="clear_to_date" required class="form-control" value="2026-12-31" style="padding: 0.45rem 0.65rem; width: 100%;">
+                </div>
+            </div>
+
+            <!-- Option to also clear CashBookRows -->
+            <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 0.9rem; margin-bottom: 1.5rem;">
+                <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; margin: 0; font-size: 0.85rem;">
+                    <input type="checkbox" name="clear_cash_book" value="1" checked style="margin-top: 0.2rem; transform: scale(1.15);">
+                    <div>
+                        <strong>Also clear matching Cash & Bank Book rows</strong>
+                        <div style="color: var(--text-secondary); font-size: 0.78rem; margin-top: 0.15rem;">
+                            Deletes Cash Book rows within this date range to keep Cash Book & General Ledger perfectly matched. <em>Opening Balance (row 1) is always protected.</em>
+                        </div>
+                    </div>
+                </label>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+                <button type="button" onclick="closeClearLedgerModal()" class="btn btn-outline">Cancel</button>
+                <button type="submit" class="btn btn-danger" style="background: #dc2626; color: #fff; font-weight: 700; border-color: #b91c1c; display: flex; align-items: center; gap: 0.4rem; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">
+                    🗑️ Clear All Ledger Data Now
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+@keyframes modalFadeIn {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
+}
+</style>
+
+<script>
+function openClearLedgerModal() {
+    const modal = document.getElementById('clearLedgerModal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeClearLedgerModal() {
+    const modal = document.getElementById('clearLedgerModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function setClearPreset(fromStr, toStr) {
+    const fromInput = document.getElementById('clear_from_date');
+    const toInput = document.getElementById('clear_to_date');
+    if (fromInput && toInput) {
+        fromInput.value = fromStr;
+        toInput.value = toStr;
+    }
+}
+
+function confirmClearAction() {
+    const fromVal = document.getElementById('clear_from_date').value;
+    const toVal = document.getElementById('clear_to_date').value;
+    return confirm("ATTENTION: Are you completely sure you want to PERMANENTLY CLEAR all accounts ledger data between " + fromVal + " and " + toVal + "?\n\nThis action cannot be undone!");
+}
+
+window.addEventListener('click', function(event) {
+    const modal = document.getElementById('clearLedgerModal');
+    if (event.target === modal) {
+        closeClearLedgerModal();
+    }
+});
+</script>
+{% endblock %}

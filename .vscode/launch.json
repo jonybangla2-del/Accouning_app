@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Run Accounting App",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/app.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Launch Chrome against Accounting App",
+            "type": "chrome",
+            "request": "launch",
+            "url": "http://127.0.0.1:5000",
+            "webRoot": "${workspaceFolder}"
+        }
+    ]
+}

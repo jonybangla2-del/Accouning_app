@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}Issue Monthly Budget - ZR-ERP{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+    <div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+            <span style="font-size: 1.5rem;">📝</span>
+            <h1 class="page-title" style="margin: 0; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em;">Issue Monthly Operating Budget</h1>
+        </div>
+        <p class="page-description" style="color: var(--text-muted); font-size: 0.88rem; margin: 0;">
+            Allocate financial spending ceilings and cost centers for the upcoming operating period.
+        </p>
+    </div>
+
+    <div class="header-actions">
+        <a href="{{ url_for('budget_dashboard') }}" class="btn btn-secondary">
+            ← Back to Budget Cockpit
+        </a>
+    </div>
+</div>
+
+<form method="POST" action="{{ url_for('issue_budget') }}" id="budgetIssueForm">
+    <!-- Top Metadata Card -->
+    <div class="card" style="border-radius: 14px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.04);">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin-bottom: 1.25rem;">
+            <!-- 1. Month & Year -->
+            <div class="form-group" style="margin: 0;">
+                <label class="form-label" style="font-weight: 700; color: #1e293b;">
+                    Budget Month (YYYY-MM) <span style="color: #ef4444;">*</span>
+                </label>
+                <input type="month" name="month_year" id="budgetMonthPicker" class="form-control" value="{{ default_month }}" required onchange="onMonthChange(this.value)">
+                <small style="color: #64748b; font-size: 0.75rem;">Select calendar month to allocate.</small>
+            </div>
+
+            <!-- 2. Budget Title -->
+            <div class="form-group" style="margin: 0;">
+                <label class="form-label" style="font-weight: 700; color: #1e293b;">Budget Title / Designation</label>
+                <input type="text" name="title" id="budgetTitleInput" class="form-control" value="Monthly Operating Budget - {{ default_month }}" required>
+            </div>
+
+            <!-- 3. Fiscal Year -->
+            <div class="form-group" style="margin: 0;">
+                <label class="form-label" style="font-weight: 700; color: #1e293b;">Fiscal Financial Year</label>
+                <input type="text" name="fiscal_year" class="form-control" value="2026-2027">
+            </div>
+
+            <!-- 4. Status -->
+            <div class="form-group" style="margin: 0;">
+                <label class="form-label" style="font-weight: 700; color: #1e293b;">Initial Status</label>
+                <select name="status" class="form-control" style="font-weight: 600;">
+                    <option value="Issued" selected>🟢 Issued &amp; Active</option>
+                    <option value="Draft">🟡 Draft (Work in Progress)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group" style="margin: 0;">
+            <label class="form-label" style="font-weight: 700; color: #1e293b;">Strategic Directives / Spending Notes</label>
+            <textarea name="notes" rows="2" class="form-control" placeholder="Add specific management directives, cost reduction targets, or assumptions..."></textarea>
+        </div>
+    </div>
+
+    <!-- Smart Pre-Fill Actions & Live Sticky Bar -->
+    <div class="card" style="border-radius: 14px; padding: 1.25rem; margin-bottom: 1.5rem; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: white; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; position: sticky; top: 10px; z-index: 90; box-shadow: 0 8px 24px rgba(15,23,42,0.35);">
+        <div>
+            <div style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; font-weight: 700;">Live Consolidated Allocation</div>
+            <div style="font-size: 1.85rem; font-weight: 800; font-family: 'Outfit', sans-serif; display: flex; align-items: baseline; gap: 0.4rem;">
+                <span style="font-size: 1.35rem; color: #38bdf8;">৳</span>
+                <span id="liveTotalBudgetDisplay">0.00</span>
+            </div>
+            <div style="font-size: 0.78rem; color: #cbd5e1;">
+                Allocated across <strong id="allocatedAccountsCount" style="color: #38bdf8;">0</strong> expense accounts
+            </div>
+        </div>
+
+        <!-- Quick Pre-Fill Tools -->
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+            <span style="font-size: 0.8rem; color: #94a3b8; font-weight: 600;">Auto-Fill Tools:</span>
+            
+            <button type="button" class="btn btn-sm btn-outline" style="color: white; border-color: rgba(255,255,255,0.25);" onclick="fillFromBenchmark()">
+                ⚡ Match Last Month's Actuals ({{ prev_month_str }})
+            </button>
+
+            <button type="button" class="btn btn-sm btn-outline" style="color: #60a5fa; border-color: rgba(96,165,250,0.4);" onclick="applyGlobalAdjustment(1.05)">
+                +5% Buffer
+            </button>
+
+            <button type="button" class="btn btn-sm btn-outline" style="color: #f87171; border-color: rgba(248,113,113,0.4);" onclick="applyGlobalAdjustment(0.95)">
+                -5% Cut
+            </button>
+
+            <button type="button" class="btn btn-sm btn-secondary" style="background: rgba(255,255,255,0.1); color: #cbd5e1; border: none;" onclick="clearAllAllocations()">
+                ✕ Clear
+            </button>
+
+            <button type="submit" class="nav-cta-btn" style="padding: 0.55rem 1.25rem; font-weight: 700; margin-left: 0.5rem; box-shadow: 0 4px 14px rgba(37,99,235,0.4);">
+                🚀 Issue Budget
+            </button>
+        </div>
+    </div>
+
+    <!-- Allocations Table -->
+    <div class="card" style="border-radius: 14px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.04); margin-bottom: 2rem;">
+        <div class="card-header" style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="font-size: 1rem; font-weight: 800; margin: 0; color: #0f172a;">Head of Accounts Allocation Registry</h3>
+            <span style="font-size: 0.8rem; color: #64748b;">Specify exact spending limits for each operational ledger</span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table report-table" style="margin: 0;">
+                <thead>
+                    <tr>
+                        <th style="width: 100px;">Code</th>
+                        <th>Account Name &amp; Classification</th>
+                        <th class="num-col" style="width: 170px;">Last Month Actual (৳)</th>
+                        <th style="width: 240px; text-align: right;">Monthly Budget (৳)</th>
+                        <th style="width: 150px; text-align: center;">Quick Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set current_cat = '' %}
+                    {% for acc in expense_accounts %}
+                        {% if acc.category != current_cat %}
+                            {% set current_cat = acc.category %}
+                            <tr class="report-section-header" style="background: #f1f5f9; font-weight: 800; color: #334155;">
+                                <td colspan="5" style="padding: 0.65rem 1rem; font-size: 0.85rem; letter-spacing: 0.04em;">
+                                    📌 {{ current_cat|upper }}
+                                </td>
+                            </tr>
+                        {% endif %}
+                        <tr>
+                            <td style="font-family: monospace; font-size: 0.82rem; font-weight: 700; color: #475569;">{{ acc.code }}</td>
+                            <td>
+                                <div style="font-weight: 600; color: #0f172a;">{{ acc.name }}</div>
+                                <div style="font-size: 0.74rem; color: #64748b;">{{ acc.category }}</div>
+                            </td>
+                            <td class="num-col" style="font-size: 0.85rem; color: #64748b; font-weight: 500;">
+                                {% set bench_amt = benchmark_map.get(acc.id, 0.0) %}
+                                ৳{{ "{:,.2f}".format(bench_amt) }}
+                            </td>
+                            <td style="text-align: right;">
+                                {% set init_val = cloned_allocations.get(acc.id, 0.0) %}
+                                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.35rem;">
+                                    <span style="font-weight: 700; color: #64748b;">৳</span>
+                                    <input type="number" 
+                                           step="100" 
+                                           min="0" 
+                                           name="allocated_{{ acc.id }}" 
+                                           id="alloc_{{ acc.id }}" 
+                                           class="form-control alloc-input" 
+                                           value="{{ "{:.0f}".format(init_val) if init_val > 0 else '' }}" 
+                                           placeholder="0.00" 
+                                           data-benchmark="{{ bench_amt }}" 
+                                           style="width: 160px; text-align: right; font-weight: 700; font-size: 0.92rem;" 
+                                           oninput="recalculateTotal()">
+                                </div>
+                            </td>
+                            <td style="text-align: center;">
+                                <button type="button" class="btn btn-outline btn-sm" style="font-size: 0.7rem; padding: 0.2rem 0.5rem;" onclick="copyBenchmark('{{ acc.id }}')" title="Set to match last month's actual">
+                                    Copy Bench
+                                </button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</form>
+
+<script>
+function recalculateTotal() {
+    let sum = 0;
+    let count = 0;
+    document.querySelectorAll('.alloc-input').forEach(inp => {
+        const val = parseFloat(inp.value) || 0;
+        if (val > 0) {
+            sum += val;
+            count++;
+        }
+    });
+
+    document.getElementById('liveTotalBudgetDisplay').textContent = sum.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+    document.getElementById('allocatedAccountsCount').textContent = count;
+}
+
+function copyBenchmark(accId) {
+    const input = document.getElementById('alloc_' + accId);
+    if (input) {
+        const bench = parseFloat(input.getAttribute('data-benchmark')) || 0;
+        input.value = Math.round(bench);
+        recalculateTotal();
+    }
+}
+
+function fillFromBenchmark() {
+    document.querySelectorAll('.alloc-input').forEach(inp => {
+        const bench = parseFloat(inp.getAttribute('data-benchmark')) || 0;
+        if (bench > 0) {
+            inp.value = Math.round(bench);
+        }
+    });
+    recalculateTotal();
+}
+
+function applyGlobalAdjustment(multiplier) {
+    document.querySelectorAll('.alloc-input').forEach(inp => {
+        const current = parseFloat(inp.value) || 0;
+        if (current > 0) {
+            inp.value = Math.round(current * multiplier);
+        }
+    });
+    recalculateTotal();
+}
+
+function clearAllAllocations() {
+    if (confirm('Clear all line-item budget allocations to zero?')) {
+        document.querySelectorAll('.alloc-input').forEach(inp => {
+            inp.value = '';
+        });
+        recalculateTotal();
+    }
+}
+
+function onMonthChange(val) {
+    const titleInput = document.getElementById('budgetTitleInput');
+    if (titleInput && val) {
+        titleInput.value = 'Monthly Operating Budget - ' + val;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    recalculateTotal();
+});
+</script>
+{% endblock %}

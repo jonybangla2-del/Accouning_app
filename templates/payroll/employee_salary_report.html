@@ -1,0 +1,428 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Cumulative Salary & Company Paid Report - ZR-ERP ERP{% endblock %}
+
+{% block content %}
+<div class="page-header no-print">
+    <div>
+        <h1 class="page-title">📊 Employee Cumulative Salary & Company Paid Statement</h1>
+        <p class="page-description">
+            Comprehensive audit report displaying all monthly historical salary disbursements, allowance breakdowns, deductions, and total company compensation paid.
+        </p>
+    </div>
+    <div class="header-actions">
+        <a href="{{ url_for('salary_history_dashboard') }}" class="btn btn-outline">
+            📜 Historical Registry
+        </a>
+        {% if target_emp %}
+        <button type="button" class="btn btn-outline" onclick="window.print()" style="font-weight: 600;">
+            🖨️ Print Statement
+        </button>
+        <a href="{{ url_for('export_employee_salary_report_excel', emp_id=target_emp.id) }}" class="btn btn-primary" style="background-color: #059669; border-color: #059669; font-weight: 600;">
+            📥 Export Statement to Excel
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Search & Selection Bar -->
+<div class="card no-print" style="margin-bottom: 1.5rem; padding: 1.25rem; background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%); border: 1px solid #cbd5e1;">
+    <form method="GET" action="{{ url_for('employee_salary_report') }}" style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;">
+        <div style="flex: 1; min-width: 250px;">
+            <label style="display: block; font-size: 0.85rem; font-weight: 700; color: #1e3a8a; margin-bottom: 0.35rem;">
+                🔍 Search Employee by ID Number or Name
+            </label>
+            <div style="position: relative;">
+                <input type="text" name="search_id" class="form-control" list="employeeListDatalist" 
+                       placeholder="Enter Employee ID (e.g. EMP-001, 101) or Name..." 
+                       value="{{ search_id or '' }}" style="font-size: 0.95rem; font-weight: 600;">
+                <datalist id="employeeListDatalist">
+                    {% for e in employees %}
+                    <option value="{{ e.employee_id }}">{{ e.employee_id }} - {{ e.name }} ({{ e.department }})</option>
+                    {% endfor %}
+                </datalist>
+            </div>
+        </div>
+
+        <div style="min-width: 240px;">
+            <label style="display: block; font-size: 0.85rem; font-weight: 700; color: #1e3a8a; margin-bottom: 0.35rem;">
+                Or Select from Employee List
+            </label>
+            <select name="employee_id" class="form-control" onchange="this.form.submit()" style="font-size: 0.9rem;">
+                <option value="">-- Choose Employee --</option>
+                {% for e in employees %}
+                <option value="{{ e.id }}" {% if target_emp and target_emp.id == e.id %}selected{% endif %}>
+                    {{ e.employee_id }} - {{ e.name }} ({{ e.designation }})
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem;">
+            <button type="submit" class="btn btn-primary" style="padding: 0.6rem 1.25rem; font-weight: 600;">
+                Generate Report
+            </button>
+            <a href="{{ url_for('employee_salary_report') }}" class="btn btn-outline" style="padding: 0.6rem 1rem;">
+                Reset
+            </a>
+        </div>
+    </form>
+</div>
+
+{% if target_emp %}
+<!-- PRINT-ONLY HEADER BANNER -->
+<div class="print-only" style="margin-bottom: 1.5rem; border-bottom: 2px solid #1e3a8a; padding-bottom: 1rem;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+            <h1 style="margin: 0; font-size: 1.5rem; color: #1e3a8a;">ZR-ERP ERP Enterprise</h1>
+            <h2 style="margin: 0.25rem 0 0 0; font-size: 1.15rem; color: #334155;">Employee Career Compensation & Salary Statement</h2>
+            <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.2rem;">Official & Confidential HR Compensation Audit</div>
+        </div>
+        <div style="text-align: right; font-size: 0.8rem; color: #64748b;">
+            <div>Statement Date: <strong>{{ today_str if today_str else 'Current' }}</strong></div>
+            <div>Status: <strong>Active Personnel</strong></div>
+        </div>
+    </div>
+</div>
+
+<!-- EMPLOYEE PROFILE EXECUTIVE SUMMARY CARD -->
+<div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem; border-left: 5px solid #2563eb;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div style="display: flex; align-items: center; gap: 1.25rem;">
+            <div style="width: 58px; height: 58px; border-radius: 50%; background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 800; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);">
+                {{ target_emp.name[:1] }}
+            </div>
+            <div>
+                <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+                    <h2 style="margin: 0; font-size: 1.4rem; color: #0f172a; font-weight: 800;">{{ target_emp.name }}</h2>
+                    <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.88rem; font-weight: 700; background: #dbeafe; color: #1e40af; padding: 0.2rem 0.6rem; border-radius: 6px;">
+                        ID: {{ target_emp.employee_id }}
+                    </span>
+                    <span class="badge" style="background-color: #dcfce7; color: #166534; font-size: 0.78rem;">
+                        {{ target_emp.status }}
+                    </span>
+                </div>
+                <div style="font-size: 0.9rem; color: #475569; margin-top: 0.35rem; display: flex; flex-wrap: wrap; gap: 1.25rem;">
+                    <span><strong>Designation:</strong> {{ target_emp.designation }}</span>
+                    <span><strong>Department:</strong> {{ target_emp.department }}</span>
+                    <span><strong>Date of Joining:</strong> {{ target_emp.joining_date.strftime('%d-%b-%Y') if target_emp.joining_date else 'N/A' }}</span>
+                    <span><strong>Bank A/C:</strong> {{ target_emp.bank_account_no or 'Not specified' }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="no-print" style="text-align: right; background: #f8fafc; padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 0.75rem; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">Service Scope</div>
+            <div style="font-size: 1.25rem; font-weight: 800; color: #1e3a8a;">{{ totals.months_count }} Months Recorded</div>
+            <div style="font-size: 0.78rem; color: #059669; font-weight: 600;">Full Audit Trail Loaded</div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- KPI METRIC RIBBON: ALL SALARY INFORMATION COMPANY PAID TOTAL              -->
+<!-- ========================================================================= -->
+<div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 1.5rem;">
+    <!-- 🌟 STAR METRIC: COMPANY TOTAL PAID -->
+    <div class="metric-card profit" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-left: 5px solid #059669; box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.15);">
+        <div class="metric-label" style="color: #065f46; font-weight: 800; font-size: 0.85rem; letter-spacing: 0.5px;">
+            🌟 COMPANY TOTAL PAID (CTC)
+        </div>
+        <div class="metric-value" style="color: #047857; font-size: 1.85rem; font-weight: 900; margin: 0.35rem 0;">
+            ৳{{ "{:,.2f}".format(totals.company_total_paid) }}
+        </div>
+        <div class="metric-sub" style="color: #065f46; font-weight: 600;">
+            Net Cash + TDS Tax + Employer PF
+        </div>
+    </div>
+
+    <!-- Total Net Disbursed -->
+    <div class="metric-card profit" style="border-left: 5px solid #10b981;">
+        <div class="metric-label">Total Net Disbursed (Take-Home)</div>
+        <div class="metric-value" style="color: #059669; font-size: 1.6rem;">
+            ৳{{ "{:,.2f}".format(totals.net_after_tds) }}
+        </div>
+        <div class="metric-sub">Net pay disbursed to employee bank/cash</div>
+    </div>
+
+    <!-- Total Basic Salary -->
+    <div class="metric-card asset" style="border-left: 5px solid #3b82f6;">
+        <div class="metric-label">Total Basic Salary Paid</div>
+        <div class="metric-value" style="color: #2563eb; font-size: 1.6rem;">
+            ৳{{ "{:,.2f}".format(totals.basic) }}
+        </div>
+        <div class="metric-sub">Cumulative basic salary earnings</div>
+    </div>
+
+    <!-- Total Allowances -->
+    <div class="metric-card expense" style="border-left: 5px solid #8b5cf6;">
+        <div class="metric-label">Total Allowances & Perks</div>
+        <div class="metric-value" style="color: #7c3aed; font-size: 1.6rem;">
+            ৳{{ "{:,.2f}".format(totals.total_allowances) }}
+        </div>
+        <div class="metric-sub">HR, Medical, Duty, Loyalty, Eid Bonus</div>
+    </div>
+
+    <!-- Total Deductions -->
+    <div class="metric-card liability" style="border-left: 5px solid #ef4444;">
+        <div class="metric-label">Total Deductions Retained</div>
+        <div class="metric-value" style="color: #dc2626; font-size: 1.6rem;">
+            ৳{{ "{:,.2f}".format(totals.total_ded) }}
+        </div>
+        <div class="metric-sub">Absenteeism, Lateness, PF, Others</div>
+    </div>
+
+    <!-- Total TDS (Tax) -->
+    <div class="metric-card" style="border-left: 5px solid #f59e0b; background: #fffbeb;">
+        <div class="metric-label" style="color: #92400e;">Total TDS (Tax) Remitted</div>
+        <div class="metric-value" style="color: #b45309; font-size: 1.6rem;">
+            ৳{{ "{:,.2f}".format(totals.tds) }}
+        </div>
+        <div class="metric-sub" style="color: #92400e;">Income tax deducted and submitted to NBR</div>
+    </div>
+
+    <!-- Total Provident Fund -->
+    <div class="metric-card" style="border-left: 5px solid #6366f1; background: #eef2ff;">
+        <div class="metric-label" style="color: #3730a3;">Total Provident Fund Contributed</div>
+        <div class="metric-value" style="color: #4f46e5; font-size: 1.6rem;">
+            ৳{{ "{:,.2f}".format(totals.pf_total) }}
+        </div>
+        <div class="metric-sub" style="color: #3730a3;">
+            Empr: ৳{{ "{:,.2f}".format(totals.pf_employer) }} | Emp: ৳{{ "{:,.2f}".format(totals.pf_employee) }}
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- COMPREHENSIVE HISTORICAL SALARY BREAKDOWN TABLE (34-COLUMN DATA)          -->
+<!-- ========================================================================= -->
+<div class="card" style="margin-bottom: 2rem;">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+        <div>
+            <h2 class="card-title" style="margin: 0; font-size: 1.15rem;">
+                📜 Historical Salary Disbursement Ledger ({{ histories|length }} Periods)
+            </h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem;">
+                Detailed breakdown matching the 34-column client compensation registry format.
+            </div>
+        </div>
+        <div style="display: flex; gap: 0.5rem;" class="no-print">
+            <a href="{{ url_for('export_employee_salary_report_excel', emp_id=target_emp.id) }}" class="btn btn-outline btn-sm">
+                📥 Export to Excel
+            </a>
+            <button type="button" class="btn btn-outline btn-sm" onclick="window.print()">
+                🖨️ Print Ledger
+            </button>
+        </div>
+    </div>
+
+    <div class="table-responsive" style="max-height: 750px; overflow-y: auto;">
+        <table class="table" style="font-size: 0.82rem; border-collapse: separate; border-spacing: 0;">
+            <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 10; font-size: 0.78rem;">
+                <tr>
+                    <th style="width: 85px;">Month</th>
+                    <th style="width: 95px;">Payment Date</th>
+                    <th class="num-col">Basic (৳)</th>
+                    <th class="num-col">HR Allw (৳)</th>
+                    <th class="num-col">Medical (৳)</th>
+                    <th class="num-col">Conv (৳)</th>
+                    <th class="num-col" style="font-weight: 700;">Gross Pay (৳)</th>
+                    <th class="num-col">PF Rate</th>
+                    <th class="num-col">PF Empr (৳)</th>
+                    <th class="num-col">PF Emp (৳)</th>
+                    <th class="num-col">PF Total (৳)</th>
+                    <th class="num-col">Govt Hol (৳)</th>
+                    <th class="num-col">Extra Duty (৳)</th>
+                    <th class="num-col">Loyalty (৳)</th>
+                    <th class="num-col">Add Duty (৳)</th>
+                    <th class="num-col">Off Order (৳)</th>
+                    <th class="num-col">Eid Bonus (৳)</th>
+                    <th class="num-col">Other (৳)</th>
+                    <th style="text-align: center;">Days/Abs/Late</th>
+                    <th class="num-col">Abs/Late Ded (৳)</th>
+                    <th class="num-col">Other Ded (৳)</th>
+                    <th class="num-col" style="color: #dc2626; font-weight: 700;">Tot Ded (৳)</th>
+                    <th class="num-col">Arrear (৳)</th>
+                    <th class="num-col" style="color: #2563eb; font-weight: 700;">Net Pay (৳)</th>
+                    <th class="num-col" style="color: #b45309; font-weight: 700;">TDS (৳)</th>
+                    <th class="num-col" style="color: #059669; font-weight: 800; background-color: #ecfdf5;">Net After TDS (৳)</th>
+                    <th class="num-col" style="color: #065f46; font-weight: 900; background-color: #dcfce7;">Company Paid (৳)</th>
+                    <th style="width: 80px; text-align: center;" class="no-print">Slip</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if histories %}
+                    {% for h in histories %}
+                    <tr>
+                        <td style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #1e40af;">
+                            {{ h.salary_month }}
+                        </td>
+                        <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;">
+                            {{ h.payment_date.strftime('%d-%b-%Y') if h.payment_date else '' }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(h.basic_salary or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(h.house_rent or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(h.medical or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(h.conveyance or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">
+                            ৳{{ "{:,.2f}".format(h.gross_salary or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            {{ "{:.1%}".format(h.pf_rate) if h.pf_rate else '8.0%' }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(h.pf_employer or h.pf_deduction or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(h.pf_employee or h.pf_deduction or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #6366f1;">
+                            ৳{{ "{:,.2f}".format(h.pf_total or ((h.pf_employer or 0.0) + (h.pf_employee or h.pf_deduction or 0.0))) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(h.govt_holiday or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(h.holiday_extra_duty or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(h.loyalty_allowance or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(h.additional_duty or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(h.office_order_allowance or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(h.eid_bonus or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(h.other_addition or h.other_allowance or 0.0) }}
+                        </td>
+                        <td style="text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 0.76rem;">
+                            {{ h.working_days|int if h.working_days else 26 }}/{{ h.absent_days|int if h.absent_days else 0 }}/{{ h.late_days|int if h.late_days else 0 }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #dc2626;">
+                            ৳{{ "{:,.2f}".format((h.absenteeism_amount or 0.0) + (h.lateness_amount or 0.0)) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #dc2626;">
+                            ৳{{ "{:,.2f}".format(h.other_deduction or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #dc2626;">
+                            -৳{{ "{:,.2f}".format(h.total_deductions or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(h.arrear or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #2563eb;">
+                            ৳{{ "{:,.2f}".format(h.net_salary or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #b45309;">
+                            ৳{{ "{:,.2f}".format(h.tds or h.tax_deduction or 0.0) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #059669; background-color: #ecfdf5;">
+                            ৳{{ "{:,.2f}".format(h.display_net) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 900; color: #047857; background-color: #dcfce7;">
+                            ৳{{ "{:,.2f}".format(h.display_company_paid) }}
+                        </td>
+                        <td style="text-align: center;" class="no-print">
+                            <a href="{{ url_for('universal_payslip_generator', emp_id=target_emp.id, month=h.salary_month) }}" target="_blank" class="btn btn-outline btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.4rem;">
+                                📄 Slip
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="28" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                            No historical salary records found for this employee.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+            <tfoot>
+                <tr class="report-grandtotal-row" style="background: #f1f5f9; font-weight: 800;">
+                    <td colspan="2" style="text-align: right; font-weight: 900;">CUMULATIVE TOTALS:</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(totals.basic) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(totals.hr) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(totals.medical) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(totals.conveyance) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(totals.gross) }}</td>
+                    <td></td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(totals.pf_employer) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(totals.pf_employee) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #6366f1;">৳{{ "{:,.2f}".format(totals.pf_total) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(totals.govt_holiday) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(totals.holiday_duty) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(totals.loyalty) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(totals.additional_duty) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(totals.office_order) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(totals.eid_bonus) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(totals.other_add) }}</td>
+                    <td></td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #dc2626;">৳{{ "{:,.2f}".format(totals.absenteeism + totals.lateness) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #dc2626;">৳{{ "{:,.2f}".format(totals.other_ded) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #dc2626;">-৳{{ "{:,.2f}".format(totals.total_ded) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(totals.arrear) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #2563eb;">৳{{ "{:,.2f}".format(totals.net_pay) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #b45309;">৳{{ "{:,.2f}".format(totals.tds) }}</td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #059669; font-weight: 900; background-color: #d1fae5; font-size: 0.92rem;">
+                        ৳{{ "{:,.2f}".format(totals.net_after_tds) }}
+                    </td>
+                    <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #065f46; font-weight: 950; background-color: #a7f3d0; font-size: 0.98rem;">
+                        ৳{{ "{:,.2f}".format(totals.company_total_paid) }}
+                    </td>
+                    <td class="no-print"></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+{% else %}
+<!-- NO EMPLOYEE SELECTED: PROMPT & QUICK SEARCH DIRECTORY -->
+<div class="card" style="text-align: center; padding: 3.5rem 1.5rem; background: #ffffff; border: 2px dashed #cbd5e1; border-radius: var(--radius-md);">
+    <div style="font-size: 3.5rem; margin-bottom: 0.75rem;">👤</div>
+    <h2 style="font-size: 1.45rem; color: #1e3a8a; margin-bottom: 0.5rem; font-weight: 700;">
+        Search an Employee to View Career Salary & Company Paid Statement
+    </h2>
+    <p style="color: var(--text-secondary); max-width: 600px; margin: 0 auto 1.5rem auto; font-size: 0.92rem;">
+        Type an <strong>Employee ID number</strong> (e.g. <code>EMP-001</code>) or select an employee above. The system will calculate their complete financial audit trail, allowances, deductions, TDS tax, and grand total company cost.
+    </p>
+
+    <div style="display: flex; justify-content: center; gap: 0.75rem; flex-wrap: wrap; max-width: 800px; margin: 0 auto;">
+        {% for e in employees[:12] %}
+        <a href="{{ url_for('employee_salary_report', employee_id=e.employee_id) }}" 
+           class="btn btn-outline btn-sm" 
+           style="background: #f8fafc; border-color: #cbd5e1; color: #1e40af; font-weight: 600;">
+            {{ e.employee_id }} - {{ e.name }}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<style>
+@media print {
+    body { background: #ffffff !important; font-size: 8pt !important; }
+    .no-print, .header-actions, .nav-menu, header, footer { display: none !important; }
+    .print-only { display: block !important; }
+    .card { box-shadow: none !important; border: 1px solid #cbd5e1 !important; page-break-inside: avoid; }
+    .table-responsive { max-height: none !important; overflow: visible !important; }
+    table { width: 100% !important; border-collapse: collapse !important; }
+    th, td { padding: 4px 6px !important; font-size: 7.5pt !important; border: 1px solid #e2e8f0 !important; }
+    .metric-card { break-inside: avoid; }
+}
+.print-only { display: none; }
+</style>
+{% endblock %}

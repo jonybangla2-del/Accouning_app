@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salary Certificate - {{ employee.name }} ({{ employee.employee_id }})</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            padding: 2.5rem 1rem;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .cert-container {
+            max-width: 820px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+            padding: 3.5rem 4rem;
+            border: 1px solid #cbd5e1;
+            position: relative;
+        }
+        .letterhead-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .logo-area h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.85rem;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: 0.02em;
+            margin-bottom: 0.2rem;
+        }
+        .logo-area div {
+            font-size: 0.85rem;
+            color: #475569;
+        }
+        .contact-area {
+            text-align: right;
+            font-size: 0.82rem;
+            color: #64748b;
+            line-height: 1.45;
+        }
+        .cert-meta {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+            color: #334155;
+        }
+        .cert-title-box {
+            text-align: center;
+            margin: 2rem 0;
+        }
+        .cert-title {
+            display: inline-block;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #0f172a;
+            border-bottom: 2px solid #059669;
+            padding-bottom: 0.4rem;
+        }
+        .cert-salutation {
+            font-weight: 700;
+            font-size: 1.05rem;
+            margin-bottom: 1.25rem;
+            color: #1e293b;
+        }
+        .cert-body {
+            font-size: 0.98rem;
+            line-height: 1.8;
+            color: #1e293b;
+            text-align: justify;
+            margin-bottom: 1.5rem;
+        }
+        .cert-body p {
+            margin-bottom: 1rem;
+        }
+        .emp-highlight {
+            font-weight: 700;
+            color: #0f172a;
+        }
+        .salary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0 2rem 0;
+            font-size: 0.92rem;
+        }
+        .salary-table th {
+            background-color: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            padding: 0.65rem 1rem;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            color: #334155;
+        }
+        .salary-table td {
+            border: 1px solid #e2e8f0;
+            padding: 0.6rem 1rem;
+        }
+        .num-col {
+            text-align: right;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+        }
+        .words-highlight-box {
+            background-color: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 6px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 2rem;
+            font-size: 0.92rem;
+        }
+        .signature-section {
+            margin-top: 4.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+        .sig-block {
+            text-align: center;
+            width: 220px;
+        }
+        .sig-line {
+            border-top: 1px dashed #64748b;
+            padding-top: 0.6rem;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+        .sig-desig {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-top: 0.15rem;
+        }
+        .seal-box {
+            width: 110px;
+            height: 110px;
+            border: 2px dashed #94a3b8;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.72rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-align: center;
+            margin: 0 auto;
+        }
+        @media print {
+            body { background: none; padding: 0; }
+            .cert-container { border: none; box-shadow: none; padding: 0; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print" style="max-width: 820px; margin: 0 auto 1.5rem auto; display: flex; justify-content: space-between; align-items: center;">
+        <a href="{{ url_for('documents_hub') }}" style="color: #2563eb; text-decoration: none; font-size: 0.9rem; font-weight: 600;">
+            ← Back to Documents Hub
+        </a>
+        <div style="display: flex; gap: 0.75rem;">
+            <button onclick="window.print()" class="btn btn-primary" style="padding: 0.5rem 1.25rem;">
+                🖨️ Print / Save as PDF
+            </button>
+            <button onclick="window.close()" class="btn btn-outline" style="padding: 0.5rem 1rem;">
+                Close Window
+            </button>
+        </div>
+    </div>
+
+    <div class="cert-container">
+        <!-- Letterhead Header -->
+        <div class="letterhead-header">
+            <div class="logo-area">
+                <h1>LEDGERPRO ENTERPRISE LIMITED</h1>
+                <div>Finance & Corporate Payroll Division &bull; Dhaka, Bangladesh</div>
+            </div>
+            <div class="contact-area">
+                <div>Corporate Tower, Plot #45, Gulshan Avenue, Dhaka</div>
+                <div>Tel: +880 2 9876543 | Web: www.zr-erp.com</div>
+                <div>Email: finance@zr-erp.com</div>
+            </div>
+        </div>
+
+        <!-- Meta Ref and Date -->
+        <div class="cert-meta">
+            <div>Ref No: <strong style="font-family: 'JetBrains Mono', monospace;">{{ ref_no }}</strong></div>
+            <div>Date: <strong>{{ issue_date.strftime('%d %B, %Y') }}</strong></div>
+        </div>
+
+        <!-- Title -->
+        <div class="cert-title-box">
+            <div class="cert-title">SALARY & COMPENSATION CERTIFICATE</div>
+        </div>
+
+        <!-- Salutation -->
+        <div class="cert-salutation">
+            TO WHOM IT MAY CONCERN
+        </div>
+
+        <!-- Certificate Body -->
+        <div class="cert-body">
+            <p>
+                This is to officially certify that <span class="emp-highlight">{{ employee.name }}</span>, bearing Employee Code <span class="emp-highlight" style="font-family: 'JetBrains Mono', monospace;">{{ employee.employee_id }}</span>{% if employee.nid_passport %} and National ID / Passport No. <span class="emp-highlight" style="font-family: 'JetBrains Mono', monospace;">{{ employee.nid_passport }}</span>{% endif %}, is a bona fide, permanent, full-time employee of <strong>ZR-ERP Enterprise Limited</strong>.
+            </p>
+            <p>
+                {% if employee.joining_date %}He/She joined our organization on <span class="emp-highlight">{{ employee.joining_date.strftime('%d %B, %Y') }}</span> and is presently employed{% else %}He/She is presently employed{% endif %} as <span class="emp-highlight">{{ employee.designation }}</span> in the Department of <span class="emp-highlight">{{ employee.department }}</span>.
+            </p>
+            <p>
+                His/her monthly salary structure and remuneration breakdown is detailed below:
+            </p>
+        </div>
+
+        <!-- Salary Breakdown Table -->
+        <table class="salary-table">
+            <thead>
+                <tr>
+                    <th style="width: 65%;">Compensation Component / Particulars</th>
+                    <th class="num-col" style="width: 35%;">Monthly Amount (৳)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Basic Salary</td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(basic) }}</td>
+                </tr>
+                <tr>
+                    <td>House Rent Allowance (40%)</td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(house_rent) }}</td>
+                </tr>
+                <tr>
+                    <td>Medical Allowance (10%)</td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(medical) }}</td>
+                </tr>
+                <tr>
+                    <td>Conveyance Allowance (5%)</td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(conveyance) }}</td>
+                </tr>
+                <tr style="background-color: #f8fafc; font-weight: 700; border-top: 2px solid #cbd5e1;">
+                    <td style="color: #059669;">TOTAL GROSS MONTHLY SALARY:</td>
+                    <td class="num-col" style="color: #059669; font-size: 1.05rem;">৳{{ "{:,.2f}".format(gross) }}</td>
+                </tr>
+                <tr>
+                    <td style="color: #dc2626;">Less: Provident Fund (Employee 8% Contribution):</td>
+                    <td class="num-col" style="color: #dc2626;">-৳{{ "{:,.2f}".format(pf_deduction) }}</td>
+                </tr>
+                <tr style="background-color: #f0fdf4; font-weight: 800; border-top: 2px solid #059669; border-bottom: 2px solid #059669;">
+                    <td style="color: #065f46; font-size: 1rem;">NET TAKE-HOME MONTHLY SALARY:</td>
+                    <td class="num-col" style="color: #065f46; font-size: 1.15rem;">৳{{ "{:,.2f}".format(net_salary) }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Amount In Words Highlight Box -->
+        <div class="words-highlight-box">
+            <div style="font-size: 0.78rem; text-transform: uppercase; font-weight: 700; color: #166534; margin-bottom: 0.25rem;">
+                Net Monthly Remuneration (In Words):
+            </div>
+            <div style="font-weight: 800; color: #14532d; font-size: 1.02rem;">
+                {{ net_words }}
+            </div>
+        </div>
+
+        <div class="cert-body">
+            <p>
+                His/her monthly salary is remitted directly into his/her bank account on the last working day of each calendar month. This certificate is issued upon the employee's request for the express purpose of <span class="emp-highlight">{{ purpose }}</span> without any legal liability on the part of the issuing organization.
+            </p>
+        </div>
+
+        <!-- Signatures and Official Seal -->
+        <div class="signature-section">
+            <div class="sig-block">
+                <div class="sig-line">Prepared & Verified By</div>
+                <div class="sig-desig">Manager (Finance & Accounts)</div>
+                <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.2rem;">ZR-ERP Enterprise Ltd.</div>
+            </div>
+
+            <div class="seal-box">
+                OFFICIAL<br>CORPORATE<br>SEAL
+            </div>
+
+            <div class="sig-block">
+                <div class="sig-line">Approved & Certified By</div>
+                <div class="sig-desig">Head of Human Resources</div>
+                <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.2rem;">ZR-ERP Enterprise Ltd.</div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

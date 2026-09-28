@@ -1,0 +1,505 @@
+{% extends "base.html" %}
+
+{% block title %}Enterprise Portal - ZR-ERP{% endblock %}
+
+{% block content %}
+<div class="home-portal-container" style="max-width: 1400px; margin: 0 auto; padding-bottom: 3.5rem;">
+
+    <!-- ========================================================================
+         TOP WELCOME & ENTERPRISE CONSOLE BANNER
+         ======================================================================== -->
+    <div class="portal-welcome-banner" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); border-radius: 16px; padding: 2rem 2.25rem; color: #ffffff; margin-bottom: 2rem; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15); border: 1px solid rgba(255, 255, 255, 0.08); position: relative; overflow: hidden;">
+        <!-- Background Ambient Glow -->
+        <div style="position: absolute; top: -60px; right: -60px; width: 280px; height: 280px; background: radial-gradient(circle, rgba(37, 99, 235, 0.25) 0%, rgba(37, 99, 235, 0) 70%); border-radius: 50%; pointer-events: none;"></div>
+        <div style="position: absolute; bottom: -80px; left: 30%; width: 240px; height: 240px; background: radial-gradient(circle, rgba(16, 185, 129, 0.18) 0%, rgba(16, 185, 129, 0) 70%); border-radius: 50%; pointer-events: none;"></div>
+
+        <div style="position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.5rem;">
+                    <span class="badge" style="background: rgba(37, 99, 235, 0.25); color: #93c5fd; border: 1px solid rgba(147, 197, 253, 0.35); font-weight: 700; font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase;">
+                        🏛️ Active Enterprise
+                    </span>
+                    <span style="display: inline-flex; align-items: center; gap: 0.35rem; color: #10b981; font-size: 0.8rem; font-weight: 600;">
+                        <span style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981;"></span>
+                        Live System
+                    </span>
+                    {% if active_company and active_company.is_locked %}
+                    <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.4); font-size: 0.72rem;">
+                        🔒 Profile Locked
+                    </span>
+                    {% endif %}
+                </div>
+
+                <h1 style="margin: 0; font-size: 2.1rem; font-weight: 800; letter-spacing: -0.02em; color: #ffffff;">
+                    {{ active_company.name if active_company else 'ZR-ERP Enterprise' }}
+                </h1>
+                <p style="margin: 0.4rem 0 0 0; color: #94a3b8; font-size: 0.95rem; max-width: 650px;">
+                    Enterprise Workspace &amp; Navigation Portal. Select any core module below to access live accounting operations, payroll, reports, or administrative settings.
+                </p>
+            </div>
+
+            <!-- Quick Stats Chips -->
+            <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;">
+                <div style="background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 0.65rem 1.15rem; text-align: right;">
+                    <div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; font-weight: 600;">Liquid Cash &amp; Bank</div>
+                    <div style="font-size: 1.25rem; font-weight: 800; color: #34d399; font-family: 'JetBrains Mono', monospace;">
+                        ৳{{ "{:,.2f}".format(liquid_cash) }}
+                    </div>
+                </div>
+
+                <div style="background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 0.65rem 1.15rem; text-align: right;">
+                    <div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; font-weight: 600;">Net Period Surplus</div>
+                    {% if net_surplus >= 0 %}
+                    <div style="font-size: 1.25rem; font-weight: 800; color: #60a5fa; font-family: 'JetBrains Mono', monospace;">
+                    {% else %}
+                    <div style="font-size: 1.25rem; font-weight: 800; color: #f87171; font-family: 'JetBrains Mono', monospace;">
+                    {% endif %}
+                        ৳{{ "{:,.2f}".format(net_surplus) }}
+                    </div>
+                </div>
+
+                <a href="{{ url_for('create_voucher') }}" class="btn btn-primary" style="padding: 0.75rem 1.25rem; font-weight: 700; font-size: 0.9rem; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.35);">
+                    ➕ Post Voucher
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================
+         EXECUTIVE MODULE BOXES (THE 5 MAIN FUNCTIONAL HUBS)
+         ======================================================================== -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 1.75rem;">
+
+        <!-- ====================================================================
+             BOX 1: 📊 DASHBOARD (FULL ANALYTICS & VISUAL INSPECTOR)
+             ==================================================================== -->
+        <div class="portal-module-card" style="background: #ffffff; border-radius: 14px; border: 1px solid var(--border-color); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04); display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; transition: all 0.25s ease;">
+            <!-- Top Gradient Bar -->
+            <div style="height: 6px; background: linear-gradient(90deg, #2563eb, #3b82f6, #60a5fa);"></div>
+            
+            <div style="padding: 1.65rem 1.75rem;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div style="width: 48px; height: 48px; border-radius: 12px; background: #eff6ff; color: #2563eb; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);">
+                            📊
+                        </div>
+                        <div>
+                            <span style="font-size: 0.72rem; font-weight: 700; color: #2563eb; text-transform: uppercase; letter-spacing: 0.05em;">
+                                BI Analytics &amp; Inspection
+                            </span>
+                            <h2 style="margin: 0.15rem 0 0 0; font-size: 1.35rem; font-weight: 800; color: #0f172a;">
+                                Executive Dashboard
+                            </h2>
+                        </div>
+                    </div>
+                    <span class="badge" style="background: #dbeafe; color: #1e40af; font-size: 0.75rem; font-weight: 700;">
+                        Visual Charts
+                    </span>
+                </div>
+
+                <p style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.5; margin-bottom: 1.25rem;">
+                    Deep-dive visual financial graphs, cash inflows vs outflows, monthly performance trends, liquidity meters, and multi-bank statement balances.
+                </p>
+
+                <!-- Mini Metric Showcase -->
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.65rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.85rem; margin-bottom: 1.25rem;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase;">Total Assets</div>
+                        <div style="font-size: 0.95rem; font-weight: 800; color: #0f172a; margin-top: 0.2rem;">
+                            ৳{{ "{:,.0f}".format(total_assets) }}
+                        </div>
+                    </div>
+                    <div style="text-align: center; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
+                        <div style="font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase;">Revenue</div>
+                        <div style="font-size: 0.95rem; font-weight: 800; color: #10b981; margin-top: 0.2rem;">
+                            ৳{{ "{:,.0f}".format(total_revenue) }}
+                        </div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase;">Operating Margin</div>
+                        <div style="font-size: 0.95rem; font-weight: 800; color: #2563eb; margin-top: 0.2rem;">
+                            {% if total_revenue > 0 %}{{ "{:.1f}%".format((net_surplus / total_revenue) * 100) }}{% else %}0.0%{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feature Links Grid -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-bottom: 0.5rem;">
+                    <a href="{{ url_for('dashboard') }}" class="portal-sub-btn">
+                        <span>📈</span> Monthly Cashflow Trends
+                    </a>
+                    <a href="{{ url_for('dashboard') }}" class="portal-sub-btn">
+                        <span>🔍</span> Visual Analytics Inspector
+                    </a>
+                    <a href="{{ url_for('bank_statement_report') }}" class="portal-sub-btn">
+                        <span>🏛️</span> Bank Statement Feeds
+                    </a>
+                    <a href="{{ url_for('dashboard') }}" class="portal-sub-btn">
+                        <span>⚖️</span> Liquidity &amp; Net Surplus
+                    </a>
+                </div>
+            </div>
+
+            <div style="padding: 1rem 1.75rem 1.5rem 1.75rem; background: #fafafa; border-top: 1px solid #f1f5f9;">
+                <a href="{{ url_for('dashboard') }}" class="btn btn-primary" style="width: 100%; justify-content: center; font-weight: 700; font-size: 0.92rem; padding: 0.65rem; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);">
+                    🚀 Open Full Executive Dashboard &rarr;
+                </a>
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             BOX 2: 💼 ACCOUNTS (VOUCHERS, BUDGET & EXPENSES, REMITTANCE & INCENTIVE)
+             ==================================================================== -->
+        <div class="portal-module-card" style="background: #ffffff; border-radius: 14px; border: 1px solid var(--border-color); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04); display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; transition: all 0.25s ease;">
+            <!-- Top Gradient Bar -->
+            <div style="height: 6px; background: linear-gradient(90deg, #059669, #10b981, #34d399);"></div>
+            
+            <div style="padding: 1.65rem 1.75rem;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div style="width: 48px; height: 48px; border-radius: 12px; background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15);">
+                            💼
+                        </div>
+                        <div>
+                            <span style="font-size: 0.72rem; font-weight: 700; color: #059669; text-transform: uppercase; letter-spacing: 0.05em;">
+                                Core Financial Engines
+                            </span>
+                            <h2 style="margin: 0.15rem 0 0 0; font-size: 1.35rem; font-weight: 800; color: #0f172a;">
+                                Accounts Management
+                            </h2>
+                        </div>
+                    </div>
+                    <span class="badge" style="background: #d1fae5; color: #065f46; font-size: 0.75rem; font-weight: 700;">
+                        3 Functional Wings
+                    </span>
+                </div>
+
+                <p style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.5; margin-bottom: 1.25rem;">
+                    Complete general ledger double-entry bookkeeping, corporate monthly budgeting vs actuals, and export remittance &amp; 10% incentive tracking.
+                </p>
+
+                <!-- Wing 1: Vouchers -->
+                <div style="margin-bottom: 0.9rem; background: #f8fafc; border-radius: 8px; padding: 0.75rem 0.9rem; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem;">
+                        <span style="font-weight: 700; font-size: 0.82rem; color: #0f172a; display: flex; align-items: center; gap: 0.35rem;">
+                            <span>📖</span> Vouchers &amp; General Ledger
+                        </span>
+                        <span style="font-size: 0.75rem; color: #64748b; font-family: monospace;">{{ total_vouchers }} vouchers</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.45rem;">
+                        <a href="{{ url_for('voucher_list') }}" class="portal-pill-link">Archive</a>
+                        <a href="{{ url_for('create_voucher') }}" class="portal-pill-link" style="color: #2563eb; font-weight: 700;">+ Post Voucher</a>
+                        <a href="{{ url_for('chart_of_accounts') }}" class="portal-pill-link">Chart of Accounts</a>
+                    </div>
+                </div>
+
+                <!-- Wing 2: Budget & Expenses -->
+                <div style="margin-bottom: 0.9rem; background: #f0fdfa; border-radius: 8px; padding: 0.75rem 0.9rem; border: 1px solid #ccfbf1;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem;">
+                        <span style="font-weight: 700; font-size: 0.82rem; color: #0f766e; display: flex; align-items: center; gap: 0.35rem;">
+                            <span>🎯</span> Budget &amp; Expenses
+                        </span>
+                        <span style="font-size: 0.75rem; color: #0d9488; font-family: monospace;">{{ active_budgets }} monthly budgets</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.45rem;">
+                        <a href="{{ url_for('budget_dashboard') }}" class="portal-pill-link" style="color: #0f766e; font-weight: 700;">Cockpit</a>
+                        <a href="{{ url_for('issue_budget') }}" class="portal-pill-link">+ Issue Budget</a>
+                        <a href="{{ url_for('budget_list') }}" class="portal-pill-link">Archive</a>
+                        <a href="{{ url_for('budget_report') }}" class="portal-pill-link">Variance Report</a>
+                    </div>
+                </div>
+
+                <!-- Wing 3: Remittance & Incentive -->
+                <div style="background: #f0fdf4; border-radius: 8px; padding: 0.75rem 0.9rem; border: 1px solid #dcfce7;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem;">
+                        <span style="font-weight: 700; font-size: 0.82rem; color: #15803d; display: flex; align-items: center; gap: 0.35rem;">
+                            <span>💵</span> Remittance &amp; Incentive (10%)
+                        </span>
+                        <span style="font-size: 0.75rem; color: #16a34a; font-family: monospace;">{{ total_remittances }} statements</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.45rem;">
+                        <a href="{{ url_for('remittance_dashboard') }}" class="portal-pill-link" style="color: #15803d; font-weight: 700;">Statement Cockpit</a>
+                        <a href="{{ url_for('create_remittance_entry') }}" class="portal-pill-link">+ Record Inflow</a>
+                        <a href="{{ url_for('remittance_statement_report') }}" class="portal-pill-link">BB Statement</a>
+                    </div>
+                </div>
+            </div>
+
+            <div style="padding: 1rem 1.75rem 1.5rem 1.75rem; background: #fafafa; border-top: 1px solid #f1f5f9; display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem;">
+                <a href="{{ url_for('chart_of_accounts') }}" class="btn btn-outline" style="justify-content: center; font-size: 0.85rem; padding: 0.6rem;">
+                    📑 Accounts Ledger
+                </a>
+                <a href="{{ url_for('budget_dashboard') }}" class="btn btn-success" style="justify-content: center; font-size: 0.85rem; padding: 0.6rem; font-weight: 700;">
+                    🎯 Budget Cockpit &rarr;
+                </a>
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             BOX 3: 👥 HR & PAYROLL
+             ==================================================================== -->
+        <div class="portal-module-card" style="background: #ffffff; border-radius: 14px; border: 1px solid var(--border-color); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04); display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; transition: all 0.25s ease;">
+            <!-- Top Gradient Bar -->
+            <div style="height: 6px; background: linear-gradient(90deg, #7c3aed, #8b5cf6, #c084fc);"></div>
+            
+            <div style="padding: 1.65rem 1.75rem;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div style="width: 48px; height: 48px; border-radius: 12px; background: #f5f3ff; color: #7c3aed; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 2px 8px rgba(124, 58, 237, 0.15);">
+                            👥
+                        </div>
+                        <div>
+                            <span style="font-size: 0.72rem; font-weight: 700; color: #7c3aed; text-transform: uppercase; letter-spacing: 0.05em;">
+                                Workforce &amp; Payroll
+                            </span>
+                            <h2 style="margin: 0.15rem 0 0 0; font-size: 1.35rem; font-weight: 800; color: #0f172a;">
+                                HR &amp; Payroll
+                            </h2>
+                        </div>
+                    </div>
+                    <span class="badge" style="background: #ede9fe; color: #6d28d9; font-size: 0.75rem; font-weight: 700;">
+                        {{ total_employees }} Employees
+                    </span>
+                </div>
+
+                <p style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.5; margin-bottom: 1.25rem;">
+                    Employee personnel profiles, automated salary computation with allowances &amp; deductions, career pay history, contribution funds, and HR documentation.
+                </p>
+
+                <!-- Sub-Links -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; margin-bottom: 0.75rem;">
+                    <a href="{{ url_for('monthly_salary_sheets') }}" class="portal-sub-btn" style="background: #ede9fe; color: #6d28d9; font-weight: 700; border-color: #c4b5fd;">
+                        <span>📋</span> 32-Col Salary Sheet
+                    </a>
+                    <a href="{{ url_for('employee_bank_info') }}" class="portal-sub-btn" style="background: #ecfdf5; color: #047857; font-weight: 700; border-color: #a7f3d0;">
+                        <span>🏦</span> Bank Info (EFT/BEFTN)
+                    </a>
+                    <a href="{{ url_for('employee_list') }}" class="portal-sub-btn">
+                        <span>👨‍💼</span> Employee Directory
+                    </a>
+                    <a href="{{ url_for('payroll_dashboard') }}" class="portal-sub-btn">
+                        <span>⚡</span> Payroll Runs
+                    </a>
+                    <a href="{{ url_for('salary_history_dashboard') }}" class="portal-sub-btn">
+                        <span>📜</span> Salary Registry &amp; Hist
+                    </a>
+                    <a href="{{ url_for('employee_salary_report') }}" class="portal-sub-btn">
+                        <span>📊</span> Career Paid Report
+                    </a>
+                    <a href="{{ url_for('fund_contributions_dashboard') }}" class="portal-sub-btn">
+                        <span>💰</span> Contribution Fund (PF)
+                    </a>
+                    <a href="{{ url_for('documents_hub') }}" class="portal-sub-btn">
+                        <span>📜</span> Letters &amp; Documents
+                    </a>
+                </div>
+            </div>
+
+            <div style="padding: 1rem 1.75rem 1.5rem 1.75rem; background: #fafafa; border-top: 1px solid #f1f5f9; display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem;">
+                <a href="{{ url_for('employee_bank_info') }}" class="btn btn-outline" style="justify-content: center; font-size: 0.85rem; padding: 0.6rem; color: #047857; border-color: #a7f3d0;">
+                    🏦 Bank Register
+                </a>
+                <a href="{{ url_for('monthly_salary_sheets') }}" class="btn btn-primary" style="justify-content: center; font-size: 0.85rem; padding: 0.6rem; font-weight: 700; background: #7c3aed; border-color: #6d28d9; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);">
+                    📋 Salary Sheets &rarr;
+                </a>
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             BOX 4: 📈 REPORTS (FINANCIAL AUDIT STATEMENTS & BOOKS)
+             ==================================================================== -->
+        <div class="portal-module-card" style="background: #ffffff; border-radius: 14px; border: 1px solid var(--border-color); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04); display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; transition: all 0.25s ease;">
+            <!-- Top Gradient Bar -->
+            <div style="height: 6px; background: linear-gradient(90deg, #d97706, #f59e0b, #fbbf24);"></div>
+            
+            <div style="padding: 1.65rem 1.75rem;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div style="width: 48px; height: 48px; border-radius: 12px; background: #fffbeb; color: #d97706; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 2px 8px rgba(217, 119, 6, 0.15);">
+                            📈
+                        </div>
+                        <div>
+                            <span style="font-size: 0.72rem; font-weight: 700; color: #d97706; text-transform: uppercase; letter-spacing: 0.05em;">
+                                Certified Statements
+                            </span>
+                            <h2 style="margin: 0.15rem 0 0 0; font-size: 1.35rem; font-weight: 800; color: #0f172a;">
+                                Financial Reports
+                            </h2>
+                        </div>
+                    </div>
+                    <span class="badge" style="background: #fef3c7; color: #92400e; font-size: 0.75rem; font-weight: 700;">
+                        Print &amp; Export
+                    </span>
+                </div>
+
+                <p style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.5; margin-bottom: 1.25rem;">
+                    Statutory financial statements compliant with standards, printable ledger summaries, cash books, and bank statement reconciliations.
+                </p>
+
+                <!-- Sub-Links -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; margin-bottom: 0.75rem;">
+                    <a href="{{ url_for('balance_sheet') }}" class="portal-sub-btn">
+                        <span>🏛️</span> Balance Sheet
+                    </a>
+                    <a href="{{ url_for('income_expenditure') }}" class="portal-sub-btn">
+                        <span>📊</span> Income &amp; Expenditure
+                    </a>
+                    <a href="{{ url_for('trial_balance') }}" class="portal-sub-btn">
+                        <span>⚖️</span> Trial Balance
+                    </a>
+                    <a href="{{ url_for('receipts_payments') }}" class="portal-sub-btn">
+                        <span>💵</span> Receipts &amp; Payments
+                    </a>
+                    <a href="{{ url_for('cash_book_report') }}" class="portal-sub-btn">
+                        <span>📖</span> Cash &amp; Bank Book
+                    </a>
+                    <a href="{{ url_for('bank_statement_report') }}" class="portal-sub-btn">
+                        <span>📑</span> Bank Statements
+                    </a>
+                </div>
+            </div>
+
+            <div style="padding: 1rem 1.75rem 1.5rem 1.75rem; background: #fafafa; border-top: 1px solid #f1f5f9;">
+                <a href="{{ url_for('reports_hub') }}" class="btn btn-outline" style="width: 100%; justify-content: center; font-weight: 700; font-size: 0.92rem; padding: 0.65rem; border-color: #f59e0b; color: #b45309; background: #fffbeb;">
+                    🖨️ Open Complete Reports Hub &rarr;
+                </a>
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             BOX 5: ⚙️ SETTINGS (CONFIGURE, USER, PROFILE)
+             ==================================================================== -->
+        <div class="portal-module-card" style="background: #ffffff; border-radius: 14px; border: 1px solid var(--border-color); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04); display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; transition: all 0.25s ease;">
+            <!-- Top Gradient Bar -->
+            <div style="height: 6px; background: linear-gradient(90deg, #0284c7, #0ea5e9, #38bdf8);"></div>
+            
+            <div style="padding: 1.65rem 1.75rem;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div style="width: 48px; height: 48px; border-radius: 12px; background: #f0f9ff; color: #0284c7; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 2px 8px rgba(2, 132, 199, 0.15);">
+                            ⚙️
+                        </div>
+                        <div>
+                            <span style="font-size: 0.72rem; font-weight: 700; color: #0284c7; text-transform: uppercase; letter-spacing: 0.05em;">
+                                Administration &amp; Security
+                            </span>
+                            <h2 style="margin: 0.15rem 0 0 0; font-size: 1.35rem; font-weight: 800; color: #0f172a;">
+                                System Settings
+                            </h2>
+                        </div>
+                    </div>
+                    <span class="badge" style="background: #e0f2fe; color: #0369a1; font-size: 0.75rem; font-weight: 700;">
+                        3 Admin Sectors
+                    </span>
+                </div>
+
+                <p style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.5; margin-bottom: 1.25rem;">
+                    Enterprise profile management, user accounts &amp; role security, password protection, and system communication configurations.
+                </p>
+
+                <!-- Sector 1: Configure -->
+                <div style="margin-bottom: 0.85rem; background: #f8fafc; border-radius: 8px; padding: 0.75rem 0.9rem; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                        <span style="font-weight: 700; font-size: 0.82rem; color: #0f172a; display: flex; align-items: center; gap: 0.35rem;">
+                            <span>⚙️</span> Configure
+                        </span>
+                        <span style="font-size: 0.72rem; color: #0284c7; font-weight: 600;">System Hub</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.45rem;">
+                        <a href="{{ url_for('configuration_hub') }}" class="portal-pill-link" style="color: #0284c7; font-weight: 700;">Software Config</a>
+                        <a href="{{ url_for('configuration_hub') }}" class="portal-pill-link">Database Migration</a>
+                    </div>
+                </div>
+
+                <!-- Sector 2: User -->
+                <div style="margin-bottom: 0.85rem; background: #fdf2f8; border-radius: 8px; padding: 0.75rem 0.9rem; border: 1px solid #fce7f3;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                        <span style="font-weight: 700; font-size: 0.82rem; color: #be185d; display: flex; align-items: center; gap: 0.35rem;">
+                            <span>👤</span> User Management
+                        </span>
+                        <span style="font-size: 0.72rem; color: #db2777; font-weight: 600;">Access Roles</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.45rem;">
+                        <a href="{{ url_for('user_settings') }}" class="portal-pill-link" style="color: #be185d; font-weight: 700;">User Accounts</a>
+                        <a href="{{ url_for('user_settings') }}" class="portal-pill-link">Admin / Operator Permissions</a>
+                    </div>
+                </div>
+
+                <!-- Sector 3: Profile -->
+                <div style="background: #f8fafc; border-radius: 8px; padding: 0.75rem 0.9rem; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                        <span style="font-weight: 700; font-size: 0.82rem; color: #334155; display: flex; align-items: center; gap: 0.35rem;">
+                            <span>🏢</span> Profile &amp; Security
+                        </span>
+                        <span style="font-size: 0.72rem; color: #64748b; font-weight: 600;">Lock/Edit</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.45rem;">
+                        <a href="{{ url_for('configuration_hub') }}" class="portal-pill-link">Company Profiles</a>
+                        <a href="{{ url_for('configuration_hub') }}" class="portal-pill-link" style="color: #ea580c; font-weight: 600;">🔒 Lock/Edit Protection</a>
+                        <a href="{{ url_for('configuration_hub') }}" class="portal-pill-link">SMTP Email / OTP</a>
+                    </div>
+                </div>
+            </div>
+
+            <div style="padding: 1rem 1.75rem 1.5rem 1.75rem; background: #fafafa; border-top: 1px solid #f1f5f9; display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem;">
+                <a href="{{ url_for('user_settings') }}" class="btn btn-outline" style="justify-content: center; font-size: 0.85rem; padding: 0.6rem;">
+                    👤 Users
+                </a>
+                <a href="{{ url_for('configuration_hub') }}" class="btn btn-secondary" style="justify-content: center; font-size: 0.85rem; padding: 0.6rem; font-weight: 700;">
+                    ⚙️ Config Hub &rarr;
+                </a>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<style>
+/* Portal Styles & Hover Micro-animations */
+.portal-module-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08) !important;
+}
+
+.portal-sub-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.6rem 0.75rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #1e293b;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.portal-sub-btn:hover {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #1d4ed8;
+    transform: translateX(2px);
+}
+
+.portal-pill-link {
+    display: inline-block;
+    padding: 0.25rem 0.65rem;
+    background: #ffffff;
+    border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #334155;
+    text-decoration: none;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    transition: all 0.15s ease;
+}
+
+.portal-pill-link:hover {
+    border-color: #94a3b8;
+    background: #f1f5f9;
+}
+</style>
+{% endblock %}

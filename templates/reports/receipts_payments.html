@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Receipts & Payments Statement{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">💵 Receipts & Payments Statement</h1>
+        <p class="page-description">Summary of actual cash and bank inflows and outflows during the period.</p>
+    </div>
+    <div class="header-actions">
+        <button onclick="window.print()" class="btn btn-outline">🖨️ Print / Save PDF</button>
+        <a href="{{ url_for('reports_hub') }}" class="btn btn-secondary">← Reports Hub</a>
+    </div>
+</div>
+
+<!-- Date Filter -->
+<form method="GET" action="{{ url_for('receipts_payments') }}" class="filter-bar no-print">
+    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+        <label class="form-label" style="margin-bottom: 0;">Period From:</label>
+        <input type="date" name="from_date" class="form-control" value="{{ from_date }}" style="width: 170px;">
+        <label class="form-label" style="margin-bottom: 0;">To:</label>
+        <input type="date" name="to_date" class="form-control" value="{{ to_date }}" style="width: 170px;">
+        <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-header" style="text-align: center; display: block; border-bottom: 2px solid var(--primary);">
+        <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.35rem; color: var(--primary);">LEDGERPRO ENTERPRISE</h2>
+        <div style="font-size: 1.1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin: 0.25rem 0;">Receipts & Payments Statement</div>
+        <div style="font-size: 0.9rem; color: var(--text-secondary);">For the period from {{ from_date }} to {{ to_date }}</div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table report-table">
+            <thead>
+                <tr>
+                    <th>Particulars / Head of Account</th>
+                    <th class="num-col" style="width: 180px;">Amount (৳)</th>
+                    <th class="num-col" style="width: 200px;">Total (৳)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- 1. OPENING BALANCES -->
+                <tr class="report-section-header">
+                    <td colspan="3">A. Opening Cash & Bank Balances</td>
+                </tr>
+                {% for item in opening_breakdown %}
+                <tr>
+                    <td class="indent-1">{{ item.name }}</td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(item.balance) }}</td>
+                    <td class="num-col"></td>
+                </tr>
+                {% endfor %}
+                <tr class="report-subtotal-row">
+                    <td><strong>Total Opening Liquid Balance</strong></td>
+                    <td class="num-col"></td>
+                    <td class="num-col"><strong>৳{{ "{:,.2f}".format(total_opening) }}</strong></td>
+                </tr>
+
+                <!-- 2. RECEIPTS (INFLOWS) -->
+                <tr class="report-section-header">
+                    <td colspan="3">B. Receipts (Cash & Bank Inflows)</td>
+                </tr>
+                {% if receipts %}
+                    {% for item in receipts %}
+                    <tr>
+                        <td class="indent-1">{{ item.account_name }} ({{ item.type }})</td>
+                        <td class="num-col">৳{{ "{:,.2f}".format(item.amount) }}</td>
+                        <td class="num-col"></td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td class="indent-1" style="color: var(--text-muted); font-style: italic;">No receipts recorded in this period</td>
+                        <td class="num-col">৳0.00</td>
+                        <td class="num-col"></td>
+                    </tr>
+                {% endif %}
+                <tr class="report-subtotal-row">
+                    <td><strong>Total Receipts (B)</strong></td>
+                    <td class="num-col"></td>
+                    <td class="num-col" style="color: #059669;"><strong>৳{{ "{:,.2f}".format(total_receipts) }}</strong></td>
+                </tr>
+
+                <!-- TOTAL FUNDS AVAILABLE -->
+                <tr style="background-color: #f1f5f9; font-weight: 700;">
+                    <td>TOTAL CASH & BANK INFLOWS (A + B)</td>
+                    <td class="num-col"></td>
+                    <td class="num-col" style="color: var(--accent);">৳{{ "{:,.2f}".format(total_opening + total_receipts) }}</td>
+                </tr>
+
+                <!-- 3. PAYMENTS (OUTFLOWS) -->
+                <tr class="report-section-header">
+                    <td colspan="3">C. Payments (Cash & Bank Disbursements)</td>
+                </tr>
+                {% if payments %}
+                    {% for item in payments %}
+                    <tr>
+                        <td class="indent-1">{{ item.account_name }} ({{ item.type }})</td>
+                        <td class="num-col">৳{{ "{:,.2f}".format(item.amount) }}</td>
+                        <td class="num-col"></td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td class="indent-1" style="color: var(--text-muted); font-style: italic;">No payments recorded in this period</td>
+                        <td class="num-col">৳0.00</td>
+                        <td class="num-col"></td>
+                    </tr>
+                {% endif %}
+                <tr class="report-subtotal-row">
+                    <td><strong>Total Payments (C)</strong></td>
+                    <td class="num-col"></td>
+                    <td class="num-col" style="color: #dc2626;"><strong>৳{{ "{:,.2f}".format(total_payments) }}</strong></td>
+                </tr>
+
+                <!-- 4. CLOSING BALANCES -->
+                <tr class="report-section-header">
+                    <td colspan="3">D. Closing Cash & Bank Balances (Reconciled)</td>
+                </tr>
+                {% for item in closing_breakdown %}
+                <tr>
+                    <td class="indent-1">{{ item.name }}</td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(item.balance) }}</td>
+                    <td class="num-col"></td>
+                </tr>
+                {% endfor %}
+                <tr class="report-total-row">
+                    <td>Total Closing Liquid Balance (A + B - C)</td>
+                    <td class="num-col"></td>
+                    <td class="num-col" style="color: #2563eb;">৳{{ "{:,.2f}".format(total_closing) }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card-body" style="background-color: #f8fafc; border-top: 1px solid var(--border);">
+        <div style="font-size: 0.85rem; color: var(--text-secondary);">
+            <em>Reconciliation Note: Opening Liquid Balance (৳{{ "{:,.2f}".format(total_opening) }}) + Total Receipts (৳{{ "{:,.2f}".format(total_receipts) }}) - Total Payments (৳{{ "{:,.2f}".format(total_payments) }}) equals Closing Liquid Balance (৳{{ "{:,.2f}".format(total_closing) }}). Reconciles 100% with Cash and Bank accounts.</em>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,487 @@
+{% extends "base.html" %}
+
+{% block title %}Record Remittance / Inflow - ZR-ERP{% endblock %}
+
+{% block content %}
+<div style="max-width: 1100px; margin: 0 auto; padding-bottom: 3rem;">
+    <!-- Page Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                <a href="{{ url_for('remittance_dashboard') }}" style="color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">
+                    ← Back to Remittance Statement
+                </a>
+            </div>
+            <h1 class="page-title" style="margin: 0; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em;">
+                + Record Remittance, Incentive or Budget Issue
+            </h1>
+            <p style="color: var(--text-muted); font-size: 0.88rem; margin: 0.25rem 0 0 0;">
+                Log foreign export proceeds, calculate 10% government cash incentives, track banking compliance certificates, or log approved budget issues.
+            </p>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+            <a href="{{ url_for('remittance_dashboard') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 0.55rem 1rem;">
+                Cancel
+            </a>
+        </div>
+    </div>
+
+    <!-- Quick Type Preset Selector -->
+    <div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.25rem; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid var(--border-color);">
+        <label style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); display: block; margin-bottom: 0.6rem;">
+            ⚡ Quick Preset Mode
+        </label>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-primary" id="btnPresetForeign" onclick="applyPreset('foreign')" style="font-size: 0.84rem; padding: 0.5rem 1rem; border-radius: 8px;">
+                🌎 Foreign Remittance (USD + 10% Incentive)
+            </button>
+            <button type="button" class="btn btn-outline" id="btnPresetLocal" onclick="applyPreset('local')" style="font-size: 0.84rem; padding: 0.5rem 1rem; border-radius: 8px; background: white;">
+                💵 Local Remittance / Cash Received
+            </button>
+            <button type="button" class="btn btn-outline" id="btnPresetBudget" onclick="applyPreset('budget')" style="font-size: 0.84rem; padding: 0.5rem 1rem; border-radius: 8px; background: white;">
+                📋 Approved Budget Issue Allocation
+            </button>
+        </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('create_remittance_entry') }}" id="remittanceForm">
+        <!-- 1. Transaction Core Details -->
+        <div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem 1.5rem;">
+            <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
+                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--primary);">
+                    1. Transaction &amp; Identity Details
+                </h3>
+                <p style="margin: 0.2rem 0 0 0; font-size: 0.8rem; color: var(--text-muted);">
+                    General transaction metadata, invoice references, and sender particulars.
+                </p>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+                <!-- Date -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Transaction Date *</label>
+                    <input type="date" name="date" class="form-control" value="{{ today.strftime('%Y-%m-%d') }}" required style="font-size: 0.88rem;">
+                </div>
+
+                <!-- Particulars -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Particulars / Description *</label>
+                    <input type="text" name="particulars" id="inputParticulars" class="form-control" value="Remittance Received" list="particularsList" required style="font-weight: 600; font-size: 0.88rem;">
+                    <datalist id="particularsList">
+                        <option value="Remittance Received">
+                        <option value="Remittance Received-local">
+                        <option value="Budget issue">
+                        <option value="Software Export Proceeds">
+                        <option value="Direct Client Transfer">
+                    </datalist>
+                </div>
+
+                <!-- Invoice No -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Invoice No</label>
+                    <input type="text" name="invoice_no" id="inputInvoiceNo" class="form-control" placeholder="e.g. 020122, 0331202201" style="font-weight: 700; font-family: monospace; font-size: 0.95rem;">
+                </div>
+
+                <!-- Sent By -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Sent By / Client</label>
+                    <input type="text" name="sent_by" id="inputSentBy" class="form-control" placeholder="e.g. NRB, Kent, Ny having, Cash" style="font-size: 0.88rem;">
+                </div>
+
+                <!-- Deal No / Reference -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Deed / Deal / Reference No</label>
+                    <input type="text" name="deal_no" class="form-control" placeholder="Reference or Deal Number" style="font-size: 0.88rem;">
+                </div>
+
+                <!-- Remittance Date -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Inward Remittance Date</label>
+                    <input type="date" name="remittance_date" id="inputRemittanceDate" class="form-control" value="{{ today.strftime('%Y-%m-%d') }}" style="font-size: 0.88rem;">
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Financial Proceeds & Currency Conversion -->
+        <div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem 1.5rem; border-left: 4px solid var(--primary);">
+            <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text-color);">
+                        2. Financial Amounts &amp; Foreign Currency Inflows
+                    </h3>
+                    <p style="margin: 0.2rem 0 0 0; font-size: 0.8rem; color: var(--text-muted);">
+                        Inward foreign remittances in USD convert to BDT proceeds automatically based on exchange rate.
+                    </p>
+                </div>
+                <span class="badge" style="background: #e0e7ff; color: #3730a3; font-size: 0.76rem; font-weight: 700;">
+                    Auto-Calculated
+                </span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem;">
+                <!-- Remittance USD -->
+                <div id="groupRemittanceUSD">
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem; color: #047857;">
+                        🌎 Remittance Amount ($ USD)
+                    </label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 10px; top: 8px; font-weight: 700; color: #059669;">$</span>
+                        <input type="number" step="0.01" name="remittance_usd" id="inputRemittanceUSD" class="form-control" placeholder="0.00" style="padding-left: 24px; font-weight: 700; font-size: 0.95rem; color: #065f46; background: #f0fdf4;" oninput="recalcAmounts()">
+                    </div>
+                    <small style="color: var(--text-muted); font-size: 0.73rem;">Foreign currency gross value</small>
+                </div>
+
+                <!-- Conversion Rate -->
+                <div id="groupRate">
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem; color: #047857;">
+                        Exchange Rate ($ Rate Tk.)
+                    </label>
+                    <input type="number" step="0.01" name="usd_rate" id="inputUsdRate" class="form-control" placeholder="e.g. 85.25 or 122.50" style="font-weight: 700; font-size: 0.95rem; color: #065f46; background: #f0fdf4;" oninput="recalcAmounts()">
+                    <small style="color: var(--text-muted); font-size: 0.73rem;">Bank conversion rate per USD</small>
+                </div>
+
+                <!-- Received BDT -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem; color: #1e40af;">
+                        💵 Received Inflow (BDT ৳) *
+                    </label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 10px; top: 8px; font-weight: 700; color: #2563eb;">৳</span>
+                        <input type="number" step="0.01" name="received_bdt" id="inputReceivedBDT" class="form-control" placeholder="0.00" style="padding-left: 24px; font-weight: 800; font-size: 1rem; color: #1e3a8a; background: #eff6ff;" oninput="recalcIncentiveOnly()">
+                    </div>
+                    <small style="color: var(--text-muted); font-size: 0.73rem;">Converted BDT credited to bank</small>
+                </div>
+
+                <!-- Budget Amount -->
+                <div id="groupBudgetAmount">
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem; color: #991b1b;">
+                        📋 Budget Issue Amount (BDT ৳)
+                    </label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 10px; top: 8px; font-weight: 700; color: #dc2626;">৳</span>
+                        <input type="number" step="0.01" name="budget_amount" id="inputBudgetAmount" class="form-control" placeholder="0.00" style="padding-left: 24px; font-weight: 700; font-size: 0.95rem; color: #991b1b; background: #fef2f2;">
+                    </div>
+                    <small style="color: var(--text-muted); font-size: 0.73rem;">Only when issuing approved monthly budget</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Government 10% Cash Incentive Calculation -->
+        <div class="card" id="cardIncentive" style="margin-bottom: 1.5rem; padding: 1.25rem 1.5rem; border-left: 4px solid #d97706; background: #fffdfa;">
+            <div style="border-bottom: 1px solid #fed7aa; padding-bottom: 0.75rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #92400e;">
+                        🎁 3. 10% Government Cash Incentive Entitlement
+                    </h3>
+                    <p style="margin: 0.2rem 0 0 0; font-size: 0.8rem; color: #b45309;">
+                        Under Bangladesh Bank export subsidy circulars, IT/Broadcasting export proceeds qualify for 10% cash incentive.
+                    </p>
+                </div>
+                <span class="badge" style="background: #fef3c7; color: #92400e; font-size: 0.76rem; font-weight: 700; border: 1px solid #fde68a;">
+                    10% Export Subsidy
+                </span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem;">
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem; color: #92400e;">
+                        Incentive 10% Claimed (Tk.)
+                    </label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 10px; top: 8px; font-weight: 700; color: #d97706;">৳</span>
+                        <input type="number" step="0.01" name="incentive_10_bdt" id="inputIncentive10" class="form-control" placeholder="0.00" style="padding-left: 24px; font-weight: 800; font-size: 1rem; color: #92400e; background: #fef3c7;">
+                    </div>
+                    <small style="color: var(--text-muted); font-size: 0.73rem;">Calculated as 10% of Inflow (USD * Rate * 0.10)</small>
+                </div>
+
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem; color: #92400e;">
+                        Incentive 10% Audited (Tk.)
+                    </label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 10px; top: 8px; font-weight: 700; color: #b45309;">৳</span>
+                        <input type="number" step="0.01" name="incentive_10_audited_bdt" id="inputIncentiveAudited" class="form-control" placeholder="0.00" style="padding-left: 24px; font-weight: 800; font-size: 1rem; color: #78350f; background: #fef3c7;">
+                    </div>
+                    <small style="color: var(--text-muted); font-size: 0.73rem;">Official amount certified by CA Audit Firm</small>
+                </div>
+
+                <div style="display: flex; align-items: flex-end; padding-bottom: 0.25rem;">
+                    <button type="button" class="btn btn-outline" onclick="copyClaimedToAudited()" style="font-size: 0.82rem; width: 100%; border-color: #d97706; color: #92400e; background: white;">
+                        ↳ Copy Claimed to Audited
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. 10-Step Banking & Audit Compliance Checkpoints -->
+        <div class="card" id="cardCheckpoints" style="margin-bottom: 1.5rem; padding: 1.25rem 1.5rem;">
+            <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
+                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text-color);">
+                    🏛️ 4. Banking &amp; Regulatory Compliance Milestones
+                </h3>
+                <p style="margin: 0.2rem 0 0 0; font-size: 0.8rem; color: var(--text-muted);">
+                    Mandatory 10-stage compliance lifecycle for cash incentive approval from Branch Bank to Bangladesh Bank.
+                </p>
+            </div>
+
+            <!-- Stage A: Certificates & Documentation -->
+            <div style="margin-bottom: 1.25rem;">
+                <label style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; display: block; margin-bottom: 0.6rem;">
+                    Phase A: Mandatory Certificates
+                </label>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.75rem;">
+                    <label class="custom-control" style="display: flex; align-items: center; gap: 0.5rem; background: #f8fafc; border: 1px solid var(--border-color); padding: 0.6rem 0.8rem; border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" name="tt_certificate" id="chkTT" style="width: 17px; height: 17px; accent-color: #059669;">
+                        <span style="font-size: 0.84rem; font-weight: 600;">1. TT Certificate</span>
+                    </label>
+
+                    <label class="custom-control" style="display: flex; align-items: center; gap: 0.5rem; background: #f8fafc; border: 1px solid var(--border-color); padding: 0.6rem 0.8rem; border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" name="encashment_certificate" id="chkEncash" style="width: 17px; height: 17px; accent-color: #059669;">
+                        <span style="font-size: 0.84rem; font-weight: 600;">2. Encashment Cert (PRC)</span>
+                    </label>
+
+                    <label class="custom-control" style="display: flex; align-items: center; gap: 0.5rem; background: #f8fafc; border: 1px solid var(--border-color); padding: 0.6rem 0.8rem; border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" name="authorized_dealer_cert" id="chkAD" style="width: 17px; height: 17px; accent-color: #059669;">
+                        <span style="font-size: 0.84rem; font-weight: 600;">3. Authorized Dealer (AD)</span>
+                    </label>
+
+                    <label class="custom-control" style="display: flex; align-items: center; gap: 0.5rem; background: #f8fafc; border: 1px solid var(--border-color); padding: 0.6rem 0.8rem; border-radius: 6px; cursor: pointer;">
+                        <input type="checkbox" name="cash_incentive_cert" id="chkCashCert" style="width: 17px; height: 17px; accent-color: #059669;">
+                        <span style="font-size: 0.84rem; font-weight: 600;">4. Cash Incentive Cert</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Stage B: Submissions & Approvals -->
+            <div>
+                <label style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; display: block; margin-bottom: 0.6rem;">
+                    Phase B: Banking &amp; Regulatory Workflow
+                </label>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem;">
+                    <!-- Send to Bank -->
+                    <div style="background: #f8fafc; border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 8px;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.4rem;">
+                            <input type="checkbox" name="send_to_bank" id="chkBank" style="width: 17px; height: 17px; accent-color: #059669;">
+                            <span style="font-size: 0.86rem; font-weight: 700; color: #1e3a8a;">5. Send to Bank Branch</span>
+                        </label>
+                        <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Date Sent to Bank:</label>
+                        <input type="date" name="date_send_to_bank" class="form-control" style="font-size: 0.82rem; padding: 0.35rem 0.6rem;">
+                    </div>
+
+                    <!-- Send to Head Office -->
+                    <div style="background: #f8fafc; border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 8px;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.4rem;">
+                            <input type="checkbox" name="send_to_head_office" id="chkHO" style="width: 17px; height: 17px; accent-color: #059669;">
+                            <span style="font-size: 0.86rem; font-weight: 700; color: #1e3a8a;">6. Send to Head Office</span>
+                        </label>
+                        <small style="font-size: 0.75rem; color: var(--text-muted); display: block;">Forwarded from branch to Bank Principal Office</small>
+                    </div>
+
+                    <!-- Send to Audit Office -->
+                    <div style="background: #f8fafc; border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 8px;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.4rem;">
+                            <input type="checkbox" name="send_to_audit_office" id="chkAudit" style="width: 17px; height: 17px; accent-color: #059669;">
+                            <span style="font-size: 0.86rem; font-weight: 700; color: #1e3a8a;">7. Send to CA Audit Firm</span>
+                        </label>
+                        <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Audit Certificate Date:</label>
+                        <input type="date" name="audit_certificate_date" class="form-control" style="font-size: 0.82rem; padding: 0.35rem 0.6rem;">
+                    </div>
+
+                    <!-- Send to International Division -->
+                    <div style="background: #f8fafc; border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 8px;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.4rem;">
+                            <input type="checkbox" name="send_to_intl_division" id="chkIntl" style="width: 17px; height: 17px; accent-color: #059669;">
+                            <span style="font-size: 0.86rem; font-weight: 700; color: #1e3a8a;">8. Sent to International Div</span>
+                        </label>
+                        <small style="font-size: 0.75rem; color: var(--text-muted); display: block;">Bank Head Office International Banking Division</small>
+                    </div>
+
+                    <!-- Sent to Bangladesh Bank -->
+                    <div style="background: #f0fdf4; border: 1px solid #86efac; padding: 0.75rem; border-radius: 8px;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.4rem;">
+                            <input type="checkbox" name="send_to_bangladesh_bank" id="chkBB" style="width: 17px; height: 17px; accent-color: #059669;">
+                            <span style="font-size: 0.86rem; font-weight: 700; color: #065f46;">9. Sent to Bangladesh Bank</span>
+                        </label>
+                        <small style="font-size: 0.75rem; color: #047857; display: block;">Final lodgement with Central Bank for incentive release</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. Incentive Realization & Settlement -->
+        <div class="card" id="cardRealization" style="margin-bottom: 1.5rem; padding: 1.25rem 1.5rem; border-left: 4px solid #16a34a; background: #fbfdfb;">
+            <div style="border-bottom: 1px solid #bbf7d0; padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
+                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #14532d;">
+                    💰 5. Benefit Realization &amp; Settlement Status
+                </h3>
+                <p style="margin: 0.2rem 0 0 0; font-size: 0.8rem; color: #15803d;">
+                    Amounts approved and credited by Bangladesh Bank, date realized, and accounting status.
+                </p>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin-bottom: 1rem;">
+                <!-- Benefit Receivable -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem; color: #92400e;">
+                        Benefit Receivable (Tk.)
+                    </label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 10px; top: 8px; font-weight: 700; color: #d97706;">৳</span>
+                        <input type="number" step="0.01" name="benefit_receivable" id="inputBenefitReceivable" class="form-control" placeholder="0.00" style="padding-left: 24px; font-weight: 700; font-size: 0.95rem; color: #92400e; background: #fffbeb;">
+                    </div>
+                    <small style="color: var(--text-muted); font-size: 0.73rem;">Approved claim expected from Central Bank</small>
+                </div>
+
+                <!-- Benefit Received -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem; color: #15803d;">
+                        Benefit Actually Received (Tk.)
+                    </label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 10px; top: 8px; font-weight: 700; color: #16a34a;">৳</span>
+                        <input type="number" step="0.01" name="benefit_received" id="inputBenefitReceived" class="form-control" placeholder="0.00" style="padding-left: 24px; font-weight: 800; font-size: 1rem; color: #14532d; background: #dcfce7;">
+                    </div>
+                    <small style="color: var(--text-muted); font-size: 0.73rem;">Final subsidy cash received into account</small>
+                </div>
+
+                <!-- Benefit Received Date -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Benefit Received Date</label>
+                    <input type="date" name="benefit_received_date" class="form-control" style="font-size: 0.88rem;">
+                    <small style="color: var(--text-muted); font-size: 0.73rem;">Date funds credited by Bank</small>
+                </div>
+
+                <!-- Status -->
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Claim Lifecycle Status *</label>
+                    <input type="text" name="status" id="inputStatus" class="form-control" value="Pending" list="statusOptions" style="font-weight: 700; font-size: 0.88rem;">
+                    <datalist id="statusOptions">
+                        <option value="Clear & Expense in Dec-2023">
+                        <option value="Clear & Realized">
+                        <option value="Declined">
+                        <option value="Submitted to Bangladesh Bank">
+                        <option value="With CA Audit Firm">
+                        <option value="In Banking Review">
+                        <option value="Budget Allocated">
+                    </datalist>
+                    <small style="color: var(--text-muted); font-size: 0.73rem;">Matches sample: 'Clear & Expense in Dec-2023' or 'Declined'</small>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div>
+                <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Remarks / Audit Notes</label>
+                <input type="text" name="notes" class="form-control" placeholder="Optional notes, audit reference, or reasons for rejection/deductions" style="font-size: 0.88rem;">
+            </div>
+        </div>
+
+        <!-- Form Submit Bar -->
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; align-items: center;">
+            <a href="{{ url_for('remittance_dashboard') }}" class="btn btn-outline" style="padding: 0.65rem 1.4rem;">
+                Cancel
+            </a>
+            <button type="submit" class="btn btn-primary" style="padding: 0.65rem 1.75rem; font-weight: 700; font-size: 0.95rem; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);">
+                💾 Save Entry to Statement
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Dynamic JavaScript Automation -->
+<script>
+function applyPreset(mode) {
+    const partInput = document.getElementById('inputParticulars');
+    const grpRemUSD = document.getElementById('groupRemittanceUSD');
+    const grpRate = document.getElementById('groupRate');
+    const grpBudget = document.getElementById('groupBudgetAmount');
+    const cardIncentive = document.getElementById('cardIncentive');
+    const cardCheckpoints = document.getElementById('cardCheckpoints');
+    const cardRealization = document.getElementById('cardRealization');
+
+    // Reset styles on preset buttons
+    ['btnPresetForeign', 'btnPresetLocal', 'btnPresetBudget'].forEach(id => {
+        const btn = document.getElementById(id);
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-outline');
+        btn.style.background = 'white';
+    });
+
+    if (mode === 'foreign') {
+        document.getElementById('btnPresetForeign').classList.add('btn-primary');
+        document.getElementById('btnPresetForeign').classList.remove('btn-outline');
+        partInput.value = 'Remittance Received';
+        grpRemUSD.style.display = 'block';
+        grpRate.style.display = 'block';
+        cardIncentive.style.display = 'block';
+        cardCheckpoints.style.display = 'block';
+        cardRealization.style.display = 'block';
+        document.getElementById('inputBudgetAmount').value = '0';
+        document.getElementById('inputStatus').value = 'Pending';
+    } else if (mode === 'local') {
+        document.getElementById('btnPresetLocal').classList.add('btn-primary');
+        document.getElementById('btnPresetLocal').classList.remove('btn-outline');
+        partInput.value = 'Remittance Received-local';
+        document.getElementById('inputSentBy').value = 'Cash';
+        grpRemUSD.style.display = 'none';
+        grpRate.style.display = 'none';
+        cardIncentive.style.display = 'none';
+        cardCheckpoints.style.display = 'none';
+        cardRealization.style.display = 'none';
+        document.getElementById('inputRemittanceUSD').value = '0';
+        document.getElementById('inputUsdRate').value = '0';
+        document.getElementById('inputIncentive10').value = '0';
+        document.getElementById('inputBudgetAmount').value = '0';
+        document.getElementById('inputStatus').value = 'Local Inflow';
+    } else if (mode === 'budget') {
+        document.getElementById('btnPresetBudget').classList.add('btn-primary');
+        document.getElementById('btnPresetBudget').classList.remove('btn-outline');
+        partInput.value = 'Budget issue';
+        grpRemUSD.style.display = 'none';
+        grpRate.style.display = 'none';
+        cardIncentive.style.display = 'none';
+        cardCheckpoints.style.display = 'none';
+        cardRealization.style.display = 'none';
+        document.getElementById('inputRemittanceUSD').value = '0';
+        document.getElementById('inputUsdRate').value = '0';
+        document.getElementById('inputReceivedBDT').value = '0';
+        document.getElementById('inputIncentive10').value = '0';
+        document.getElementById('inputStatus').value = 'Budget Allocated';
+    }
+}
+
+function recalcAmounts() {
+    const usd = parseFloat(document.getElementById('inputRemittanceUSD').value) || 0;
+    const rate = parseFloat(document.getElementById('inputUsdRate').value) || 0;
+    
+    if (usd > 0 && rate > 0) {
+        const bdt = Math.round((usd * rate) * 100) / 100;
+        document.getElementById('inputReceivedBDT').value = bdt.toFixed(2);
+        
+        // Auto-calculate 10% Cash Incentive
+        const incentive = Math.round((bdt * 0.10) * 100) / 100;
+        document.getElementById('inputIncentive10').value = incentive.toFixed(2);
+        
+        // Auto set receivable if empty
+        const rec = document.getElementById('inputBenefitReceivable');
+        if (!rec.value || parseFloat(rec.value) === 0) {
+            rec.value = incentive.toFixed(2);
+        }
+    }
+}
+
+function recalcIncentiveOnly() {
+    const bdt = parseFloat(document.getElementById('inputReceivedBDT').value) || 0;
+    const usd = parseFloat(document.getElementById('inputRemittanceUSD').value) || 0;
+    if (usd > 0 && bdt > 0) {
+        const incentive = Math.round((bdt * 0.10) * 100) / 100;
+        document.getElementById('inputIncentive10').value = incentive.toFixed(2);
+    }
+}
+
+function copyClaimedToAudited() {
+    const claimed = document.getElementById('inputIncentive10').value;
+    document.getElementById('inputIncentiveAudited').value = claimed;
+    document.getElementById('inputBenefitReceivable').value = claimed;
+}
+</script>
+{% endblock %}

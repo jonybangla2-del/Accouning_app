@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Payroll Run {{ record.payroll_month }}{% endblock %}
+
+{% block content %}
+<div class="page-header no-print">
+    <div>
+        <h1 class="page-title">📄 Monthly Payroll Run: {{ record.payroll_month }}</h1>
+        <p class="page-description">Disbursed on {{ record.processed_date.strftime('%d-%b-%Y') if record.processed_date else '' }} via {{ record.payment_account.name }}.</p>
+    </div>
+    <div class="header-actions">
+        {% if record.voucher %}
+            <a href="{{ url_for('view_voucher', voucher_id=record.voucher_id) }}" class="btn btn-outline">
+                📖 View General Ledger Voucher ({{ record.voucher.voucher_no }})
+            </a>
+        {% endif %}
+        <a href="{{ url_for('payroll_dashboard') }}" class="btn btn-secondary">← Back to Payroll</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Employee Payslips for {{ record.payroll_month }}</h2>
+        <span class="badge" style="background-color: #d1fae5; color: #065f46;">Total Disbursed: ৳{{ "{:,.2f}".format(record.total_net) }}</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 100px;">Emp ID</th>
+                    <th>Employee Name</th>
+                    <th>Designation & Dept</th>
+                    <th class="num-col">Basic Pay</th>
+                    <th class="num-col">Allowances</th>
+                    <th class="num-col">Deductions</th>
+                    <th class="num-col" style="font-weight: 700; color: #059669;">Net Take-Home</th>
+                    <th style="width: 120px; text-align: center;" class="no-print">Payslip</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in record.items %}
+                <tr>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent);">
+                        {{ item.employee.employee_id }}
+                    </td>
+                    <td>
+                        <strong style="color: var(--text-primary);">{{ item.employee.name }}</strong>
+                    </td>
+                    <td>
+                        <div>{{ item.employee.designation }}</div>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">{{ item.employee.department }}</span>
+                    </td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(item.basic_salary) }}</td>
+                    <td class="num-col" style="color: #059669;">+৳{{ "{:,.2f}".format(item.allowances) }}</td>
+                    <td class="num-col" style="color: #dc2626;">-৳{{ "{:,.2f}".format(item.deductions) }}</td>
+                    <td class="num-col" style="font-weight: 700; color: #059669; font-size: 0.95rem;">
+                        ৳{{ "{:,.2f}".format(item.net_salary) }}
+                    </td>
+                    <td style="text-align: center;" class="no-print">
+                        <a href="{{ url_for('view_payslip', item_id=item.id) }}" class="btn btn-outline btn-sm" title="View & Print Official Payslip">
+                            📄 Payslip
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="report-total-row">
+                    <td colspan="3" style="text-align: right; text-transform: uppercase;">Total Disbursed:</td>
+                    <td class="num-col">৳{{ "{:,.2f}".format(record.total_basic) }}</td>
+                    <td class="num-col" style="color: #059669;">+৳{{ "{:,.2f}".format(record.total_allowances) }}</td>
+                    <td class="num-col" style="color: #dc2626;">-৳{{ "{:,.2f}".format(record.total_deductions) }}</td>
+                    <td class="num-col" style="color: #2563eb; font-size: 1.15rem;">
+                        ৳{{ "{:,.2f}".format(record.total_net) }}
+                    </td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+{% endblock %}

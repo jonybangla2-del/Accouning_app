@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Voucher Register (Day Book){% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">📖 Voucher Register (General Daybook)</h1>
+        <p class="page-description">Complete chronological audit trail of all posted accounting vouchers.</p>
+    </div>
+    <div class="header-actions">
+        <a href="{{ url_for('create_voucher') }}" class="btn btn-primary">+ Post New Voucher</a>
+    </div>
+</div>
+
+<!-- Filters -->
+<form method="GET" action="{{ url_for('voucher_list') }}" class="filter-bar no-print">
+    <div>
+        <label class="form-label" style="margin-bottom: 0.2rem; font-size: 0.8rem;">Filter by Type:</label>
+        <select name="type" class="form-select" onchange="this.form.submit()" style="padding: 0.4rem 0.75rem; width: 180px;">
+            <option value="" {% if not selected_type %}selected{% endif %}>All Types (PV, RV, JV, CV)</option>
+            <option value="Payment" {% if selected_type == 'Payment' %}selected{% endif %}>Payment Voucher (PV)</option>
+            <option value="Receipt" {% if selected_type == 'Receipt' %}selected{% endif %}>Receipt Voucher (RV)</option>
+            <option value="Journal" {% if selected_type == 'Journal' %}selected{% endif %}>Journal Voucher (JV)</option>
+            <option value="Contra" {% if selected_type == 'Contra' %}selected{% endif %}>Contra Voucher (CV)</option>
+        </select>
+    </div>
+
+    <div style="flex: 1; min-width: 200px;">
+        <label class="form-label" style="margin-bottom: 0.2rem; font-size: 0.8rem;">Search Narration or No:</label>
+        <div style="display: flex; gap: 0.5rem;">
+            <input type="text" name="q" class="form-control" placeholder="Search voucher #, description, ref..." value="{{ search_query or '' }}" style="padding: 0.4rem 0.75rem;">
+            <button type="submit" class="btn btn-outline btn-sm">Search</button>
+            {% if search_query or selected_type %}
+                <a href="{{ url_for('voucher_list') }}" class="btn btn-secondary btn-sm">Reset</a>
+            {% endif %}
+        </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 140px;">Voucher No</th>
+                    <th style="width: 110px;">Date</th>
+                    <th style="width: 100px;">Type</th>
+                    <th style="width: 130px;">Reference</th>
+                    <th>Narration / Purpose</th>
+                    <th class="num-col" style="width: 130px;">Total Amount</th>
+                    <th style="width: 170px; text-align: center;" class="no-print">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if vouchers %}
+                    {% for v in vouchers %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('view_voucher', voucher_id=v.id) }}" style="font-family: 'JetBrains Mono', monospace; font-weight: 600; text-decoration: none; color: var(--accent);">
+                                {{ v.voucher_no }}
+                            </a>
+                            {% if v.attachment %}
+                                <a href="{{ url_for('static', filename='uploads/vouchers/' ~ v.attachment) }}" target="_blank" title="Supporting Document Attached: {{ v.original_filename or v.attachment }}" style="text-decoration: none; font-size: 0.9rem; margin-left: 0.3rem;">📎</a>
+                            {% endif %}
+                        </td>
+                        <td>{{ v.date.strftime('%Y-%m-%d') if v.date else '' }}</td>
+                        <td>
+                            <span class="badge badge-{{ v.voucher_type|lower }}">{{ v.voucher_type }}</span>
+                        </td>
+                        <td style="color: var(--text-secondary); font-size: 0.85rem;">{{ v.reference or '—' }}</td>
+                        <td>{{ v.narration }}</td>
+                        <td class="num-col" style="font-weight: 600; color: var(--text-primary);">৳{{ "{:,.2f}".format(v.total_amount) }}</td>
+                        <td style="text-align: center;" class="no-print">
+                            <div style="display: flex; gap: 0.35rem; justify-content: center;">
+                                <a href="{{ url_for('view_voucher', voucher_id=v.id) }}" class="btn btn-outline btn-sm" title="View & Print Slip" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                    📄 Slip
+                                </a>
+                                <a href="{{ url_for('edit_voucher', voucher_id=v.id) }}" class="btn btn-outline btn-sm" title="Edit Voucher" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: #2563eb;">
+                                    ✏️
+                                </a>
+                                <form method="POST" action="{{ url_for('delete_voucher', voucher_id=v.id) }}" onsubmit="return confirm('Are you sure you want to permanently delete voucher {{ v.voucher_no }}? This will reverse all ledger entries.');" style="display: inline;">
+                                    <button type="submit" class="btn btn-outline btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--danger); border-color: var(--border);" title="Delete Voucher">
+                                        🗑
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📖</div>
+                            <p style="font-size: 1.1rem; font-weight: 600; color: var(--text-secondary);">No vouchers recorded yet</p>
+                            <p style="font-size: 0.9rem; margin-top: 0.25rem;">Start by posting your first accounting voucher.</p>
+                            <a href="{{ url_for('create_voucher') }}" class="btn btn-primary" style="margin-top: 1rem;">+ Post New Voucher</a>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

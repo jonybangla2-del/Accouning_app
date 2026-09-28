@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ letter_title }} - {{ sheet.salary_month }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+            color: #0f172a;
+            margin: 0;
+            padding: 0;
+        }
+
+        .action-bar {
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        .paper-sheet {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 20mm;
+            margin: 2rem auto;
+            background: #ffffff;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+            border-radius: 4px;
+        }
+
+        .company-header {
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .company-logo {
+            font-size: 1.6rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: #1e3a8a;
+        }
+
+        .company-meta {
+            font-size: 0.85rem;
+            color: #64748b;
+            line-height: 1.4;
+        }
+
+        .ref-box {
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 1.2rem;
+        }
+
+        .letter-recipient {
+            font-size: 0.92rem;
+            line-height: 1.5;
+            color: #1e293b;
+            margin-bottom: 1.5rem;
+        }
+
+        .letter-subject {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #0f172a;
+            background-color: #f8fafc;
+            border-left: 4px solid #1e3a8a;
+            padding: 0.6rem 0.9rem;
+            margin-bottom: 1.4rem;
+        }
+
+        .letter-body {
+            font-size: 0.92rem;
+            line-height: 1.7;
+            color: #334155;
+            text-align: justify;
+            margin-bottom: 1.5rem;
+        }
+
+        .highlight-badge {
+            background-color: #e0f2fe;
+            color: #0369a1;
+            font-weight: 700;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .summary-card {
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            border-radius: 6px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-card table {
+            width: 100%;
+            margin: 0;
+            font-size: 0.88rem;
+        }
+
+        .summary-card td {
+            padding: 0.35rem 0.5rem;
+        }
+
+        .table-schedule {
+            width: 100%;
+            font-size: 0.8rem;
+            border-collapse: collapse;
+            margin-bottom: 2rem;
+        }
+
+        .table-schedule th {
+            background-color: #1e293b;
+            color: #ffffff;
+            font-weight: 600;
+            padding: 0.5rem 0.4rem;
+            border: 1px solid #334155;
+            text-align: center;
+        }
+
+        .table-schedule td {
+            padding: 0.45rem 0.4rem;
+            border: 1px solid #cbd5e1;
+            color: #1e293b;
+        }
+
+        .mono-num {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+        }
+
+        .signatures-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            margin-top: 4rem;
+            page-break-inside: avoid;
+        }
+
+        .sig-block {
+            text-align: center;
+            border-top: 1.5px dashed #475569;
+            padding-top: 0.5rem;
+        }
+
+        .sig-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .sig-sub {
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+
+        @media print {
+            body {
+                background: #ffffff;
+            }
+            .action-bar, .no-print {
+                display: none !important;
+            }
+            .paper-sheet {
+                width: 100%;
+                margin: 0;
+                padding: 0;
+                box-shadow: none;
+                border-radius: 0;
+            }
+            @page {
+                size: A4;
+                margin: 15mm;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sticky Header Actions (Hidden in Print) -->
+    <div class="action-bar no-print d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-3">
+            <a href="{{ url_for('view_monthly_salary_sheet', sheet_id=sheet.id) }}" class="btn btn-outline-secondary btn-sm">
+                <i class="fa fa-arrow-left me-1"></i> Back to Salary Sheet
+            </a>
+            <div class="vr"></div>
+            <span class="fw-bold text-dark"><i class="fa fa-file-contract text-primary me-2"></i>Bank Advice Letter: {{ sheet.salary_month }}</span>
+            <div class="btn-group btn-group-sm" role="group">
+                <a href="{{ url_for('view_salary_bank_advice_letter', sheet_id=sheet.id, channel='eft') }}" class="btn btn-outline-primary {% if channel == 'eft' %}active{% endif %}">
+                    <i class="fa fa-building-columns me-1"></i> Premier Bank EFT
+                </a>
+                <a href="{{ url_for('view_salary_bank_advice_letter', sheet_id=sheet.id, channel='beftn') }}" class="btn btn-outline-primary {% if channel == 'beftn' %}active{% endif %}">
+                    <i class="fa fa-network-wired me-1"></i> BEFTN Clearing
+                </a>
+                <a href="{{ url_for('view_salary_bank_advice_letter', sheet_id=sheet.id, channel='all') }}" class="btn btn-outline-primary {% if channel == 'all' %}active{% endif %}">
+                    <i class="fa fa-list me-1"></i> All Transfers
+                </a>
+            </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            {% if channel == 'eft' %}
+            <a href="{{ url_for('export_salary_sheet_eft_excel', sheet_id=sheet.id) }}" class="btn btn-outline-success btn-sm">
+                <i class="fa fa-file-excel me-1"></i> Download EFT Excel
+            </a>
+            {% elif channel == 'beftn' %}
+            <a href="{{ url_for('export_salary_sheet_beftn_excel', sheet_id=sheet.id) }}" class="btn btn-outline-success btn-sm">
+                <i class="fa fa-file-excel me-1"></i> Download BEFTN Excel
+            </a>
+            {% endif %}
+            <button onclick="window.print()" class="btn btn-primary btn-sm px-3 shadow-sm">
+                <i class="fa fa-print me-1"></i> Print / Save as PDF
+            </button>
+        </div>
+    </div>
+
+    <!-- Printable Paper Sheet -->
+    <div class="paper-sheet">
+        <!-- Letterhead Header -->
+        <div class="company-header d-flex justify-content-between align-items-end">
+            <div>
+                <div class="company-logo">ZR-ERP ENTERPRISE LIMITED</div>
+                <div class="company-meta">
+                    Corporate Head Office: House #14, Road #11, Block-F, Banani, Dhaka-1213, Bangladesh<br>
+                    Tel: +880 2 9876543 | Web: www.zr-erp.com | Email: payroll@zr-erp.com
+                </div>
+            </div>
+            <div class="text-end">
+                <span class="badge bg-dark px-3 py-2 fs-6">CONFIDENTIAL</span>
+            </div>
+        </div>
+
+        <!-- Reference & Date -->
+        <div class="d-flex justify-content-between ref-box">
+            <div>Ref No: <strong>ZR/SAL/{% if channel == 'eft' %}EFT{% elif channel == 'beftn' %}BEFTN{% else %}TRANS{% endif %}/{{ sheet.salary_month }}/001</strong></div>
+            <div>Date: <strong>{{ today_date.strftime('%d %B %Y') }}</strong></div>
+        </div>
+
+        <!-- Recipient Bank Details -->
+        <div class="letter-recipient">
+            <strong>The Branch Manager</strong><br>
+            The Premier Bank PLC<br>
+            Banani Branch, Dhaka, Bangladesh.<br>
+            <span class="text-muted">Operating Account: <strong>02071110000026</strong> (ZR-ERP Enterprise)</span>
+        </div>
+
+        <!-- Subject Line -->
+        <div class="letter-subject">
+            SUBJECT: {% if channel == 'eft' %}
+            REQUEST FOR SALARY & ALLOWANCES TRANSFER THROUGH INTERNAL EFT FOR THE MONTH OF {{ sheet.salary_month }}
+            {% elif channel == 'beftn' %}
+            REQUEST FOR DISBURSAL OF SALARY & ALLOWANCES VIA BANGLADESH ELECTRONIC FUNDS TRANSFER NETWORK (BEFTN) FOR {{ sheet.salary_month }}
+            {% else %}
+            REQUEST FOR DISBURSAL OF SALARY & ALLOWANCES THROUGH EFT & BEFTN FOR {{ sheet.salary_month }}
+            {% endif %}
+        </div>
+
+        <!-- Letter Body -->
+        <div class="letter-body">
+            <p>Dear Sir,</p>
+            <p>
+                We would like to request you to kindly debit our Current Account No: <span class="highlight-badge">02071110000026</span> maintained with your Banani Branch under the title <strong>"ZR-ERP ENTERPRISE"</strong> for a sum of <strong>BDT {{ "{:,.2f}".format(total_net) }}</strong> (Taka <em>{{ amount_in_words }}</em> only) and credit the equivalent amounts to the individual accounts of our employees as per the attached disbursement schedule.
+            </p>
+            {% if channel == 'eft' %}
+            <p>
+                All beneficiary accounts mentioned in the schedule below are maintained with <strong>The Premier Bank PLC</strong> and are eligible for instant internal funds transfer (EFT).
+            </p>
+            {% elif channel == 'beftn' %}
+            <p>
+                All beneficiary accounts are maintained with other scheduled commercial banks in Bangladesh. Please transmit the funds via <strong>Bangladesh Electronic Funds Transfer Network (BEFTN)</strong> using the respective 9-digit Bangladesh Bank routing numbers provided.
+            </p>
+            {% endif %}
+        </div>
+
+        <!-- Summary Information Card -->
+        <div class="summary-card">
+            <table>
+                <tr>
+                    <td class="text-muted" style="width: 25%;">Debit Account Name:</td>
+                    <td class="fw-bold" style="width: 35%;">ZR-ERP ENTERPRISE</td>
+                    <td class="text-muted" style="width: 20%;">Salary Month:</td>
+                    <td class="fw-bold text-primary" style="width: 20%;">{{ sheet.salary_month }}</td>
+                </tr>
+                <tr>
+                    <td class="text-muted">Debit Account Number:</td>
+                    <td class="mono-num fw-bold">02071110000026</td>
+                    <td class="text-muted">Total Beneficiaries:</td>
+                    <td class="fw-bold">{{ items|length }} Staff Members</td>
+                </tr>
+                <tr>
+                    <td class="text-muted">Debit Bank & Branch:</td>
+                    <td>The Premier Bank PLC, Banani Branch</td>
+                    <td class="text-muted">Payment Channel:</td>
+                    <td><span class="badge bg-primary text-uppercase">{{ channel }}</span></td>
+                </tr>
+                <tr style="border-top: 1px solid #e2e8f0;">
+                    <td class="text-muted pt-2">Total Amount to Debit:</td>
+                    <td colspan="3" class="pt-2">
+                        <span class="fs-5 fw-bold text-success mono-num">BDT {{ "{:,.2f}".format(total_net) }}</span>
+                        <div class="text-muted small fst-italic">In Words: {{ amount_in_words }}</div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Disbursement Schedule Table -->
+        <h6 class="fw-bold text-dark mb-2"><i class="fa fa-list-ol me-2 text-secondary"></i>Beneficiary Transfer Schedule</h6>
+        <table class="table-schedule">
+            <thead>
+                <tr>
+                    <th style="width: 4%;">SL</th>
+                    <th style="width: 10%;">ID No</th>
+                    <th style="width: 22%; text-align: left;">Employee Name</th>
+                    <th style="width: 18%; text-align: left;">Bank Name</th>
+                    <th style="width: 14%; text-align: left;">Branch</th>
+                    <th style="width: 10%;">Routing No</th>
+                    <th style="width: 12%;">Account No</th>
+                    <th style="width: 10%; text-align: right;">Net Amount (৳)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td class="text-center">{{ loop.index }}</td>
+                    <td class="text-center mono-num">{{ item.emp_code }}</td>
+                    <td class="fw-medium">{{ item.name }}</td>
+                    <td>{{ item.bank_name }}</td>
+                    <td>{{ item.bank_branch or 'N/A' }}</td>
+                    <td class="text-center mono-num">{{ item.routing_no or '-' }}</td>
+                    <td class="text-center mono-num">{{ item.bank_account_no or 'N/A' }}</td>
+                    <td class="text-end mono-num fw-bold">{{ "{:,.2f}".format(item.net_after_tds) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="background: #f1f5f9; font-weight: bold; border-top: 2px solid #0f172a;">
+                    <td colspan="7" class="text-end pe-3">GRAND TOTAL TRANSFER AMOUNT (BDT):</td>
+                    <td class="text-end mono-num text-success fs-6">{{ "{:,.2f}".format(total_net) }}</td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <!-- Signatures Grid -->
+        <div class="signatures-grid">
+            <div class="sig-block">
+                <div class="sig-title">Prepared By</div>
+                <div class="sig-sub">Payroll & HR Officer</div>
+            </div>
+            <div class="sig-block">
+                <div class="sig-title">Checked & Verified</div>
+                <div class="sig-sub">Manager - Accounts & Finance</div>
+            </div>
+            <div class="sig-block">
+                <div class="sig-title">Authorized Signatory</div>
+                <div class="sig-sub">Director / Chief Financial Officer</div>
+            </div>
+        </div>
+
+        <div class="text-center text-muted small mt-4 pt-3 border-top" style="font-size: 0.75rem;">
+            This is an official document generated by ZR-ERP Enterprise System on {{ today_date.strftime('%d-%b-%Y %I:%M %p') }}. Any alteration renders this document invalid.
+        </div>
+    </div>
+
+</body>
+</html>

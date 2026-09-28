@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "name": "ZR-ERP Main Enterprise",
+    "code": "ZR-01",
+    "db_file": "accounting.db",
+    "is_locked": false,
+    "password_hash": null,
+    "description": "Primary Corporate Financial & Accounting Ledger",
+    "created_at": "2026-09-26 10:56:35"
+  },
+  {
+    "id": 2,
+    "name": "ZR Trading & Logistics Ltd",
+    "code": "ZR-02",
+    "db_file": "companies/company_2_ZR-02.db",
+    "is_locked": true,
+    "password_hash": "scrypt:32768:8:1$xYzs40V5Lw99hBP1$f08b0bf13fc703dd1ce997e2d02cad4409383f5fe9903ef73cc2e7227cddf526ab3df82191b7ab3ca52245b7eae8b533e3e0a5cc5cbb4e5d4ae2afd74bac4c72",
+    "description": "Commercial Trading & Logistics Subsidiary",
+    "created_at": "2026-09-26 11:08:33"
+  },
+  {
+    "id": 3,
+    "name": "TBN BD",
+    "code": "TBN_001",
+    "db_file": "companies/company_3_TBN_001.db",
+    "is_locked": true,
+    "password_hash": "scrypt:32768:8:1$s3zSpjRyhWngZCCy$1ebd9633ee8940487c94205cec2c0cfd869821ed34f31c61813a9953a127140ee1e67b27e70c3545ccb8b4534f946e65106bd3e08f0d5f2a121e03c45a748d0f",
+    "description": "admin",
+    "created_at": "2026-09-26 11:34:45"
+  }
+]

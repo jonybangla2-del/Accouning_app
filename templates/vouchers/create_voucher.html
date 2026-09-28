@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}Post New Voucher{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">✍️ Professional Voucher Posting</h1>
+        <p class="page-description">Record double-entry transactions (Payment, Receipt, Journal, Contra) into the general ledger.</p>
+    </div>
+    <div class="header-actions">
+        <a href="{{ url_for('voucher_list') }}" class="btn btn-outline">📖 Voucher Register</a>
+    </div>
+</div>
+
+<form id="voucher-form" method="POST" action="{{ url_for('create_voucher') }}" enctype="multipart/form-data">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Voucher Header Details</h2>
+            <div style="display: flex; gap: 0.5rem;">
+                <a href="{{ url_for('create_voucher', type='Payment') }}" class="btn btn-sm {% if selected_type == 'Payment' %}btn-danger{% else %}btn-outline{% endif %}">PV - Payment</a>
+                <a href="{{ url_for('create_voucher', type='Receipt') }}" class="btn btn-sm {% if selected_type == 'Receipt' %}btn-success{% else %}btn-outline{% endif %}">RV - Receipt</a>
+                <a href="{{ url_for('create_voucher', type='Journal') }}" class="btn btn-sm {% if selected_type == 'Journal' %}btn-primary{% else %}btn-outline{% endif %}">JV - Journal</a>
+                <a href="{{ url_for('create_voucher', type='Contra') }}" class="btn btn-sm {% if selected_type == 'Contra' %}btn-secondary{% else %}btn-outline{% endif %}" style="background-color: #fef3c7; color: #b45309; border-color: #f59e0b;">CV - Contra</a>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="form-row">
+                <div class="form-col" style="max-width: 220px;">
+                    <label class="form-label" for="voucher_type">Voucher Type *</label>
+                    <select name="voucher_type" id="voucher_type" class="form-select" data-url="{{ url_for('create_voucher') }}" required>
+                        <option value="Payment" {% if selected_type == 'Payment' %}selected{% endif %}>Payment Voucher (PV)</option>
+                        <option value="Receipt" {% if selected_type == 'Receipt' %}selected{% endif %}>Receipt Voucher (RV)</option>
+                        <option value="Journal" {% if selected_type == 'Journal' %}selected{% endif %}>Journal Voucher (JV)</option>
+                        <option value="Contra" {% if selected_type == 'Contra' %}selected{% endif %}>Contra Voucher (CV)</option>
+                    </select>
+                </div>
+
+                <div class="form-col" style="max-width: 220px;">
+                    <label class="form-label" for="voucher_no">Voucher No *</label>
+                    <input type="text" name="voucher_no" id="voucher_no" class="form-control" value="{{ suggested_no }}" required style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">
+                </div>
+
+                <div class="form-col" style="max-width: 200px;">
+                    <label class="form-label" for="date">Transaction Date *</label>
+                    <input type="date" name="date" id="date" class="form-control" value="{{ today }}" required>
+                </div>
+
+                <div class="form-col">
+                    <label class="form-label" for="reference">Reference / Cheque / Bill #</label>
+                    <input type="text" name="reference" id="reference" class="form-control" placeholder="e.g. CHQ-98421, INV-2026-08">
+                </div>
+            </div>
+
+            <div class="form-row" style="margin-top: 1rem; align-items: flex-start;">
+                <div class="form-col" style="flex: 2;">
+                    <label class="form-label" for="narration">Narration / Description *</label>
+                    <input type="text" name="narration" id="narration" class="form-control" placeholder="Provide full business purpose of this entry..." required>
+                </div>
+                <div class="form-col" style="flex: 1; max-width: 380px;">
+                    <label class="form-label" for="attachment" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><strong style="color: #2563eb;">📎 Attach Supporting Doc</strong></span>
+                        <span style="font-size: 0.72rem; color: var(--text-muted);">PDF, Image, Scan, Bill</span>
+                    </label>
+                    <input type="file" name="attachment" id="attachment" class="form-control" accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.docx,.doc" style="padding: 0.38rem 0.6rem; font-size: 0.85rem; border: 1.5px dashed #cbd5e1; background: #f8fafc;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Voucher Line Items Table -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Transaction Particulars (Double-Entry Lines)</h2>
+            <button type="button" id="add-line-btn" class="btn btn-outline btn-sm">+ Add Line Item</button>
+        </div>
+        <div class="card-body" style="padding-bottom: 0.5rem;">
+            <div class="table-responsive">
+                <table class="voucher-lines-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 35%;">Ledger Account *</th>
+                            <th style="width: 30%;">Particulars / Line Memo</th>
+                            <th style="width: 15%; text-align: right;">Debit (৳)</th>
+                            <th style="width: 15%; text-align: right;">Credit (৳)</th>
+                            <th style="width: 5%; text-align: center;">✕</th>
+                        </tr>
+                    </thead>
+                    <tbody id="voucher-lines-body">
+                        <!-- Row 1 -->
+                        <tr>
+                            <td>
+                                <select name="account_id[]" class="form-select account-select" required>
+                                    <option value="" disabled selected>-- Select Ledger Account --</option>
+                                    {% for acc in accounts %}
+                                        <option value="{{ acc.id }}">[{{ acc.code }}] {{ acc.name }} ({{ acc.type }})</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <input type="text" name="particulars[]" placeholder="Line memo..." class="form-control">
+                            </td>
+                            <td>
+                                <input type="number" step="0.01" min="0" name="debit[]" placeholder="0.00" class="form-control debit-input num-input">
+                            </td>
+                            <td>
+                                <input type="number" step="0.01" min="0" name="credit[]" placeholder="0.00" class="form-control credit-input num-input">
+                            </td>
+                            <td style="text-align: center;">
+                                <button type="button" class="btn btn-outline btn-sm remove-line-btn" title="Delete row" style="color: var(--danger); border-color: var(--border);">🗑</button>
+                            </td>
+                        </tr>
+                        <!-- Row 2 -->
+                        <tr>
+                            <td>
+                                <select name="account_id[]" class="form-select account-select" required>
+                                    <option value="" disabled>-- Select Ledger Account --</option>
+                                    {% for acc in accounts %}
+                                        <option value="{{ acc.id }}" {% if acc.code == 'BS-001' or 'cash in hand' in acc.name|lower %}selected{% endif %}>
+                                            [{{ acc.code }}] {{ acc.name }} ({{ acc.type }})
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <input type="text" name="particulars[]" placeholder="Line memo..." class="form-control">
+                            </td>
+                            <td>
+                                <input type="number" step="0.01" min="0" name="debit[]" placeholder="0.00" class="form-control debit-input num-input">
+                            </td>
+                            <td>
+                                <input type="number" step="0.01" min="0" name="credit[]" placeholder="0.00" class="form-control credit-input num-input">
+                            </td>
+                            <td style="text-align: center;">
+                                <button type="button" class="btn btn-outline btn-sm remove-line-btn" title="Delete row" style="color: var(--danger); border-color: var(--border);">🗑</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Totals & Double-Entry Balance Bar -->
+            <div class="voucher-totals-bar">
+                <div class="balance-status">
+                    <span style="font-weight: 600;">Status:</span>
+                    <span id="balance-status-badge" class="badge badge-unbalanced">⚠ Out of Balance</span>
+                    <span style="color: var(--text-muted); font-size: 0.85rem; margin-left: 0.5rem;">Difference: <strong id="balance-diff" style="color: var(--text-primary); font-family: 'JetBrains Mono', monospace;">৳0.00</strong></span>
+                </div>
+                <div class="totals-group">
+                    <div>
+                        <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Total Debit: </span>
+                        <strong id="total-debit" style="color: #2563eb;">৳0.00</strong>
+                    </div>
+                    <div>
+                        <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Total Credit: </span>
+                        <strong id="total-credit" style="color: #059669;">৳0.00</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-bottom: 1rem;">
+                <a href="{{ url_for('voucher_list') }}" class="btn btn-outline">Cancel</a>
+                <button type="submit" id="submit-voucher-btn" class="btn btn-primary" disabled>
+                    ✓ Post & Save Voucher
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/voucher.js') }}"></script>
+{% endblock %}

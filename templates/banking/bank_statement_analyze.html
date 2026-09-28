@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+
+{% block title %}Intelligent Bank Statement Pre-Posting Analysis - ZR-ERP{% endblock %}
+
+{% block content %}
+<div style="max-width: 1300px; margin: 0 auto; padding-bottom: 3rem;">
+    <!-- Page Header -->
+    <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                <a href="{{ url_for('bank_statement_report', account_id=bank_account.id) }}" style="color: var(--text-muted); text-decoration: none; font-size: 0.88rem;">
+                    ← Back to Bank Statement Report
+                </a>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <span style="font-size: 1.6rem;">🧠</span>
+                <h1 class="page-title" style="margin: 0; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em;">
+                    Intelligent Bank Statement Pre-Posting Review
+                </h1>
+                <span class="badge" style="background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">
+                    Anti-Duplicate Engine
+                </span>
+            </div>
+            <p class="page-description" style="color: var(--text-muted); font-size: 0.88rem; margin: 0.25rem 0 0 0;">
+                Pre-posting analysis for <strong>{{ bank_account.name }}</strong> ({{ bank_account.code }}). 
+                The AI engine analyzed <strong>{{ analysis.total_rows }}</strong> transaction(s) across <em>{{ filenames }}</em> to prevent double posting or incorrect posting.
+            </p>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem;">
+            <a href="{{ url_for('bank_statement_report', account_id=bank_account.id) }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 0.55rem 1rem;">
+                Cancel
+            </a>
+            <button type="button" class="btn btn-primary" onclick="document.getElementById('postAnalyzedForm').submit();" style="font-size: 0.88rem; padding: 0.55rem 1.25rem; font-weight: 700; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);">
+                ✅ Confirm &amp; Post Verified Clean Items
+            </button>
+        </div>
+    </div>
+
+    <!-- Intelligence Summary KPI Cards -->
+    <div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 1.75rem;">
+        <!-- 1. Total Extracted -->
+        <div class="metric-card" style="border-top: 4px solid #3b82f6; background: #f8fafc;">
+            <div class="metric-card-top">
+                <span class="metric-label" style="color: #1e40af;">Total Analyzed</span>
+                <div class="metric-icon-box" style="background: #dbeafe; color: #1d4ed8;">📄</div>
+            </div>
+            <div class="metric-value">
+                <span style="color: #0f172a; font-size: 1.8rem; font-weight: 800;">{{ analysis.total_rows }}</span>
+            </div>
+            <div class="metric-sub">
+                <span class="metric-pill" style="background: #e2e8f0; color: #334155;">Multi-Source</span>
+                <span style="color: var(--text-muted); font-size: 0.76rem;">Extracted from uploaded files</span>
+            </div>
+        </div>
+
+        <!-- 2. Clean Items Ready to Post -->
+        <div class="metric-card" style="border-top: 4px solid #10b981; background: #f0fdf4;">
+            <div class="metric-card-top">
+                <span class="metric-label" style="color: #065f46;">Clean &amp; New Entries</span>
+                <div class="metric-icon-box" style="background: #dcfce7; color: #059669;">✓</div>
+            </div>
+            <div class="metric-value">
+                <span style="color: #065f46; font-size: 1.8rem; font-weight: 800;">{{ analysis.clean_count }}</span>
+            </div>
+            <div class="metric-sub">
+                <span class="metric-pill" style="background: #dcfce7; color: #047857;">Ready to Post</span>
+                <span style="color: var(--text-muted); font-size: 0.76rem;">Pre-selected for import</span>
+            </div>
+        </div>
+
+        <!-- 3. Duplicates Excluded -->
+        <div class="metric-card" style="border-top: 4px solid #f59e0b; background: #fffbeb;">
+            <div class="metric-card-top">
+                <span class="metric-label" style="color: #92400e;">Duplicates Caught</span>
+                <div class="metric-icon-box" style="background: #fef3c7; color: #d97706;">🛡️</div>
+            </div>
+            <div class="metric-value">
+                <span style="color: #92400e; font-size: 1.8rem; font-weight: 800;">{{ analysis.dup_count }}</span>
+            </div>
+            <div class="metric-sub">
+                <span class="metric-pill" style="background: #fef3c7; color: #b45309;">Auto-Deselected</span>
+                <span style="color: var(--text-muted); font-size: 0.76rem;">Double-posting prevented</span>
+            </div>
+        </div>
+
+        <!-- 4. Balance Math Warnings -->
+        <div class="metric-card" style="border-top: 4px solid {% if analysis.math_warnings_count > 0 %}#ef4444{% else %}#64748b{% endif %}; background: {% if analysis.math_warnings_count > 0 %}#fef2f2{% else %}#f8fafc{% endif %};">
+            <div class="metric-card-top">
+                <span class="metric-label" style="color: {% if analysis.math_warnings_count > 0 %}#991b1b{% else %}#475569{% endif %};">Math Step Check</span>
+                <div class="metric-icon-box" style="background: {% if analysis.math_warnings_count > 0 %}#fee2e2{% else %}#e2e8f0{% endif %}; color: {% if analysis.math_warnings_count > 0 %}#dc2626{% else %}#64748b{% endif %};">⚖️</div>
+            </div>
+            <div class="metric-value">
+                <span style="color: {% if analysis.math_warnings_count > 0 %}#991b1b{% else %}#334155{% endif %}; font-size: 1.8rem; font-weight: 800;">{{ analysis.math_warnings_count }}</span>
+            </div>
+            <div class="metric-sub">
+                <span class="metric-pill" style="background: {% if analysis.math_warnings_count > 0 %}#fee2e2; color: #991b1b;{% else %}#e2e8f0; color: #475569;{% endif %}">
+                    {% if analysis.math_warnings_count > 0 %}Verification Needed{% else %}Verified Balanced{% endif %}
+                </span>
+                <span style="color: var(--text-muted); font-size: 0.76rem;">Running balance continuity</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Posting Review Form -->
+    <form method="POST" action="{{ url_for('post_analyzed_bank_statements') }}" id="postAnalyzedForm">
+        <input type="hidden" name="filename_summary" value="{{ filenames }}">
+
+        <!-- Statement Batch Information -->
+        <div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem 1.5rem; background: #ffffff; border: 1px solid var(--border-color);">
+            <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text-color);">
+                        📋 Statement Batch Metadata &amp; Target Bank
+                    </h3>
+                    <p style="margin: 0.2rem 0 0 0; font-size: 0.8rem; color: var(--text-muted);">
+                        Confirm target bank, statement batch title, and memo notes for this imported bank statement batch.
+                    </p>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1.2fr 1.5fr; gap: 1rem;">
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Target Bank Account *</label>
+                    <select name="bank_account_id" class="form-control" style="font-size: 0.85rem; font-weight: 600;" required>
+                        {% for b in all_bank_accounts %}
+                        <option value="{{ b.id }}" {% if bank_account and bank_account.id == b.id %}selected{% endif %}>
+                            {{ b.code }} &bull; {{ b.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Statement Batch Title *</label>
+                    <input type="text" name="statement_title" class="form-control" value="{{ default_title }}" required style="font-weight: 600;">
+                </div>
+                <div>
+                    <label class="form-label" style="font-weight: 600; font-size: 0.82rem;">Batch Notes / Remarks</label>
+                    <input type="text" name="statement_notes" class="form-control" placeholder="e.g. Verified by Accounts Officer, matches physical bank passbook or e-Statement portal" value="Smart Anti-Duplicate Import from {{ filenames }}">
+                </div>
+            </div>
+        </div>
+
+        <!-- Transactions Review Table -->
+        <div class="card" style="padding: 1.25rem 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;">
+                <div>
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text-color);">
+                        📜 Transaction Lines Verification Table
+                    </h3>
+                    <p style="margin: 0.2rem 0 0 0; font-size: 0.8rem; color: var(--text-muted);">
+                        Duplicates are automatically unchecked to protect your statement integrity. You can edit any descriptions, amounts, or notes before finalizing.
+                    </p>
+                </div>
+
+                <!-- Quick Selection Controls -->
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="selectAllClean()" style="font-size: 0.78rem;">
+                        Select All Clean Items
+                    </button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="deselectAll()" style="font-size: 0.78rem;">
+                        Deselect All
+                    </button>
+                    <span id="selectedCountBadge" class="badge" style="background: #2563eb; color: white; font-size: 0.8rem; padding: 0.35rem 0.7rem;">
+                        {{ analysis.clean_count }} Selected
+                    </span>
+                </div>
+            </div>
+
+            <div class="table-responsive" style="max-height: 550px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px;">
+                <table class="table" style="font-size: 0.82rem; margin: 0;">
+                    <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 10; border-bottom: 2px solid var(--border-color);">
+                        <tr>
+                            <th style="width: 40px; text-align: center;">
+                                <input type="checkbox" id="masterCheckbox" onchange="toggleAll(this.checked)" checked style="width: 16px; height: 16px; cursor: pointer;">
+                            </th>
+                            <th style="width: 95px;">Date</th>
+                            <th>Particulars / Description</th>
+                            <th style="width: 120px;">Cheque / Ref</th>
+                            <th class="num-col" style="width: 110px; color: #dc2626;">Withdrawal (Dr)</th>
+                            <th class="num-col" style="width: 110px; color: #059669;">Deposit (Cr)</th>
+                            <th class="num-col" style="width: 120px;">Balance (৳)</th>
+                            <th>Notes / Memo</th>
+                            <th style="width: 130px; text-align: center;">Intelligent Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for it in analysis.rows %}
+                        <tr style="{% if it.is_duplicate %}background-color: #fffbeb; opacity: 0.85;{% elif it.has_math_warning %}background-color: #fef2f2;{% endif %}">
+                            <!-- Checkbox -->
+                            <td style="text-align: center; vertical-align: middle;">
+                                <input type="checkbox" name="selected_rows[]" value="{{ loop.index0 }}" class="item-checkbox" data-is-dup="{{ 'true' if it.is_duplicate else 'false' }}" {% if it.selected %}checked{% endif %} onchange="updateSelectedCount()" style="width: 16px; height: 16px; cursor: pointer; accent-color: #2563eb;">
+                            </td>
+
+                            <!-- Date -->
+                            <td style="vertical-align: middle; white-space: nowrap;">
+                                <input type="date" name="row_date[]" value="{{ it.date }}" class="form-control" style="font-size: 0.78rem; padding: 0.25rem 0.4rem; height: auto;">
+                            </td>
+
+                            <!-- Particulars -->
+                            <td style="vertical-align: middle;">
+                                <input type="text" name="row_desc[]" value="{{ it.description }}" class="form-control" style="font-size: 0.82rem; padding: 0.25rem 0.5rem; height: auto; font-weight: 600;">
+                                {% if it.dup_reason %}
+                                <div style="font-size: 0.72rem; color: #b45309; margin-top: 2px;">
+                                    ⚠️ {{ it.dup_reason }}
+                                </div>
+                                {% endif %}
+                                {% if it.has_math_warning %}
+                                <div style="font-size: 0.72rem; color: #b91c1c; margin-top: 2px;">
+                                    ⚖️ {{ it.math_msg }}
+                                </div>
+                                {% endif %}
+                            </td>
+
+                            <!-- Cheque / Ref -->
+                            <td style="vertical-align: middle;">
+                                <input type="text" name="row_ref[]" value="{{ it.cheque_ref }}" placeholder="Ref #" class="form-control" style="font-size: 0.8rem; padding: 0.25rem 0.4rem; height: auto; font-family: monospace;">
+                            </td>
+
+                            <!-- Withdrawal (Dr) -->
+                            <td class="num-col" style="vertical-align: middle;">
+                                <input type="number" step="0.01" name="row_wdr[]" value="{{ it.withdrawal }}" class="form-control text-right" style="font-size: 0.8rem; padding: 0.25rem 0.4rem; height: auto; color: #dc2626; font-weight: 600;">
+                            </td>
+
+                            <!-- Deposit (Cr) -->
+                            <td class="num-col" style="vertical-align: middle;">
+                                <input type="number" step="0.01" name="row_dep[]" value="{{ it.deposit }}" class="form-control text-right" style="font-size: 0.8rem; padding: 0.25rem 0.4rem; height: auto; color: #059669; font-weight: 600;">
+                            </td>
+
+                            <!-- Balance -->
+                            <td class="num-col" style="vertical-align: middle;">
+                                <input type="number" step="0.01" name="row_bal[]" value="{{ it.balance }}" class="form-control text-right" style="font-size: 0.8rem; padding: 0.25rem 0.4rem; height: auto; font-weight: 700; color: #1e40af;">
+                            </td>
+
+                            <!-- Notes -->
+                            <td style="vertical-align: middle;">
+                                <input type="text" name="row_notes[]" value="{{ it.notes }}" placeholder="Add remark/note..." class="form-control" style="font-size: 0.78rem; padding: 0.25rem 0.5rem; height: auto;">
+                            </td>
+
+                            <!-- Status Badge -->
+                            <td style="text-align: center; vertical-align: middle; white-space: nowrap;">
+                                {% if it.is_duplicate %}
+                                    <span class="badge" style="background: #fef3c7; color: #92400e; border: 1px solid #fde68a; font-size: 0.72rem; padding: 0.2rem 0.5rem;" title="{{ it.dup_reason }}">
+                                        🛡️ Duplicate
+                                    </span>
+                                {% elif it.has_math_warning %}
+                                    <span class="badge" style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; font-size: 0.72rem; padding: 0.2rem 0.5rem;" title="{{ it.math_msg }}">
+                                        ⚠️ Math Alert
+                                    </span>
+                                {% else %}
+                                    <span class="badge" style="background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; font-size: 0.72rem; padding: 0.2rem 0.5rem;">
+                                        ✓ Clean
+                                    </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Bottom Action Footer -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 1rem;">
+                <div style="font-size: 0.84rem; color: var(--text-muted);">
+                    Posting destination: <strong>{{ bank_account.name }}</strong> (Bank Statement Report).
+                    General Ledger vouchers remain 100% separate.
+                </div>
+
+                <div style="display: flex; gap: 0.75rem; align-items: center;">
+                    <a href="{{ url_for('bank_statement_report', account_id=bank_account.id) }}" class="btn btn-outline">
+                        Cancel &amp; Discard
+                    </a>
+                    <button type="submit" class="btn btn-primary" style="padding: 0.65rem 1.75rem; font-weight: 700; font-size: 0.95rem; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);">
+                        ✅ Post Verified Clean Items to Statement
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+function updateSelectedCount() {
+    const checked = document.querySelectorAll('.item-checkbox:checked').length;
+    document.getElementById('selectedCountBadge').innerText = checked + ' Selected';
+}
+
+function selectAllClean() {
+    document.querySelectorAll('.item-checkbox').forEach(cb => {
+        if (cb.getAttribute('data-is-dup') === 'false') {
+            cb.checked = true;
+        } else {
+            cb.checked = false;
+        }
+    });
+    updateSelectedCount();
+}
+
+function deselectAll() {
+    document.querySelectorAll('.item-checkbox').forEach(cb => {
+        cb.checked = false;
+    });
+    updateSelectedCount();
+}
+
+function toggleAll(status) {
+    document.querySelectorAll('.item-checkbox').forEach(cb => {
+        cb.checked = status;
+    });
+    updateSelectedCount();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Financial Reporting Hub{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">📈 Financial Reporting Center</h1>
+        <p class="page-description">Generate authoritative financial statements prepared under standard accounting principles.</p>
+    </div>
+</div>
+
+<div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+    <!-- Cash & Bank Book Card (Client Excel Replica) -->
+    <div class="card" style="margin-bottom: 0; border: 2px solid #00b050;">
+        <div class="card-body" style="display: flex; flex-direction: column; height: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="font-size: 2.2rem; margin-bottom: 0.75rem;">📖</div>
+                <span class="badge" style="background: #dcfce7; color: #15803d; font-weight: 700; border: 1px solid #86efac;">★ Company Excel Format</span>
+            </div>
+            <h2 class="card-title" style="margin-bottom: 0.5rem; color: #15803d;">Cash & Bank Book</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; flex: 1;">
+                Two-sided daily Receipts, Payments & running liquidity balances styled exactly as per your corporate Excel book with full Export and Import capabilities.
+            </p>
+            <div style="margin-top: 1.25rem;">
+                <a href="{{ url_for('cash_book_report') }}" class="btn btn-success" style="width: 100%; background: #00b050; border-color: #00b050;">View Cash Book Journal →</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bank Statement Report Card -->
+    <div class="card" style="margin-bottom: 0; border: 2px solid #2563eb;">
+        <div class="card-body" style="display: flex; flex-direction: column; height: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="font-size: 2.2rem; margin-bottom: 0.75rem;">📑</div>
+                <span class="badge" style="background: #dbeafe; color: #1e40af; font-weight: 700;">PDF & Excel Ingestion</span>
+            </div>
+            <h2 class="card-title" style="margin-bottom: 0.5rem; color: #1e40af;">Bank Statement Report</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; flex: 1;">
+                Import electronic bank statements from PDF and Excel files, track withdrawals and deposits, and audit cleared versus unreconciled transactions.
+            </p>
+            <div style="margin-top: 1.25rem;">
+                <a href="{{ url_for('bank_statement_report') }}" class="btn btn-primary" style="width: 100%;">View Bank Statement →</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Month-End Bank Reconciliation Card -->
+    <div class="card" style="margin-bottom: 0; border: 2px solid #d97706;">
+        <div class="card-body" style="display: flex; flex-direction: column; height: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="font-size: 2.2rem; margin-bottom: 0.75rem;">⚖️</div>
+                <span class="badge" style="background: #fef3c7; color: #92400e; font-weight: 700;">Month-End Audit</span>
+            </div>
+            <h2 class="card-title" style="margin-bottom: 0.5rem; color: #b45309;">Bank Reconciliation</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; flex: 1;">
+                Reconcile monthly bank statement closing balances with General Ledger books, auto-match cleared entries, and generate official CPA audit statements.
+            </p>
+            <div style="margin-top: 1.25rem;">
+                <a href="{{ url_for('bank_reconciliation') }}" class="btn btn-outline" style="width: 100%; border-color: #d97706; color: #b45309; font-weight: 600;">Reconciliation Workspace →</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trial Balance Card -->
+    <div class="card" style="margin-bottom: 0;">
+        <div class="card-body" style="display: flex; flex-direction: column; height: 100%;">
+            <div style="font-size: 2.2rem; margin-bottom: 0.75rem;">⚖️</div>
+            <h2 class="card-title" style="margin-bottom: 0.5rem;">Trial Balance</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; flex: 1;">
+                Validates the mathematical equality of total debits and credits across all ledger accounts before preparing final accounts.
+            </p>
+            <div style="margin-top: 1.25rem;">
+                <a href="{{ url_for('trial_balance') }}" class="btn btn-primary" style="width: 100%;">View Trial Balance →</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Receipts & Payments Card -->
+    <div class="card" style="margin-bottom: 0;">
+        <div class="card-body" style="display: flex; flex-direction: column; height: 100%;">
+            <div style="font-size: 2.2rem; margin-bottom: 0.75rem;">💵</div>
+            <h2 class="card-title" style="margin-bottom: 0.5rem;">Receipts & Payments</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; flex: 1;">
+                Summary of all cash and bank inflows and outflows during the accounting period, reconciling opening and closing liquid funds.
+            </p>
+            <div style="margin-top: 1.25rem;">
+                <a href="{{ url_for('receipts_payments') }}" class="btn btn-success" style="width: 100%;">View Receipts & Payments →</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Income & Expenditure Card -->
+    <div class="card" style="margin-bottom: 0;">
+        <div class="card-body" style="display: flex; flex-direction: column; height: 100%;">
+            <div style="font-size: 2.2rem; margin-bottom: 0.75rem;">📊</div>
+            <h2 class="card-title" style="margin-bottom: 0.5rem;">Income & Expenditure</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; flex: 1;">
+                Operating statement comparing total revenues against administrative and operating expenditures to determine Net Surplus or Deficit.
+            </p>
+            <div style="margin-top: 1.25rem;">
+                <a href="{{ url_for('income_expenditure') }}" class="btn btn-outline" style="width: 100%; border-color: var(--accent); color: var(--accent);">View Income & Expenditure →</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Balance Sheet Card -->
+    <div class="card" style="margin-bottom: 0;">
+        <div class="card-body" style="display: flex; flex-direction: column; height: 100%;">
+            <div style="font-size: 2.2rem; margin-bottom: 0.75rem;">🏛️</div>
+            <h2 class="card-title" style="margin-bottom: 0.5rem;">Balance Sheet</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; flex: 1;">
+                Statement of Financial Position disclosing Total Assets, Liabilities, and Owner's Equity balanced under the fundamental accounting equation.
+            </p>
+            <div style="margin-top: 1.25rem;">
+                <a href="{{ url_for('balance_sheet') }}" class="btn btn-primary" style="width: 100%; background: #0f172a;">View Balance Sheet →</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

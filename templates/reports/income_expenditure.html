@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}Income & Expenditure Statement{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">📊 Statement of Income & Expenditure</h1>
+        <p class="page-description">Operating financial performance and profit/loss over the specified period.</p>
+    </div>
+    <div class="header-actions">
+        <button onclick="window.print()" class="btn btn-outline">🖨️ Print / Save PDF</button>
+        <a href="{{ url_for('reports_hub') }}" class="btn btn-secondary">← Reports Hub</a>
+    </div>
+</div>
+
+<!-- Date Filter -->
+<form method="GET" action="{{ url_for('income_expenditure') }}" class="filter-bar no-print">
+    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+        <label class="form-label" style="margin-bottom: 0;">Period From:</label>
+        <input type="date" name="from_date" class="form-control" value="{{ from_date }}" style="width: 170px;">
+        <label class="form-label" style="margin-bottom: 0;">To:</label>
+        <input type="date" name="to_date" class="form-control" value="{{ to_date }}" style="width: 170px;">
+        <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-header" style="text-align: center; display: block; border-bottom: 2px solid var(--primary);">
+        <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.35rem; color: var(--primary);">LEDGERPRO ENTERPRISE</h2>
+        <div style="font-size: 1.1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin: 0.25rem 0;">Income & Expenditure Statement</div>
+        <div style="font-size: 0.9rem; color: var(--text-secondary);">For the period from {{ from_date }} to {{ to_date }}</div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table report-table">
+            <thead>
+                <tr>
+                    <th>Particulars / Head of Account</th>
+                    <th class="num-col" style="width: 180px;">Amount (৳)</th>
+                    <th class="num-col" style="width: 200px;">Total (৳)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- 1. INCOME -->
+                <tr class="report-section-header">
+                    <td colspan="3">A. INCOME / REVENUE</td>
+                </tr>
+
+                <!-- Operating Revenue -->
+                {% if income_operating %}
+                    <tr>
+                        <td colspan="3" style="font-weight: 600; color: var(--text-secondary); padding-left: 1.5rem; background: #fafafa;">Operating Revenue</td>
+                    </tr>
+                    {% for item in income_operating %}
+                    <tr>
+                        <td class="indent-2">[{{ item.code }}] {{ item.name }}</td>
+                        <td class="num-col">৳{{ "{:,.2f}".format(item.amount) }}</td>
+                        <td class="num-col"></td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+
+                <!-- Other Income -->
+                {% if income_other %}
+                    <tr>
+                        <td colspan="3" style="font-weight: 600; color: var(--text-secondary); padding-left: 1.5rem; background: #fafafa;">Other Income</td>
+                    </tr>
+                    {% for item in income_other %}
+                    <tr>
+                        <td class="indent-2">[{{ item.code }}] {{ item.name }}</td>
+                        <td class="num-col">৳{{ "{:,.2f}".format(item.amount) }}</td>
+                        <td class="num-col"></td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+
+                {% if not income_operating and not income_other %}
+                    <tr>
+                        <td class="indent-1" style="color: var(--text-muted); font-style: italic;">No revenue recorded in this period</td>
+                        <td class="num-col">৳0.00</td>
+                        <td class="num-col"></td>
+                    </tr>
+                {% endif %}
+
+                <tr class="report-subtotal-row">
+                    <td><strong>TOTAL REVENUE / INCOME (A)</strong></td>
+                    <td class="num-col"></td>
+                    <td class="num-col" style="color: #059669; font-weight: 700;">৳{{ "{:,.2f}".format(total_income) }}</td>
+                </tr>
+
+                <!-- 2. EXPENDITURE -->
+                <tr class="report-section-header">
+                    <td colspan="3">B. EXPENDITURE / EXPENSES</td>
+                </tr>
+
+                <!-- Operating Expenses -->
+                {% if exp_operating %}
+                    <tr>
+                        <td colspan="3" style="font-weight: 600; color: var(--text-secondary); padding-left: 1.5rem; background: #fafafa;">Operating Expenses</td>
+                    </tr>
+                    {% for item in exp_operating %}
+                    <tr>
+                        <td class="indent-2">[{{ item.code }}] {{ item.name }}</td>
+                        <td class="num-col">৳{{ "{:,.2f}".format(item.amount) }}</td>
+                        <td class="num-col"></td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+
+                <!-- Administrative Expenses -->
+                {% if exp_admin %}
+                    <tr>
+                        <td colspan="3" style="font-weight: 600; color: var(--text-secondary); padding-left: 1.5rem; background: #fafafa;">Administrative & General Expenses</td>
+                    </tr>
+                    {% for item in exp_admin %}
+                    <tr>
+                        <td class="indent-2">[{{ item.code }}] {{ item.name }}</td>
+                        <td class="num-col">৳{{ "{:,.2f}".format(item.amount) }}</td>
+                        <td class="num-col"></td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+
+                <!-- Financial / Other Expenses -->
+                {% if exp_financial %}
+                    <tr>
+                        <td colspan="3" style="font-weight: 600; color: var(--text-secondary); padding-left: 1.5rem; background: #fafafa;">Financial & Other Expenses</td>
+                    </tr>
+                    {% for item in exp_financial %}
+                    <tr>
+                        <td class="indent-2">[{{ item.code }}] {{ item.name }}</td>
+                        <td class="num-col">৳{{ "{:,.2f}".format(item.amount) }}</td>
+                        <td class="num-col"></td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+
+                {% if not exp_operating and not exp_admin and not exp_financial %}
+                    <tr>
+                        <td class="indent-1" style="color: var(--text-muted); font-style: italic;">No expenses recorded in this period</td>
+                        <td class="num-col">৳0.00</td>
+                        <td class="num-col"></td>
+                    </tr>
+                {% endif %}
+
+                <tr class="report-subtotal-row">
+                    <td><strong>TOTAL EXPENDITURE (B)</strong></td>
+                    <td class="num-col"></td>
+                    <td class="num-col" style="color: #dc2626; font-weight: 700;">৳{{ "{:,.2f}".format(total_expenditure) }}</td>
+                </tr>
+
+                <!-- NET SURPLUS / DEFICIT -->
+                <tr class="report-total-row">
+                    <td>
+                        {% if net_surplus >= 0 %}
+                            <strong style="color: #059669;">NET SURPLUS (EXCESS OF INCOME OVER EXPENDITURE)</strong>
+                        {% else %}
+                            <strong style="color: #dc2626;">NET DEFICIT (EXCESS OF EXPENDITURE OVER INCOME)</strong>
+                        {% endif %}
+                    </td>
+                    <td class="num-col"></td>
+                    <td class="num-col {% if net_surplus >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 1.15rem;">
+                        <strong>৳{{ "{:,.2f}".format(net_surplus) }}</strong>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card-body" style="background-color: #f8fafc; border-top: 1px solid var(--border);">
+        <div style="font-size: 0.85rem; color: var(--text-secondary);">
+            <em>Accounting Note: Net Surplus of ৳{{ "{:,.2f}".format(net_surplus) }} is transferable to Owner's Equity in the Balance Sheet as Retained Earnings for the period.</em>
+        </div>
+    </div>
+</div>
+{% endblock %}

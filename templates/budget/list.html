@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Monthly Budget Registry - ZR-ERP{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+    <div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+            <span style="font-size: 1.5rem;">📋</span>
+            <h1 class="page-title" style="margin: 0; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em;">Monthly Budget Registry &amp; Archive</h1>
+        </div>
+        <p class="page-description" style="color: var(--text-muted); font-size: 0.88rem; margin: 0;">
+            Chronological audit archive of all approved, draft, and historical monthly budgets.
+        </p>
+    </div>
+
+    <div class="header-actions" style="display: flex; gap: 0.5rem; align-items: center;">
+        <a href="{{ url_for('issue_budget') }}" class="nav-cta-btn" style="padding: 0.55rem 1.1rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem;">
+            <span>+</span> Issue Monthly Budget
+        </a>
+        <a href="{{ url_for('budget_dashboard') }}" class="btn btn-secondary">
+            ← Active Cockpit
+        </a>
+    </div>
+</div>
+
+<div class="card" style="border-radius: 14px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.04);">
+    <div class="table-responsive">
+        <table class="table report-table" style="margin: 0;">
+            <thead>
+                <tr>
+                    <th style="width: 140px;">Month</th>
+                    <th>Budget Title</th>
+                    <th style="width: 110px;">Fiscal Period</th>
+                    <th class="num-col" style="width: 160px;">Approved Budget (৳)</th>
+                    <th class="num-col" style="width: 160px;">Actual Spent (৳)</th>
+                    <th class="num-col" style="width: 160px;">Net Variance (৳)</th>
+                    <th style="width: 180px; text-align: center;">Burn Rate</th>
+                    <th style="width: 100px; text-align: center;">Status</th>
+                    <th style="width: 180px; text-align: center;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if not budget_summaries %}
+                <tr>
+                    <td colspan="9" style="text-align: center; padding: 3rem; color: #64748b;">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📂</div>
+                        <div style="font-weight: 700; font-size: 1.1rem; color: #1e293b;">No Monthly Budgets Found</div>
+                        <div style="font-size: 0.85rem; margin-top: 0.25rem;">Start by issuing a budget for the current month.</div>
+                        <a href="{{ url_for('issue_budget') }}" class="btn btn-primary btn-sm" style="margin-top: 1rem;">
+                            + Issue First Budget
+                        </a>
+                    </td>
+                </tr>
+                {% endif %}
+
+                {% for s in budget_summaries %}
+                {% set b = s.budget %}
+                <tr>
+                    <td style="font-weight: 700; color: #0f172a;">
+                        <a href="{{ url_for('budget_dashboard', month=b.month_year) }}" style="text-decoration: none; color: #2563eb;">
+                            {{ b.month_display }}
+                        </a>
+                    </td>
+                    <td>
+                        <div style="font-weight: 600; color: #1e293b;">{{ b.title }}</div>
+                        <div style="font-size: 0.72rem; color: #64748b;">Issued by {{ b.issued_by }} on {{ b.created_at.strftime('%Y-%m-%d') if b.created_at else '' }}</div>
+                    </td>
+                    <td style="font-size: 0.82rem; color: #475569;">{{ b.fiscal_year or '2026-2027' }}</td>
+                    <td class="num-col" style="font-weight: 700;">৳{{ "{:,.2f}".format(b.total_budgeted) }}</td>
+                    <td class="num-col" style="font-weight: 700; color: {% if s.actual_spent > b.total_budgeted and b.total_budgeted > 0 %}#e11d48{% else %}#1e293b{% endif %};">
+                        ৳{{ "{:,.2f}".format(s.actual_spent) }}
+                    </td>
+                    <td class="num-col" style="font-weight: 700; color: {% if s.variance >= 0 %}#059669{% else %}#e11d48{% endif %};">
+                        {% if s.variance < 0 %}
+                            ({{ "{:,.2f}".format(s.variance|abs) }})
+                        {% else %}
+                            +{{ "{:,.2f}".format(s.variance) }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 0.4rem;">
+                            <div style="flex: 1; background: #e2e8f0; height: 6px; border-radius: 999px; overflow: hidden;">
+                                <div style="width: {{ [s.utilization, 100]|min }}%; height: 100%; border-radius: 999px; background: {% if s.utilization > 100 %}#e11d48{% elif s.utilization >= 85 %}#f59e0b{% else %}#10b981{% endif %};"></div>
+                            </div>
+                            <span style="font-size: 0.78rem; font-weight: 700; width: 45px; text-align: right; color: {% if s.utilization > 100 %}#e11d48{% elif s.utilization >= 85 %}#d97706{% else %}#059669{% endif %};">
+                                {{ "{:.1f}".format(s.utilization) }}%
+                            </span>
+                        </div>
+                    </td>
+                    <td style="text-align: center;">
+                        <span class="badge {% if b.status == 'Issued' %}badge-success{% elif b.status == 'Draft' %}badge-warning{% else %}badge-secondary{% endif %}" style="font-size: 0.72rem; padding: 0.2rem 0.5rem;">
+                            {{ b.status }}
+                        </span>
+                    </td>
+                    <td style="text-align: center;">
+                        <div style="display: flex; gap: 0.35rem; justify-content: center; align-items: center;">
+                            <a href="{{ url_for('budget_dashboard', month=b.month_year) }}" class="btn btn-primary btn-sm" style="font-size: 0.72rem; padding: 0.2rem 0.5rem;" title="Open Analysis Cockpit">
+                                🎯 Analyze
+                            </a>
+                            <a href="{{ url_for('edit_budget', budget_id=b.id) }}" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.2rem 0.45rem;" title="Edit Budget">
+                                ✏️
+                            </a>
+                            <a href="{{ url_for('budget_report', month=b.month_year) }}" class="btn btn-outline btn-sm" style="font-size: 0.72rem; padding: 0.2rem 0.45rem;" title="Print Report">
+                                🖨️
+                            </a>
+                            <form method="POST" action="{{ url_for('delete_budget', budget_id=b.id) }}" style="display: inline; margin: 0;" onsubmit="return confirm('Permanently delete the budget for {{ b.month_display }}?')">
+                                <button type="submit" class="btn btn-outline btn-sm" style="font-size: 0.72rem; padding: 0.2rem 0.45rem; color: #ef4444; border-color: rgba(239,68,68,0.3);" title="Delete Budget">
+                                    🗑️
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

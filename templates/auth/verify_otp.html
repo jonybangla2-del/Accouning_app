@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Two-Factor Authentication - ZR-ERP</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+            margin: 0;
+            padding: 1.5rem;
+            font-family: 'Inter', sans-serif;
+        }
+        .otp-card {
+            width: 100%;
+            max-width: 440px;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+        .otp-header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+            padding: 2.25rem 2rem;
+            text-align: center;
+            color: #ffffff;
+            position: relative;
+        }
+        .otp-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: rgba(255, 255, 255, 0.18);
+            padding: 0.35rem 0.85rem;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+        .otp-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.65rem;
+            font-weight: 800;
+            margin: 0;
+            letter-spacing: 0.02em;
+        }
+        .otp-sub {
+            font-size: 0.88rem;
+            opacity: 0.9;
+            margin-top: 0.4rem;
+        }
+        .otp-body {
+            padding: 2.25rem 2rem;
+        }
+        .email-pill {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1.75rem;
+            font-size: 0.88rem;
+            color: #1e40af;
+            font-weight: 600;
+        }
+        .otp-input-group {
+            display: flex;
+            justify-content: center;
+            gap: 0.65rem;
+            margin-bottom: 1.75rem;
+        }
+        .otp-box {
+            width: 52px;
+            height: 60px;
+            text-align: center;
+            font-size: 1.75rem;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            border: 2px solid #cbd5e1;
+            border-radius: 10px;
+            background: #f8fafc;
+            color: #0f172a;
+            transition: all 0.2s ease;
+        }
+        .otp-box:focus {
+            outline: none;
+            border-color: #2563eb;
+            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+        }
+        .otp-timer {
+            text-align: center;
+            font-size: 0.82rem;
+            color: #64748b;
+            margin-bottom: 1.5rem;
+        }
+        .otp-dev-badge {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            color: #92400e;
+            border-radius: 8px;
+            padding: 0.65rem 0.85rem;
+            font-size: 0.82rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        .btn-verify {
+            width: 100%;
+            padding: 0.85rem;
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+        .btn-verify:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+        .otp-footer {
+            margin-top: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+        }
+        .otp-footer a {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .otp-footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="otp-card">
+        <div class="otp-header">
+            <div class="otp-badge">
+                🛡️ TWO-FACTOR SECURITY
+            </div>
+            <h1 class="otp-title">ZR-ERP Authentication</h1>
+            <div class="otp-sub">Security Verification Required for Admin Login</div>
+        </div>
+
+        <div class="otp-body">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}" style="margin-bottom: 1.25rem; font-size: 0.85rem; padding: 0.75rem 1rem; border-radius: 8px;">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <div class="email-pill">
+                <span>📧</span>
+                <span>Code sent to: <strong>{{ target_email }}</strong></span>
+            </div>
+
+            {% if dev_otp %}
+            <div class="otp-dev-badge">
+                🔑 <strong>Development Verification Code:</strong>
+                <span style="font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 800; letter-spacing: 2px; margin-left: 0.35rem;">
+                    {{ dev_otp }}
+                </span>
+            </div>
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('verify_otp') }}" id="otpForm">
+                <input type="hidden" name="otp" id="finalOtp">
+
+                <div class="otp-input-group">
+                    <input type="text" class="otp-box" maxlength="1" pattern="[0-9]" inputmode="numeric" autofocus required>
+                    <input type="text" class="otp-box" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+                    <input type="text" class="otp-box" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+                    <input type="text" class="otp-box" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+                    <input type="text" class="otp-box" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+                    <input type="text" class="otp-box" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+                </div>
+
+                <div class="otp-timer">
+                    ⏳ Code expires in: <strong id="countdown">10:00</strong>
+                </div>
+
+                <button type="submit" class="btn-verify">
+                    ✓ Verify & Access ZR-ERP
+                </button>
+            </form>
+
+            <div class="otp-footer">
+                <a href="{{ url_for('resend_otp') }}">🔄 Resend Code</a>
+                <a href="{{ url_for('login') }}">← Back to Login</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auto-focus next input and gather 6 digits
+        const boxes = document.querySelectorAll('.otp-box');
+        const finalInput = document.getElementById('finalOtp');
+        const form = document.getElementById('otpForm');
+
+        boxes.forEach((box, index) => {
+            box.addEventListener('input', (e) => {
+                if (e.target.value.length === 1 && index < boxes.length - 1) {
+                    boxes[index + 1].focus();
+                }
+                updateFinalOtp();
+            });
+
+            box.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && !box.value && index > 0) {
+                    boxes[index - 1].focus();
+                }
+            });
+
+            box.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const pasteData = (e.clipboardData || window.clipboardData).getData('text').trim();
+                if (/^\d{6}$/.test(pasteData)) {
+                    pasteData.split('').forEach((char, i) => {
+                        if (boxes[i]) boxes[i].value = char;
+                    });
+                    updateFinalOtp();
+                    boxes[5].focus();
+                }
+            });
+        });
+
+        function updateFinalOtp() {
+            let code = '';
+            boxes.forEach(b => code += b.value);
+            finalInput.value = code;
+        }
+
+        form.addEventListener('submit', (e) => {
+            updateFinalOtp();
+            if (finalInput.value.length !== 6) {
+                e.preventDefault();
+                alert('Please enter all 6 digits of the verification code.');
+            }
+        });
+
+        // 10 minute countdown timer
+        let timeLeft = 600;
+        const countdownEl = document.getElementById('countdown');
+        const timer = setInterval(() => {
+            timeLeft--;
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                countdownEl.textContent = 'Expired';
+                countdownEl.style.color = '#dc2626';
+            } else {
+                const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+                const s = (timeLeft % 60).toString().padStart(2, '0');
+                countdownEl.textContent = `${m}:${s}`;
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

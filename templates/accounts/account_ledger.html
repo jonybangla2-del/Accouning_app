@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}Ledger Statement: [{{ account.code }}] {{ account.name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.ledger-header-card {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    color: #ffffff;
+    border-radius: var(--radius-lg);
+    padding: 1.5rem 1.75rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+}
+
+.ledger-acc-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0 0 0.4rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.ledger-acc-code {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.ledger-acc-meta {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    font-size: 0.85rem;
+    color: #cbd5e1;
+    flex-wrap: wrap;
+}
+
+.ledger-filter-card {
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.ledger-table th {
+    background: #f1f5f9;
+    color: #334155;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.row-opening-bf {
+    background: #fefce8 !important;
+    font-weight: 600;
+}
+
+.row-total-cf {
+    background: #f8fafc !important;
+    font-weight: 700;
+    font-size: 0.95rem;
+    border-top: 2px solid #0f172a !important;
+    border-bottom: 2px solid #0f172a !important;
+}
+
+@media print {
+    .no-print { display: none !important; }
+    .card { box-shadow: none !important; border: 1px solid #ccc !important; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 1300px; margin: 0 auto;">
+    <!-- Account Overview Card -->
+    <div class="ledger-header-card">
+        <div>
+            <div style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; margin-bottom: 0.25rem;">
+                GENERAL LEDGER STATEMENT
+            </div>
+            <h1 class="ledger-acc-title">
+                <span class="ledger-acc-code">{{ account.code }}</span>
+                <span>{{ account.name }}</span>
+            </h1>
+            <div class="ledger-acc-meta">
+                <span class="badge badge-{{ account.type|lower }}">{{ account.type }}</span>
+                <span>•</span>
+                <span>{{ account.category }}</span>
+                {% if account.is_cash_or_bank %}
+                    <span>•</span>
+                    <span class="badge" style="background: #065f46; color: #a7f3d0;">💵 Cash / Bank Account</span>
+                {% endif %}
+                {% if account.parent_id %}
+                    <span>•</span>
+                    <span>Subledger of: <strong>{{ account.parent.name }}</strong></span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div style="text-align: right;">
+            <div style="font-size: 0.8rem; text-transform: uppercase; color: #94a3b8;">Closing Ledger Balance</div>
+            <div style="font-size: 1.85rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: #38bdf8;">
+                ৳{{ "{:,.2f}".format(closing_balance) }}
+            </div>
+            <div style="font-size: 0.75rem; color: #94a3b8;">As of {{ to_date }}</div>
+        </div>
+    </div>
+
+    <!-- Quick Actions & Account Switcher -->
+    <div class="ledger-filter-card no-print">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <!-- Date Filter Form -->
+            <form method="GET" action="{{ url_for('account_ledger', account_id=account.id) }}" style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 0.35rem;">
+                    <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">From:</label>
+                    <input type="date" name="from_date" value="{{ from_date }}" class="form-control" style="padding: 0.35rem 0.5rem; font-size: 0.85rem;">
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 0.35rem;">
+                    <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">To:</label>
+                    <input type="date" name="to_date" value="{{ to_date }}" class="form-control" style="padding: 0.35rem 0.5rem; font-size: 0.85rem;">
+                </div>
+
+                <button type="submit" class="btn btn-outline btn-sm">Filter Range</button>
+                <a href="{{ url_for('account_ledger', account_id=account.id, from_date='2026-01-01', to_date='2026-12-31') }}" class="btn btn-outline btn-sm">Full Year 2026</a>
+            </form>
+
+            <!-- Quick Account Switcher Dropdown -->
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Switch Ledger:</label>
+                <select onchange="if(this.value) window.location.href=this.value;" class="form-control" style="width: 240px; padding: 0.35rem 0.5rem; font-size: 0.85rem;">
+                    {% for a in all_accounts %}
+                    <option value="{{ url_for('account_ledger', account_id=a.id, from_date=from_date, to_date=to_date) }}" {% if a.id == account.id %}selected{% endif %}>
+                        [{{ a.code }}] {{ a.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Export Buttons -->
+            <div style="display: flex; gap: 0.5rem;">
+                <a href="{{ url_for('export_account_ledger_excel', account_id=account.id, from_date=from_date, to_date=to_date) }}" class="btn btn-success btn-sm" title="Export Statement to Excel">
+                    📥 Export Excel
+                </a>
+                <button onclick="window.print()" class="btn btn-outline btn-sm">🖨️ Print</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Period Movement KPIs -->
+    <div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 1.5rem;">
+        <div class="metric-card" style="border-left: 3px solid #64748b;">
+            <div class="metric-label">Opening Balance B/F</div>
+            <div class="metric-value">৳{{ "{:,.2f}".format(opening_balance) }}</div>
+            <div class="metric-sub">Before {{ from_date }}</div>
+        </div>
+
+        <div class="metric-card" style="border-left: 3px solid #2563eb;">
+            <div class="metric-label">Total Period Debits (Dr)</div>
+            <div class="metric-value" style="color: #2563eb;">৳{{ "{:,.2f}".format(total_debit) }}</div>
+            <div class="metric-sub">{{ ledger_entries|length }} Transaction Line(s)</div>
+        </div>
+
+        <div class="metric-card" style="border-left: 3px solid #059669;">
+            <div class="metric-label">Total Period Credits (Cr)</div>
+            <div class="metric-value" style="color: #059669;">৳{{ "{:,.2f}".format(total_credit) }}</div>
+            <div class="metric-sub">Outflows / Reductions</div>
+        </div>
+
+        <div class="metric-card" style="border-left: 3px solid #0284c7;">
+            <div class="metric-label">Net Movement</div>
+            <div class="metric-value">৳{{ "{:,.2f}".format(net_movement) }}</div>
+            <div class="metric-sub">Net Period Activity</div>
+        </div>
+    </div>
+
+    <!-- Ledger Transaction Table -->
+    <div class="card">
+        <div class="card-header" style="background: #f8fafc; border-bottom: 1px solid var(--border);">
+            <h2 class="card-title" style="font-size: 1rem;">
+                Transaction Journal Lines ({{ ledger_entries|length }} Records)
+            </h2>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+                Period: <strong>{{ from_date }}</strong> to <strong>{{ to_date }}</strong>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table ledger-table">
+                <thead>
+                    <tr>
+                        <th style="width: 105px; text-align: center;">Date</th>
+                        <th style="width: 120px; text-align: center;">Voucher No.</th>
+                        <th style="width: 95px; text-align: center;">Type</th>
+                        <th style="width: 90px;">Ref</th>
+                        <th>Particulars & Narration</th>
+                        <th class="num-col" style="width: 130px;">Debit (৳)</th>
+                        <th class="num-col" style="width: 130px;">Credit (৳)</th>
+                        <th class="num-col" style="width: 140px;">Balance (৳)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Opening Balance Row -->
+                    <tr class="row-opening-bf">
+                        <td style="text-align: center;">{{ from_date }}</td>
+                        <td style="text-align: center; color: var(--text-muted); font-size: 0.8rem;">—</td>
+                        <td style="text-align: center;"><span class="badge" style="background: #e2e8f0; color: #475569;">B/F</span></td>
+                        <td>—</td>
+                        <td><strong>OPENING BALANCE BROUGHT FORWARD</strong></td>
+                        <td class="num-col">—</td>
+                        <td class="num-col">—</td>
+                        <td class="num-col" style="font-weight: 700;">৳{{ "{:,.2f}".format(opening_balance) }}</td>
+                    </tr>
+
+                    <!-- Individual Transaction Lines -->
+                    {% for item in ledger_entries %}
+                    <tr>
+                        <td style="text-align: center; font-size: 0.85rem;">
+                            {{ item.date.strftime('%d-%b-%Y') }}
+                        </td>
+                        <td style="text-align: center;">
+                            <a href="{{ url_for('view_voucher', voucher_id=item.voucher_id) }}" 
+                               target="_blank" 
+                               style="font-family: 'JetBrains Mono', monospace; font-weight: 600; text-decoration: none; color: var(--accent);"
+                               title="View Voucher in New Window">
+                                {{ item.voucher_no }}
+                            </a>
+                        </td>
+                        <td style="text-align: center;">
+                            <span class="badge badge-{{ item.voucher_type|lower }}">{{ item.voucher_type }}</span>
+                        </td>
+                        <td style="font-size: 0.85rem; color: var(--text-muted);">
+                            {{ item.reference or '—' }}
+                        </td>
+                        <td>
+                            <div>{{ item.particulars }}</div>
+                            {% if item.narration and item.narration != item.particulars %}
+                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.15rem;">{{ item.narration }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="num-col" style="font-weight: 600; color: #2563eb;">
+                            {% if item.debit > 0 %}
+                                ৳{{ "{:,.2f}".format(item.debit) }}
+                            {% else %}
+                                <span style="color: #cbd5e1;">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="num-col" style="font-weight: 600; color: #059669;">
+                            {% if item.credit > 0 %}
+                                ৳{{ "{:,.2f}".format(item.credit) }}
+                            {% else %}
+                                <span style="color: #cbd5e1;">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="num-col" style="font-weight: 700; color: #0f172a;">
+                            ৳{{ "{:,.2f}".format(item.running_balance) }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                            No transactions recorded for this account during the selected period.
+                        </td>
+                    </tr>
+                    {% endfor %}
+
+                    <!-- Total Period Movements & Closing Row -->
+                    <tr class="row-total-cf">
+                        <td colspan="5" style="text-align: right; padding-right: 1.5rem;">
+                            TOTAL PERIOD MOVEMENTS & CLOSING BALANCE (C/F):
+                        </td>
+                        <td class="num-col" style="color: #2563eb;">
+                            ৳{{ "{:,.2f}".format(total_debit) }}
+                        </td>
+                        <td class="num-col" style="color: #059669;">
+                            ৳{{ "{:,.2f}".format(total_credit) }}
+                        </td>
+                        <td class="num-col" style="color: #0f172a; font-size: 1.05rem;">
+                            ৳{{ "{:,.2f}".format(closing_balance) }}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

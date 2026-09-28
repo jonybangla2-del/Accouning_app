@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}User Management & Roles{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">⚙️ User Management & Access Control</h1>
+        <p class="page-description">Configure Administrator and General User accounts for multi-user accounting operations.</p>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; align-items: flex-start;">
+    <!-- Users List Table -->
+    <div class="card" style="margin-bottom: 0;">
+        <div class="card-header">
+            <h2 class="card-title">👥 Active System Users</h2>
+            <span class="badge" style="background-color: #dbeafe; color: #1e40af;">{{ users|length }} Users Registered</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Full Name</th>
+                        <th>Role</th>
+                        <th>Created Date</th>
+                        <th style="width: 80px; text-align: center;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr>
+                        <td>
+                            <strong style="font-family: 'JetBrains Mono', monospace; color: var(--primary);">{{ u.username }}</strong>
+                            {% if current_user and current_user.id == u.id %}
+                                <span class="badge" style="background-color: #f1f5f9; color: var(--text-secondary); margin-left: 0.25rem;">You</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ u.full_name }}</td>
+                        <td>
+                            {% if u.role == 'Admin' %}
+                                <span class="badge" style="background-color: #fee2e2; color: #b91c1c;">🛡️ Administrator</span>
+                            {% else %}
+                                <span class="badge" style="background-color: #e0e7ff; color: #4338ca;">👤 General User</span>
+                            {% endif %}
+                        </td>
+                        <td style="color: var(--text-secondary); font-size: 0.85rem;">{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}</td>
+                        <td style="text-align: center;">
+                            {% if current_user and current_user.id != u.id %}
+                                <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}" onsubmit="return confirm('Delete user {{ u.username }}?');" style="display: inline;">
+                                    <button type="submit" class="btn btn-outline btn-sm" style="color: var(--danger); border-color: var(--border);" title="Delete User">
+                                        🗑
+                                    </button>
+                                </form>
+                            {% else %}
+                                <span style="color: var(--text-muted); font-size: 0.8rem;">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Create User Form Card -->
+    <div class="card" style="margin-bottom: 0;">
+        <div class="card-header">
+            <h2 class="card-title">➕ Add New User</h2>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('create_user') }}">
+                <div class="form-group">
+                    <label class="form-label" for="username">Username *</label>
+                    <input type="text" id="username" name="username" class="form-control" required placeholder="e.g. jdoe">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="full_name">Full Name *</label>
+                    <input type="text" id="full_name" name="full_name" class="form-control" required placeholder="e.g. John Doe">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="role">User Role *</label>
+                    <select id="role" name="role" class="form-select" required>
+                        <option value="General User" selected>General User (Standard Accounting)</option>
+                        <option value="Admin">Administrator (Full Access & Settings)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password">Initial Password *</label>
+                    <input type="password" id="password" name="password" class="form-control" required placeholder="••••••••">
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
+                    ✓ Create User
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

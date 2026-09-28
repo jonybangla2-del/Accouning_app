@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Unlock Company Profile - {{ company.name }} - ZR-ERP{% endblock %}
+
+{% block content %}
+<div style="max-width: 500px; margin: 3rem auto;">
+    <div class="card" style="box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-top: 4px solid #ef4444;">
+        <div class="card-header" style="text-align: center; display: block; padding-bottom: 0.5rem;">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔒</div>
+            <h2 class="card-title" style="font-size: 1.35rem; justify-content: center;">
+                Password Protected Company Profile
+            </h2>
+            <p style="font-size: 0.88rem; color: var(--text-secondary); margin-top: 0.35rem;">
+                This company profile is locked by Administrator security.
+            </p>
+        </div>
+
+        <div class="card-body">
+            <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem 1.25rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem;">
+                    <span style="color: var(--text-secondary); font-size: 0.85rem;">Company Name:</span>
+                    <strong style="color: var(--text-primary);">{{ company.name }}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem;">
+                    <span style="color: var(--text-secondary); font-size: 0.85rem;">Company Code:</span>
+                    <span class="badge" style="background-color: #dbeafe; color: #1e40af; font-family: 'JetBrains Mono', monospace;">{{ company.code }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-secondary); font-size: 0.85rem;">Security Status:</span>
+                    <span style="color: #dc2626; font-weight: 700; font-size: 0.85rem;">🔒 Locked (Password Required)</span>
+                </div>
+            </div>
+
+            <form method="POST" action="{{ url_for('unlock_company', cid=company.id) }}">
+                <div class="form-group">
+                    <label class="form-label" for="company_password">Enter Profile Unlock Password *</label>
+                    <input type="password" id="company_password" name="company_password" class="form-control" placeholder="Enter password to access this profile" required autofocus style="font-size: 1rem; padding: 0.75rem;">
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.75rem;">
+                    <a href="{{ url_for('configuration_hub') }}" class="btn btn-outline">
+                        ← Cancel
+                    </a>
+                    <button type="submit" class="btn btn-primary" style="background: #ef4444; border-color: #ef4444;">
+                        🔓 Unlock & Access Profile
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

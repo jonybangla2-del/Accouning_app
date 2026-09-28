@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Add New Ledger Account{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">➕ Add New Ledger Account</h1>
+        <p class="page-description">Create an account under the Chart of Accounts for double-entry bookkeeping.</p>
+    </div>
+    <div class="header-actions">
+        <a href="{{ url_for('chart_of_accounts') }}" class="btn btn-outline">← Back to COA</a>
+    </div>
+</div>
+
+<div class="card" style="max-width: 650px; margin: 0 auto;">
+    <div class="card-header">
+        <h2 class="card-title">Account Specifications</h2>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('add_account') }}">
+            <div class="form-row">
+                <div class="form-col" style="max-width: 180px;">
+                    <label class="form-label" for="code">Account Code *</label>
+                    <input type="text" id="code" name="code" class="form-control" placeholder="e.g. 1050, 5070" required style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">
+                    <small style="color: var(--text-muted); font-size: 0.75rem;">1xxx: Asset, 2xxx: Liab, 3xxx: Eq, 4xxx: Rev, 5xxx: Exp</small>
+                </div>
+
+                <div class="form-col">
+                    <label class="form-label" for="name">Account Name *</label>
+                    <input type="text" id="name" name="name" class="form-control" placeholder="e.g. Marketing & Advertising" required>
+                </div>
+            </div>
+
+            <div class="form-row" style="margin-top: 1.25rem;">
+                <div class="form-col">
+                    <label class="form-label" for="type">Account Type *</label>
+                    <select id="type" name="type" class="form-select" required onchange="updateCategories(this.value)">
+                        <option value="Asset">Asset</option>
+                        <option value="Liability">Liability</option>
+                        <option value="Equity">Equity</option>
+                        <option value="Revenue">Revenue</option>
+                        <option value="Expense" selected>Expense</option>
+                        <option value="Contra">Contra</option>
+                    </select>
+                </div>
+
+                <div class="form-col">
+                    <label class="form-label" for="category">Sub-Classification *</label>
+                    <select id="category" name="category" class="form-select" required>
+                        <option value="Administrative Expense" selected>Administrative Expense</option>
+                        <option value="Operating Expense">Operating Expense</option>
+                        <option value="Financial Expense">Financial Expense</option>
+                        <option value="Current Asset">Current Asset</option>
+                        <option value="Non-Current Asset">Non-Current Asset</option>
+                        <option value="Current Liability">Current Liability</option>
+                        <option value="Non-Current Liability">Non-Current Liability</option>
+                        <option value="Equity">Equity</option>
+                        <option value="Operating Revenue">Operating Revenue</option>
+                        <option value="Other Income">Other Income</option>
+                        <option value="Contra Account">Contra Account</option>
+                        <option value="Bank & Cash Contra">Bank & Cash Contra</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Subledger Option -->
+            <div class="form-group" style="margin-top: 1.25rem;">
+                <label class="form-label" for="parent_id">Parent Ledger (Subledger Assignment - Optional)</label>
+                <select id="parent_id" name="parent_id" class="form-select">
+                    <option value="" selected>-- None (This is a Primary / Main Ledger) --</option>
+                    {% for p in candidate_parents %}
+                        <option value="{{ p.id }}">[{{ p.code }}] {{ p.name }} ({{ p.type }})</option>
+                    {% endfor %}
+                </select>
+                <small style="color: var(--text-muted); font-size: 0.75rem;">If selected, this account will be nested as a Subledger under the chosen parent ledger.</small>
+            </div>
+
+            <div class="form-row" style="margin-top: 1.25rem;">
+                <div class="form-col">
+                    <label class="form-label" for="opening_balance">Opening Balance (৳)</label>
+                    <input type="number" step="0.01" id="opening_balance" name="opening_balance" class="form-control num-input" value="0.00">
+                </div>
+
+                <div class="form-col" style="display: flex; align-items: flex-end; padding-bottom: 0.5rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem; font-weight: 500;">
+                        <input type="checkbox" name="is_cash_or_bank" value="1" style="width: 18px; height: 18px;">
+                        <span>This is a Cash or Bank account (Liquid Fund)</span>
+                    </label>
+                </div>
+            </div>
+
+            <div style="margin-top: 2rem; display: flex; justify-content: flex-end; gap: 1rem;">
+                <a href="{{ url_for('chart_of_accounts') }}" class="btn btn-outline">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save Account</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

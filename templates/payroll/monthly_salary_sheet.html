@@ -1,0 +1,1908 @@
+{% extends "base.html" %}
+
+{% block title %}{{ sheet.title }} - ZR-ERP{% endblock %}
+
+{% block content %}
+<style>
+/* Wide Screen Support */
+body.wide-screen-mode .container,
+.container.wide-mode {
+    max-width: 99vw !important;
+    width: 98% !important;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    transition: all 0.2s ease-in-out;
+}
+
+/* Responsive and Sticky Table Styling */
+.table-responsive {
+    position: relative;
+    overflow-x: auto;
+    max-height: 78vh;
+}
+th.col-actions-sticky {
+    position: sticky !important;
+    right: 0 !important;
+    background-color: #f8fafc !important;
+    z-index: 6 !important;
+    box-shadow: -5px 0 10px rgba(0, 0, 0, 0.05);
+}
+td.col-actions-sticky {
+    position: sticky !important;
+    right: 0 !important;
+    background-color: #ffffff !important;
+    z-index: 5 !important;
+    box-shadow: -5px 0 10px rgba(0, 0, 0, 0.05);
+}
+tr:hover td.col-actions-sticky {
+    background-color: #f1f5f9 !important;
+}
+
+/* Sticky Left Columns for Wide Screen Viewing */
+th.col-sticky-id, td.col-sticky-id {
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 6 !important;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.04);
+}
+th.col-sticky-status, td.col-sticky-status {
+    position: sticky !important;
+    left: 45px !important;
+    z-index: 6 !important;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.04);
+}
+th.col-sticky-name, td.col-sticky-name {
+    position: sticky !important;
+    left: 140px !important;
+    z-index: 6 !important;
+    box-shadow: 4px 0 8px rgba(0, 0, 0, 0.06);
+}
+th.col-sticky-id, th.col-sticky-status, th.col-sticky-name {
+    background-color: #f8fafc !important;
+    z-index: 7 !important;
+}
+td.col-sticky-id, td.col-sticky-status, td.col-sticky-name {
+    background-color: #ffffff !important;
+}
+tr:hover td.col-sticky-id, tr:hover td.col-sticky-status, tr:hover td.col-sticky-name {
+    background-color: #f8fafc !important;
+}
+.dept-header-row td.col-sticky-id,
+.dept-header-row td.col-sticky-status,
+.dept-header-row td.col-sticky-name {
+    background-color: #e2e8f0 !important;
+}
+.dept-subtotal-row td.col-sticky-id,
+.dept-subtotal-row td.col-sticky-status,
+.dept-subtotal-row td.col-sticky-name {
+    background-color: #f1f5f9 !important;
+}
+
+.salary-row:hover {
+    background-color: #f8fafc;
+}
+.dept-header-row td {
+    background-color: #e2e8f0 !important;
+    font-weight: 800;
+    font-size: 0.88rem;
+    color: #0f172a;
+    padding: 0.5rem 0.75rem;
+    border-top: 2px solid #cbd5e1;
+    border-bottom: 2px solid #cbd5e1;
+}
+.dept-subtotal-row td {
+    background-color: #f1f5f9 !important;
+    font-weight: 700;
+    font-size: 0.82rem;
+    border-top: 1px solid #cbd5e1;
+    border-bottom: 2px solid #94a3b8;
+}
+.tab-btn {
+    border: none;
+    background: none;
+    padding: 0.6rem 1.1rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.tab-btn.active {
+    color: #2563eb;
+    border-bottom-color: #2563eb;
+    background: #f0f7ff;
+}
+.num-col {
+    text-align: right;
+    font-family: monospace;
+}
+.edit-input {
+    width: 75px;
+    font-size: 0.75rem;
+    padding: 0.15rem 0.25rem;
+    text-align: right;
+}
+
+/* Toast Alert Style */
+.status-toast {
+    position: fixed;
+    bottom: 25px;
+    right: 25px;
+    background: #0f172a;
+    color: #ffffff;
+    padding: 0.85rem 1.35rem;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    animation: slideUp 0.3s ease-out;
+}
+@keyframes slideUp {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+</style>
+
+<!-- ========================================================================
+     PAGE HEADER & ACTIONS
+     ======================================================================== -->
+<div class="page-header no-print" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+    <div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+            <a href="{{ url_for('monthly_salary_sheets') }}" class="btn btn-outline btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                &larr; All Sheets
+            </a>
+            <h1 class="page-title" style="margin: 0; font-size: 1.55rem; font-weight: 800; letter-spacing: -0.02em;">
+                {{ sheet.title }}
+            </h1>
+            <span class="badge" style="{% if sheet.status == 'Disbursed' %}background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0;{% elif sheet.status == 'Finalized' %}background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe;{% else %}background: #fffbeb; color: #92400e; border: 1px solid #fde68a;{% endif %} font-size: 0.74rem; font-weight: 700; padding: 0.2rem 0.6rem;">
+                {% if sheet.status == 'Disbursed' %}✓ Disbursed to Bank{% elif sheet.status == 'Finalized' %}🔒 Finalized{% else %}✏️ Draft Worksheet{% endif %}
+            </span>
+        </div>
+        <p class="page-description" style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">
+            Running Staff: <strong id="headerRunningCount" style="color: #059669;">{{ running_count }}</strong> &bull; 
+            Inactive Staff: <strong id="headerInactiveCount" style="color: #dc2626;">{{ inactive_count }}</strong> &bull; 
+            Month: <strong>{{ sheet.salary_month }}</strong> &bull; Working Days: <strong>{{ sheet.working_days }}</strong> &bull; 
+            Disbursal Channels: <strong><span id="headerEftCount">{{ sheet.total_eft_count }}</span> EFT (Premier Bank)</strong>, <strong><span id="headerBeftnCount">{{ sheet.total_beftn_count }}</span> BEFTN (Other Banks)</strong>, <strong><span id="headerCashCount">{{ sheet.total_cash_count }}</span> Cash</strong>
+        </p>
+    </div>
+
+    <!-- Header Action Buttons -->
+    <div class="header-actions" style="display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: center;">
+        <button type="button" class="btn btn-outline" id="btnToggleWideScreen" onclick="toggleWideScreen()" style="font-size: 0.82rem; font-weight: 700; color: #4338ca; border-color: #818cf8; background: #eef2ff;" title="Toggle between Wide Screen (98% width) and Standard container view">
+            🖥️ Wide Screen: <span id="wideScreenStatusLabel">ON</span>
+        </button>
+
+        <button type="button" class="btn btn-outline" id="btnToggleSpreadsheet" onclick="toggleSpreadsheetMode()" style="font-size: 0.82rem; font-weight: 700; color: #0284c7; border-color: #38bdf8; background: #f0f9ff;">
+            ⚡ Inline Spreadsheet Mode
+        </button>
+
+        <a href="{{ url_for('export_master_salary_sheet_excel', sheet_id=sheet.id) }}" class="btn btn-success" style="font-size: 0.82rem; font-weight: 700;">
+            📊 Export Master Excel (32 Cols)
+        </a>
+
+        <a href="{{ url_for('export_part_time_excel', sheet_id=sheet.id) }}" class="btn btn-warning" style="font-size: 0.82rem; font-weight: 700; color: #fff; background: #ea580c; border-color: #ea580c;" title="Download News Presenter & Customer Care Per-Duty Excel Sheets matching reference images">
+            📑 Export Part-Time Duty Excel
+        </a>
+
+        <button onclick="window.print()" class="btn btn-outline" style="font-size: 0.82rem;">
+            🖨️ Print Sheet
+        </button>
+
+        {% if sheet.status != 'Disbursed' %}
+        <button type="button" class="btn btn-primary" onclick="openModal('disburseGlModal')" style="font-size: 0.82rem; font-weight: 700; background: #059669; border-color: #059669; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);">
+            💳 Disburse &amp; Post Payment Voucher →
+        </button>
+        {% else %}
+        <span class="badge" style="background: #dcfce7; color: #166534; font-size: 0.82rem; padding: 0.45rem 0.75rem; border: 1px solid #86efac; font-weight: 700;">
+            ✓ Disbursed (PV Linked)
+        </span>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ========================================================================
+     EXECUTIVE SUMMARY METRICS COCKPIT
+     ======================================================================== -->
+<div class="metrics-grid no-print" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 1.5rem;">
+    <!-- 1. Total Gross Salary -->
+    <div class="metric-card" style="border-top: 4px solid #3b82f6; background: #f8fafc;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #1e40af;">Total Gross Salary</span>
+            <div class="metric-icon-box" style="background: #e0f2fe; color: #0284c7;">💼</div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency">৳</span>
+            <span id="metricGrossSalary" style="color: #0f172a;">{{ "{:,.0f}".format(sheet.total_gross) }}</span>
+        </div>
+        <div class="metric-sub">
+            <span style="color: var(--text-muted); font-size: 0.74rem;">Running Staff Basic + Allowances</span>
+        </div>
+    </div>
+
+    <!-- 2. Total PF (Employer + Employee) -->
+    <div class="metric-card" style="border-top: 4px solid #8b5cf6; background: #faf5ff;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #6b21a8;">Total Provident Fund</span>
+            <div class="metric-icon-box" style="background: #f3e8ff; color: #8b5cf6;">💰</div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency">৳</span>
+            <span id="metricTotalPf" style="color: #581c87;">{{ "{:,.0f}".format(sheet.total_pf) }}</span>
+        </div>
+        <div class="metric-sub">
+            <span style="color: var(--text-muted); font-size: 0.74rem;">Emp (৳{{ "{:,.0f}".format(sheet.total_pf_employee) }}) + Comp (৳{{ "{:,.0f}".format(sheet.total_pf_employer) }})</span>
+        </div>
+    </div>
+
+    <!-- 3. Additional Allowances -->
+    <div class="metric-card" style="border-top: 4px solid #06b6d4; background: #ecfeff;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #0e7490;">Additional Allowances</span>
+            <div class="metric-icon-box" style="background: #cffafe; color: #0891b2;">🎁</div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency">৳</span>
+            <span style="color: #155e75;">{{ "{:,.0f}".format(sheet.total_loyalty_allowance + sheet.total_holiday_allowance + sheet.total_eid_bonus + sheet.total_other_allowance) }}</span>
+        </div>
+        <div class="metric-sub">
+            <span style="color: var(--text-muted); font-size: 0.74rem;">Loyalty (৳{{ "{:,.0f}".format(sheet.total_loyalty_allowance) }}) + Duty/Bonus</span>
+        </div>
+    </div>
+
+    <!-- 4. Total Net Disbursable (Grand Total) -->
+    <div class="metric-card" style="border-top: 4px solid #10b981; background: #f0fdf4;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #065f46;">Net Disbursable (Take-Home)</span>
+            <div class="metric-icon-box" style="background: #dcfce7; color: #10b981;">💵</div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency" style="color: #10b981;">৳</span>
+            <span id="metricNetDisbursable" style="color: #047857; font-weight: 800;">{{ "{:,.2f}".format(sheet.total_net_after_tds) }}</span>
+        </div>
+        <div class="metric-sub">
+            <span class="metric-pill" style="background: #dcfce7; color: #047857;">Running Disbursal</span>
+            <span style="color: var(--text-muted); font-size: 0.74rem;">TDS: ৳{{ "{:,.0f}".format(sheet.total_tds) }}</span>
+        </div>
+    </div>
+
+    <!-- 5. Premier Bank EFT Channel -->
+    <div class="metric-card" style="border-top: 4px solid #2563eb; background: #eff6ff;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #1e40af;">Premier Bank (EFT)</span>
+            <div class="metric-icon-box" style="background: #dbeafe; color: #2563eb;">🏦</div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency">৳</span>
+            <span id="metricEftAmount" style="color: #1e3a8a;">{{ "{:,.2f}".format(sheet.total_eft_amount) }}</span>
+        </div>
+        <div class="metric-sub">
+            <span class="metric-pill" style="background: #dbeafe; color: #1e40af;"><span id="metricEftCount">{{ sheet.total_eft_count }}</span> Accounts</span>
+            <span style="color: var(--text-muted); font-size: 0.74rem;">Internal transfer</span>
+        </div>
+    </div>
+
+    <!-- 6. Other Banks BEFTN Channel -->
+    <div class="metric-card" style="border-top: 4px solid #f97316; background: #fff7ed;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #9a3412;">Other Banks (BEFTN)</span>
+            <div class="metric-icon-box" style="background: #ffedd5; color: #f97316;">🏛️</div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency">৳</span>
+            <span id="metricBeftnAmount" style="color: #c2410c;">{{ "{:,.2f}".format(sheet.total_beftn_amount) }}</span>
+        </div>
+        <div class="metric-sub">
+            <span class="metric-pill" style="background: #ffedd5; color: #9a3412;"><span id="metricBeftnCount">{{ sheet.total_beftn_count }}</span> Accounts</span>
+            <span style="color: var(--text-muted); font-size: 0.74rem;">Clearing transfer</span>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================
+     NAVIGATION TABS (MASTER, PREMIER EFT, OTHER BEFTN, CASH, INACTIVE)
+     ======================================================================== -->
+<div class="card no-print" style="margin-bottom: 1.25rem; padding: 0.35rem 0.5rem; background: #f8fafc; border-bottom: 2px solid var(--border-color);">
+    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <button type="button" class="tab-btn active" id="tabBtnMaster" onclick="switchSalaryTab('master')">
+            <span>📋</span> Master Salary Sheet (Running &bull; <span id="runningBadgeCount">{{ running_count }}</span> Staff)
+        </button>
+        <button type="button" class="tab-btn" id="tabBtnNews" onclick="switchSalaryTab('news')" style="border-bottom: 2px solid transparent;">
+            <span>🎙️</span> News Presenters (Per-Duty &bull; <span id="newsTabCount">{{ news_presenter_items|length }}</span>)
+        </button>
+        <button type="button" class="tab-btn" id="tabBtnCustomerCare" onclick="switchSalaryTab('customercare')" style="border-bottom: 2px solid transparent;">
+            <span>🎧</span> Customer Care Agents (Per-Duty &bull; <span id="ccTabCount">{{ customer_care_items|length }}</span>)
+        </button>
+        <button type="button" class="tab-btn" id="tabBtnEft" onclick="switchSalaryTab('eft')">
+            <span>🏦</span> The Premier Bank PLC (EFT &bull; <span id="tabEftCount">{{ sheet.total_eft_count }}</span>)
+        </button>
+        <button type="button" class="tab-btn" id="tabBtnBeftn" onclick="switchSalaryTab('beftn')">
+            <span>🏛️</span> Other Banks (BEFTN &bull; <span id="tabBeftnCount">{{ sheet.total_beftn_count }}</span>)
+        </button>
+        <button type="button" class="tab-btn" id="tabBtnCash" onclick="switchSalaryTab('cash')">
+            <span>💵</span> Cash Disbursement (<span id="tabCashCount">{{ sheet.total_cash_count }}</span>)
+        </button>
+        <button type="button" class="tab-btn" id="tabBtnInactive" onclick="switchSalaryTab('inactive')" style="color: #dc2626; margin-left: auto;">
+            <span>🚫</span> Inactive Employees (<span id="inactiveBadgeCount">{{ inactive_count }}</span>)
+        </button>
+    </div>
+</div>
+
+<!-- Active Inline Spreadsheet Bar -->
+<div id="spreadsheetActiveBar" style="display: none; background: linear-gradient(135deg, #1e3a8a, #2563eb); color: white; padding: 0.8rem 1.25rem; border-radius: 8px; margin-bottom: 1rem; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem; box-shadow: 0 4px 12px rgba(37,99,235,0.25);">
+    <div style="font-size: 0.84rem;">
+        <strong>✏️ Inline Spreadsheet Edit Mode Active:</strong> Edit working days, absenteeism, late deductions, bonuses, arrears, or TDS directly below.
+    </div>
+    <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <button type="button" class="btn btn-sm" onclick="toggleSpreadsheetMode(false)" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); font-size: 0.8rem;">
+            ✕ Cancel
+        </button>
+        <button type="submit" form="bulkSalaryForm" class="btn btn-sm btn-success" style="font-weight: 700; background: #10b981; border: none; padding: 0.35rem 1.1rem; font-size: 0.8rem; box-shadow: 0 2px 8px rgba(16,185,129,0.4);">
+            💾 Save All Salary Worksheet Edits
+        </button>
+    </div>
+</div>
+
+<!-- ========================================================================
+     TAB 1: MASTER SALARY SHEET (ALL 32 COLUMNS MATCHING USER'S IMAGE)
+     ======================================================================== -->
+<div id="tabContentMaster" class="tab-pane">
+    <div class="card">
+        <form method="POST" action="{{ url_for('bulk_update_salary_sheet_items', sheet_id=sheet.id) }}" id="bulkSalaryForm">
+            <div class="table-responsive">
+                <table class="table report-table" style="font-size: 0.77rem; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f8fafc; font-size: 0.74rem;">
+                            <th class="col-sticky-id" style="width: 45px; text-align: center;">ID No.</th>
+                            <th class="col-sticky-status" style="width: 95px; text-align: center;" title="Running Status: Click tick on any employee to move them to Inactive">Running (✓)</th>
+                            <th class="col-sticky-name" style="min-width: 150px;">Name</th>
+                            <th style="min-width: 120px;">Department</th>
+                            <th style="min-width: 130px;">Designation</th>
+                            <th style="width: 80px;">Date of Joining</th>
+                            <th class="num-col" style="width: 85px;">Basic</th>
+                            <th class="num-col" style="width: 80px;">HR Allowance</th>
+                            <th class="num-col" style="width: 75px;">Medical Allowance</th>
+                            <th class="num-col" style="width: 80px;">Conveyance Allowance</th>
+                            <th class="num-col" style="width: 90px; font-weight: 700; background: #f1f5f9;">Gross Salary</th>
+                            <th style="width: 35px; text-align: center;">PF</th>
+                            <th class="num-col" style="width: 75px;">PF Employer</th>
+                            <th class="num-col" style="width: 75px; color: #dc2626;">PF Employee</th>
+                            <th class="num-col" style="width: 75px; color: #64748b;">Total PF</th>
+                            <th class="num-col" style="width: 90px; font-weight: 700;">Total Salary</th>
+                            <th class="num-col" style="width: 70px;">Govt Holiday</th>
+                            <th class="num-col" style="width: 80px;">Holiday &amp; Extra Duty</th>
+                            <th class="num-col" style="width: 90px; color: #0284c7;">Loyalty (7.5%/15%)</th>
+                            <th class="num-col" style="width: 75px;">Addl Allowance</th>
+                            <th class="num-col" style="width: 75px;">Eid Bonus</th>
+                            <th class="num-col" style="width: 70px;">Other</th>
+                            <th style="width: 50px; text-align: center;">Working Day</th>
+                            <th style="width: 45px; text-align: center;">Absent</th>
+                            <th style="width: 45px; text-align: center;">Late</th>
+                            <th class="num-col" style="width: 80px; color: #dc2626;">Absenteeism Amount</th>
+                            <th class="num-col" style="width: 75px; color: #dc2626;">Late/Leave Amount</th>
+                            <th class="num-col" style="width: 75px; color: #dc2626;">Loan Deduction</th>
+                            <th class="num-col" style="width: 75px; color: #dc2626;">Other Deduction</th>
+                            <th class="num-col" style="width: 75px; color: #b91c1c;">Arrear</th>
+                            <th class="num-col" style="width: 95px; font-weight: 700; background: #ecfeff;">Net Pay</th>
+                            <th class="num-col" style="width: 75px; color: #991b1b;">TDS Deduction</th>
+                            <th class="num-col" style="width: 105px; font-weight: 800; background: #ecfdf5; color: #047857;">Net Pay After TDS</th>
+                            <th class="col-actions-sticky no-print" style="width: 75px; text-align: center;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for dept_name, dept_items, dept_tot in dept_groups %}
+                            <!-- Department Section Header Banner -->
+                            <tr class="dept-header-row">
+                                <td colspan="34">
+                                    📁 {{ loop.index }}. {{ dept_name }} Department ({{ dept_items|length }} Running Staff)
+                                </td>
+                            </tr>
+
+                            <!-- Department Employee Rows -->
+                            {% for it in dept_items %}
+                            <tr class="salary-row" id="row-{{ it.id }}" ondblclick="openEditSalaryItemModal({{ it.id }})" title="Double-click to edit allowances/deductions for this employee">
+                                <td class="col-sticky-id" style="text-align: center; font-family: monospace; font-weight: 700; color: #1e40af;">
+                                    {{ it.emp_code }}
+                                    <input type="hidden" name="item_ids" value="{{ it.id }}">
+                                </td>
+                                <td class="col-sticky-status" style="text-align: center;">
+                                    <button type="button" class="btn btn-sm btn-running-tick" onclick="toggleEmployeeStatus({{ it.id }}, 'Inactive', '{{ it.name|escape }}')" title="Employee is currently Running. Click tick to move to Inactive Employees." style="padding: 0.18rem 0.5rem; font-size: 0.72rem; border-radius: 6px; background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; gap: 0.3rem; box-shadow: 0 1px 3px rgba(5,150,105,0.15); transition: all 0.15s ease;" onmouseover="this.style.background='#fee2e2'; this.style.color='#991b1b'; this.style.borderColor='#fca5a5'; this.querySelector('.tick-icon').textContent='✕'; this.querySelector('.tick-lbl').textContent='Inactivate';" onmouseout="this.style.background='#ecfdf5'; this.style.color='#047857'; this.style.borderColor='#a7f3d0'; this.querySelector('.tick-icon').textContent='✔'; this.querySelector('.tick-lbl').textContent='Running';">
+                                        <span class="tick-icon" style="font-size: 0.95rem; font-weight: 900; color: #059669;">✔</span>
+                                        <span class="tick-lbl">Running</span>
+                                    </button>
+                                </td>
+                                <td class="col-sticky-name">
+                                    <strong style="color: #0f172a;">{{ it.name }}</strong>
+                                    {% if it.payment_method == 'EFT' %}
+                                    <small style="display: block; color: #059669; font-size: 0.7rem;">🏦 PBL: {{ it.bank_account_no }}</small>
+                                    {% elif it.payment_method == 'BEFTN' %}
+                                    <small style="display: block; color: #ea580c; font-size: 0.7rem;">🏛️ {{ it.bank_name[:15] }}: {{ it.bank_account_no }}</small>
+                                    {% else %}
+                                    <small style="display: block; color: #64748b; font-size: 0.7rem;">💵 Cash</small>
+                                    {% endif %}
+                                </td>
+                                <td style="color: #475569;">{{ it.department }}</td>
+                                <td style="color: #475569;">{{ it.designation }}</td>
+                                <td style="font-family: monospace; font-size: 0.74rem; color: #64748b;">
+                                    {{ it.joining_date.strftime('%m/%d/%Y') if it.joining_date else '—' }}
+                                </td>
+                                <td class="num-col">{{ "{:,.0f}".format(it.basic) }}</td>
+                                <td class="num-col">{{ "{:,.0f}".format(it.hr_allowance) }}</td>
+                                <td class="num-col">{{ "{:,.0f}".format(it.medical_allowance) }}</td>
+                                <td class="num-col">{{ "{:,.0f}".format(it.conveyance_allowance) }}</td>
+                                <td class="num-col" style="font-weight: 700; background: #f8fafc;">{{ "{:,.0f}".format(it.gross_salary) }}</td>
+                                <td style="text-align: center; font-weight: 700; color: #1e40af;">{{ it.pf_status }}</td>
+                                <td class="num-col">{{ "{:,.0f}".format(it.pf_employer) }}</td>
+                                <td class="num-col" style="color: #dc2626;">{{ "{:,.0f}".format(it.pf_employee) }}</td>
+                                <td class="num-col" style="color: #64748b;">{{ "{:,.0f}".format(it.total_pf) }}</td>
+                                <td class="num-col" style="font-weight: 700;">{{ "{:,.0f}".format(it.total_salary) }}</td>
+                                
+                                <!-- Govt Holiday -->
+                                <td class="num-col">
+                                    <span class="normal-view">{{ "{:,.0f}".format(it.govt_holiday_duty) if it.govt_holiday_duty > 0 else '—' }}</span>
+                                    <input type="number" step="0.01" name="govt_holiday_{{ it.id }}" value="{{ it.govt_holiday_duty }}" class="edit-view form-control edit-input" style="display: none;">
+                                </td>
+
+                                <!-- Holiday & Extra Duty -->
+                                <td class="num-col">
+                                    <span class="normal-view">{{ "{:,.0f}".format(it.holiday_extra_duty) if it.holiday_extra_duty > 0 else '—' }}</span>
+                                    <input type="number" step="0.01" name="holiday_{{ it.id }}" value="{{ it.holiday_extra_duty }}" class="edit-view form-control edit-input" style="display: none;">
+                                </td>
+
+                                <!-- Loyalty Allowance -->
+                                <td class="num-col" style="color: #0284c7; font-weight: 600;">
+                                    <span class="normal-view">{{ "{:,.0f}".format(it.loyalty_allowance) if it.loyalty_allowance > 0 else '—' }}</span>
+                                    <input type="number" step="0.01" name="loyalty_{{ it.id }}" value="{{ it.loyalty_allowance }}" class="edit-view form-control edit-input" style="display: none; color: #0284c7;">
+                                </td>
+
+                                <!-- Additional Allowance -->
+                                <td class="num-col">
+                                    <span class="normal-view">{{ "{:,.0f}".format(it.additional_allowance) if it.additional_allowance > 0 else '—' }}</span>
+                                    <input type="number" step="0.01" name="addl_{{ it.id }}" value="{{ it.additional_allowance }}" class="edit-view form-control edit-input" style="display: none;">
+                                </td>
+
+                                <!-- Eid Bonus -->
+                                <td class="num-col">
+                                    <span class="normal-view">{{ "{:,.0f}".format(it.eid_bonus) if it.eid_bonus > 0 else '—' }}</span>
+                                    <input type="number" step="0.01" name="bonus_{{ it.id }}" value="{{ it.eid_bonus }}" class="edit-view form-control edit-input" style="display: none;">
+                                </td>
+
+                                <!-- Other -->
+                                <td class="num-col">
+                                    <span class="normal-view">{{ "{:,.0f}".format(it.other_allowance) if it.other_allowance > 0 else '—' }}</span>
+                                    <input type="number" step="0.01" name="other_{{ it.id }}" value="{{ it.other_allowance }}" class="edit-view form-control edit-input" style="display: none;">
+                                </td>
+
+                                <!-- Working Day -->
+                                <td style="text-align: center;">
+                                    <span class="normal-view">{{ it.working_days }}</span>
+                                    <input type="number" name="workdays_{{ it.id }}" value="{{ it.working_days }}" class="edit-view form-control" style="display: none; width: 45px; font-size: 0.74rem; padding: 0.1rem; text-align: center;">
+                                </td>
+
+                                <!-- Absent -->
+                                <td style="text-align: center;">
+                                    <span class="normal-view">{{ it.absent_days }}</span>
+                                    <input type="number" name="absent_{{ it.id }}" value="{{ it.absent_days }}" class="edit-view form-control" style="display: none; width: 45px; font-size: 0.74rem; padding: 0.1rem; text-align: center;">
+                                </td>
+
+                                <!-- Late -->
+                                <td style="text-align: center;">
+                                    <span class="normal-view">{{ it.late_days }}</span>
+                                    <input type="number" name="late_{{ it.id }}" value="{{ it.late_days }}" class="edit-view form-control" style="display: none; width: 45px; font-size: 0.74rem; padding: 0.1rem; text-align: center;">
+                                </td>
+
+                                <!-- Absenteeism Amount -->
+                                <td class="num-col" style="color: #dc2626;">
+                                    {{ "{:,.0f}".format(it.absenteeism_amount) if it.absenteeism_amount > 0 else '—' }}
+                                </td>
+
+                                <!-- Late/Leave Amount -->
+                                <td class="num-col" style="color: #dc2626;">
+                                    <span class="normal-view">{{ "{:,.0f}".format(it.late_leave_amount) if it.late_leave_amount > 0 else '—' }}</span>
+                                    <input type="number" step="0.01" name="late_amt_{{ it.id }}" value="{{ it.late_leave_amount }}" class="edit-view form-control edit-input" style="display: none; color: #dc2626;">
+                                </td>
+
+                                <!-- Loan Deduction -->
+                                <td class="num-col" style="color: #dc2626;">
+                                    <span class="normal-view">{{ "{:,.0f}".format(it.loan_deduction) if it.loan_deduction > 0 else '—' }}</span>
+                                    <input type="number" step="0.01" name="loan_{{ it.id }}" value="{{ it.loan_deduction }}" class="edit-view form-control edit-input" style="display: none; color: #dc2626;">
+                                </td>
+
+                                <!-- Other Deduction -->
+                                <td class="num-col" style="color: #dc2626;">
+                                    <span class="normal-view">{{ "{:,.0f}".format(it.other_deduction) if it.other_deduction > 0 else '—' }}</span>
+                                    <input type="number" step="0.01" name="other_ded_{{ it.id }}" value="{{ it.other_deduction }}" class="edit-view form-control edit-input" style="display: none; color: #dc2626;">
+                                </td>
+
+                                <!-- Arrear -->
+                                <td class="num-col" style="color: #b91c1c; font-weight: 600;">
+                                    <span class="normal-view">{{ "{:,.0f}".format(it.arrear) if it.arrear != 0 else '—' }}</span>
+                                    <input type="number" step="0.01" name="arrear_{{ it.id }}" value="{{ it.arrear }}" class="edit-view form-control edit-input" style="display: none; color: #b91c1c;">
+                                </td>
+
+                                <!-- Net Pay -->
+                                <td class="num-col" style="font-weight: 700; background: #ecfeff;">
+                                    {{ "{:,.0f}".format(it.net_pay) }}
+                                </td>
+
+                                <!-- TDS Deduction -->
+                                <td class="num-col" style="color: #991b1b; font-weight: 600;">
+                                    <span class="normal-view">{{ "{:,.0f}".format(it.tds_deduction) if it.tds_deduction > 0 else '—' }}</span>
+                                    <input type="number" step="0.01" name="tds_{{ it.id }}" value="{{ it.tds_deduction }}" class="edit-view form-control edit-input" style="display: none; color: #991b1b;">
+                                </td>
+
+                                <!-- Net Pay after TDS -->
+                                <td class="num-col" style="font-weight: 800; background: #ecfdf5; color: #047857; font-size: 0.82rem;">
+                                    ৳{{ "{:,.0f}".format(it.net_after_tds) }}
+                                </td>
+
+                                <!-- Actions -->
+                                <td class="col-actions-sticky no-print">
+                                    <div class="normal-view" style="display: flex; justify-content: center;">
+                                        <button type="button" class="btn btn-sm btn-primary" onclick="openEditSalaryItemModal({{ it.id }})" style="padding: 0.18rem 0.5rem; font-size: 0.72rem; font-weight: 700;" title="Edit employee salary line">
+                                            ✏️ Edit
+                                        </button>
+                                    </div>
+                                    <div class="edit-view" style="display: none; text-align: center;">
+                                        <button type="submit" class="btn btn-sm btn-success" style="padding: 0.18rem 0.5rem; font-size: 0.72rem; font-weight: 700;">
+                                            💾 Save
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+
+                            <!-- Department Subtotal Row -->
+                            <tr class="dept-subtotal-row">
+                                <td colspan="6" style="text-align: right; text-transform: uppercase;">
+                                    Subtotal &bull; {{ dept_name }}:
+                                </td>
+                                <td class="num-col">৳{{ "{:,.0f}".format(dept_tot.basic) }}</td>
+                                <td class="num-col">৳{{ "{:,.0f}".format(dept_tot.hr) }}</td>
+                                <td class="num-col">৳{{ "{:,.0f}".format(dept_tot.med) }}</td>
+                                <td class="num-col">৳{{ "{:,.0f}".format(dept_tot.conv) }}</td>
+                                <td class="num-col" style="background: #e2e8f0;">৳{{ "{:,.0f}".format(dept_tot.gross) }}</td>
+                                <td></td>
+                                <td class="num-col">৳{{ "{:,.0f}".format(dept_tot.pf_comp) }}</td>
+                                <td class="num-col" style="color: #dc2626;">৳{{ "{:,.0f}".format(dept_tot.pf_emp) }}</td>
+                                <td class="num-col">৳{{ "{:,.0f}".format(dept_tot.total_pf) }}</td>
+                                <td class="num-col">৳{{ "{:,.0f}".format(dept_tot.total_sal) }}</td>
+                                <td class="num-col">৳{{ "{:,.0f}".format(dept_tot.govt_hol) }}</td>
+                                <td class="num-col">৳{{ "{:,.0f}".format(dept_tot.hol_extra) }}</td>
+                                <td class="num-col" style="color: #0284c7;">৳{{ "{:,.0f}".format(dept_tot.loyalty) }}</td>
+                                <td class="num-col">৳{{ "{:,.0f}".format(dept_tot.addl) }}</td>
+                                <td class="num-col">৳{{ "{:,.0f}".format(dept_tot.bonus) }}</td>
+                                <td class="num-col">৳{{ "{:,.0f}".format(dept_tot.other) }}</td>
+                                <td colspan="3" style="text-align: center;">—</td>
+                                <td class="num-col" style="color: #dc2626;">৳{{ "{:,.0f}".format(dept_tot.absenteeism) }}</td>
+                                <td class="num-col" style="color: #dc2626;">৳{{ "{:,.0f}".format(dept_tot.late_leave) }}</td>
+                                <td class="num-col" style="color: #dc2626;">৳{{ "{:,.0f}".format(dept_tot.loan) }}</td>
+                                <td class="num-col" style="color: #dc2626;">৳{{ "{:,.0f}".format(dept_tot.other_ded) }}</td>
+                                <td class="num-col" style="color: #b91c1c;">৳{{ "{:,.0f}".format(dept_tot.arrear) }}</td>
+                                <td class="num-col" style="background: #cffafe;">৳{{ "{:,.0f}".format(dept_tot.net_pay) }}</td>
+                                <td class="num-col" style="color: #991b1b;">৳{{ "{:,.0f}".format(dept_tot.tds) }}</td>
+                                <td class="num-col" style="background: #dcfce7; color: #166534; font-weight: 800;">৳{{ "{:,.0f}".format(dept_tot.net_after_tds) }}</td>
+                                <td class="col-actions-sticky no-print"></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+
+                    <!-- Master Grand Totals Row -->
+                    <tfoot>
+                        <tr style="background: #0f172a; color: white; font-weight: 800; font-size: 0.8rem; border-top: 3px solid #000;">
+                            <td colspan="6" style="text-align: right; color: #f8fafc; text-transform: uppercase;">
+                                GRAND TOTAL COMPANY SALARY &amp; ALLOWANCES:
+                            </td>
+                            <td class="num-col" style="color: #f8fafc;">৳{{ "{:,.0f}".format(sheet.total_basic) }}</td>
+                            <td class="num-col" style="color: #f8fafc;">৳{{ "{:,.0f}".format(sheet.total_hr_allowance) }}</td>
+                            <td class="num-col" style="color: #f8fafc;">৳{{ "{:,.0f}".format(sheet.total_medical_allowance) }}</td>
+                            <td class="num-col" style="color: #f8fafc;">৳{{ "{:,.0f}".format(sheet.total_conveyance) }}</td>
+                            <td class="num-col" style="color: #38bdf8;">৳{{ "{:,.0f}".format(sheet.total_gross) }}</td>
+                            <td></td>
+                            <td class="num-col" style="color: #e2e8f0;">৳{{ "{:,.0f}".format(sheet.total_pf_employer) }}</td>
+                            <td class="num-col" style="color: #f87171;">৳{{ "{:,.0f}".format(sheet.total_pf_employee) }}</td>
+                            <td class="num-col" style="color: #e2e8f0;">৳{{ "{:,.0f}".format(sheet.total_pf) }}</td>
+                            <td class="num-col" style="color: #f8fafc;">৳{{ "{:,.0f}".format(sheet.total_salary) }}</td>
+                            <td class="num-col" style="color: #f8fafc;">৳{{ "{:,.0f}".format(sheet.total_holiday_allowance) }}</td>
+                            <td class="num-col" style="color: #f8fafc;">—</td>
+                            <td class="num-col" style="color: #38bdf8;">৳{{ "{:,.0f}".format(sheet.total_loyalty_allowance) }}</td>
+                            <td class="num-col" style="color: #f8fafc;">৳{{ "{:,.0f}".format(sheet.total_additional_allowance) }}</td>
+                            <td class="num-col" style="color: #f8fafc;">৳{{ "{:,.0f}".format(sheet.total_eid_bonus) }}</td>
+                            <td class="num-col" style="color: #f8fafc;">৳{{ "{:,.0f}".format(sheet.total_other_allowance) }}</td>
+                            <td colspan="3" style="text-align: center; color: #94a3b8;">{{ sheet.items|length }} staff</td>
+                            <td class="num-col" style="color: #f87171;">৳{{ "{:,.0f}".format(sheet.total_absenteeism_deduction) }}</td>
+                            <td class="num-col" style="color: #f87171;">৳{{ "{:,.0f}".format(sheet.total_late_deduction) }}</td>
+                            <td class="num-col" style="color: #f87171;">৳{{ "{:,.0f}".format(sheet.total_loan_deduction) }}</td>
+                            <td class="num-col" style="color: #f87171;">৳{{ "{:,.0f}".format(sheet.total_other_deduction) }}</td>
+                            <td class="num-col" style="color: #fca5a5;">৳{{ "{:,.0f}".format(sheet.total_arrear) }}</td>
+                            <td class="num-col" style="color: #38bdf8; font-size: 0.88rem;">৳{{ "{:,.0f}".format(sheet.total_net_pay) }}</td>
+                            <td class="num-col" style="color: #fca5a5;">৳{{ "{:,.0f}".format(sheet.total_tds) }}</td>
+                            <td class="num-col" style="color: #4ade80; font-size: 0.95rem; font-weight: 900;">
+                                ৳{{ "{:,.2f}".format(sheet.total_net_after_tds) }}
+                            </td>
+                            <td class="col-actions-sticky no-print"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================
+     TAB: NEWS PRESENTERS (PER-DUTY SHIFT CALCULATION)
+     ======================================================================== -->
+<div id="tabContentNews" class="tab-pane" style="display: none;">
+    <div class="card" style="margin-bottom: 1.25rem;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.6rem; background: #fff7ed; border-bottom: 1px solid #fed7aa;">
+            <div>
+                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #c2410c; display: flex; align-items: center; gap: 0.5rem;">
+                    🎙️ News Department &bull; Part-Time News Presenters (Per-Duty Pay)
+                </h3>
+                <div style="font-size: 0.8rem; color: #475569; margin-top: 3px;">
+                    Paid as per actual duties &bull; Shift Rates: 
+                    <span class="badge" style="background: #ffedd5; color: #9a3412; font-weight: 700; border: 1px solid #fed7aa; margin-left: 4px;">🌇 Evening: ৳800</span>
+                    <span class="badge" style="background: #e0e7ff; color: #3730a3; font-weight: 700; border: 1px solid #c7d2fe; margin-left: 4px;">🌙 Night: ৳1,400</span>
+                    <span class="badge" style="background: #fef3c7; color: #92400e; font-weight: 700; border: 1px solid #fde68a; margin-left: 4px;">☀️ Morning: ৳1,500 (Jr.) / ৳1,600 (Sr.)</span>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <a href="{{ url_for('export_part_time_excel', sheet_id=sheet.id) }}" class="btn btn-sm btn-outline" style="background: white; border-color: #ea580c; color: #ea580c; font-weight: 700;">
+                    📥 Export News Sheet (.xlsx)
+                </a>
+                <button type="submit" form="newsDutyBulkForm" class="btn btn-sm btn-primary" style="background: #ea580c; border-color: #ea580c; font-weight: 700;">
+                    💾 Save News Duties
+                </button>
+            </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('bulk_update_part_time', sheet_id=sheet.id) }}" id="newsDutyBulkForm">
+            <input type="hidden" name="category" value="News Presenter">
+            <div class="table-responsive">
+                <table class="table report-table" style="font-size: 0.8rem; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #fed7aa; color: #7c2d12; font-size: 0.76rem;">
+                            <th style="width: 50px; text-align: center;">SL No</th>
+                            <th style="min-width: 160px;">Name</th>
+                            <th style="width: 80px;">Department</th>
+                            <th style="min-width: 120px;">Designation</th>
+                            <th style="width: 90px; text-align: center;">Date of Joining</th>
+                            <th style="width: 110px; text-align: center; background: #ffedd5;" title="Evening Shift (6pm to 11pm) @ ৳800">Evening Shift<br><span style="font-weight: 400; font-size: 0.7rem;">(6pm-11pm) @800</span></th>
+                            <th style="width: 110px; text-align: center; background: #e0e7ff;" title="Night Shift (10pm to 6am) @ ৳1,400">Night Shift<br><span style="font-weight: 400; font-size: 0.7rem;">(10pm-6am) @1400</span></th>
+                            <th style="width: 115px; text-align: center; background: #fef3c7;" title="Morning Shift (6am to 11:30am) @ ৳1,500/৳1,600">Morning Shift<br><span style="font-weight: 400; font-size: 0.7rem;">(6-11:30) @1300-1500</span></th>
+                            <th class="num-col" style="width: 65px; font-weight: 800; background: #fdba74;">Total</th>
+                            <th class="num-col" style="width: 90px; font-weight: 800; background: #fed7aa;">Salary (৳)</th>
+                            <th class="num-col" style="width: 85px;">Loyalty 7.5%</th>
+                            <th class="num-col" style="width: 100px;">5Yrs Addl Allowance</th>
+                            <th class="num-col" style="width: 80px;">Arrear (৳)</th>
+                            <th class="num-col" style="width: 100px; font-weight: 900; color: #15803d; background: #f0fdf4;">Net Pay (৳)</th>
+                            <th class="num-col" style="width: 75px; color: #dc2626;">TDS</th>
+                            <th class="num-col" style="width: 100px; font-weight: 900; color: #047857; background: #dcfce7;">Net After TDS</th>
+                            <th style="width: 90px; text-align: center;">Payment Method</th>
+                            <th style="min-width: 140px;">Bank / Account No</th>
+                            <th style="width: 70px; text-align: center;" class="no-print">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for it in news_presenter_items %}
+                        <tr id="news-row-{{ it.id }}" style="border-bottom: 1px solid #fed7aa;">
+                            <input type="hidden" name="item_id[]" value="{{ it.id }}">
+                            <td style="text-align: center; font-weight: 700; font-family: monospace; color: #9a3412;">{{ it.emp_code }}</td>
+                            <td><strong style="color: #0f172a;">{{ it.name }}</strong></td>
+                            <td style="color: #475569;">{{ it.department }}</td>
+                            <td style="color: #475569;">{{ it.designation }}</td>
+                            <td style="text-align: center; font-size: 0.74rem; color: #64748b;">
+                                {{ it.joining_date.strftime('%d/%m/%Y') if it.joining_date else '-' }}
+                            </td>
+                            <td style="background: #fffaf5; text-align: center;">
+                                <input type="number" step="1" min="0" name="eve_{{ it.id }}" id="inp-eve-{{ it.id }}"
+                                    value="{{ '{:g}'.format(it.shift_eve_duty or 0) }}"
+                                    data-rate="{{ it.shift_eve_rate or 800 }}"
+                                    oninput="recalcNewsRow({{ it.id }})"
+                                    style="width: 55px; text-align: center; font-weight: 700; padding: 2px; border: 1px solid #fdba74; border-radius: 4px;">
+                            </td>
+                            <td style="background: #f5f7ff; text-align: center;">
+                                <input type="number" step="1" min="0" name="night_{{ it.id }}" id="inp-night-{{ it.id }}"
+                                    value="{{ '{:g}'.format(it.shift_night_duty or 0) }}"
+                                    data-rate="{{ it.shift_night_rate or 1400 }}"
+                                    oninput="recalcNewsRow({{ it.id }})"
+                                    style="width: 55px; text-align: center; font-weight: 700; padding: 2px; border: 1px solid #c7d2fe; border-radius: 4px;">
+                            </td>
+                            <td style="background: #fffbeb; text-align: center;">
+                                <input type="number" step="1" min="0" name="morn_{{ it.id }}" id="inp-morn-{{ it.id }}"
+                                    value="{{ '{:g}'.format(it.shift_morn_duty or 0) }}"
+                                    data-rate="{{ it.shift_morn_rate or 1500 }}"
+                                    oninput="recalcNewsRow({{ it.id }})"
+                                    style="width: 55px; text-align: center; font-weight: 700; padding: 2px; border: 1px solid #fde68a; border-radius: 4px;">
+                            </td>
+                            <td class="num-col" id="val-duty-{{ it.id }}" style="font-weight: 800; background: #fff7ed; text-align: center;">
+                                {{ "{:g}".format(it.total_duty or 0) }}
+                            </td>
+                            <td class="num-col" id="val-sal-{{ it.id }}" style="font-weight: 700; background: #fff7ed;">
+                                ৳{{ "{:,.0f}".format(it.gross_salary or 0) }}
+                            </td>
+                            <td class="num-col" style="color: #64748b;">
+                                {{ "{:,.0f}".format(it.loyalty_allowance or 0) }}
+                            </td>
+                            <td class="num-col">
+                                <input type="number" step="100" min="0" name="addl_{{ it.id }}" id="inp-addl-{{ it.id }}"
+                                    value="{{ '{:g}'.format(it.additional_allowance or 0) }}"
+                                    oninput="recalcNewsRow({{ it.id }})"
+                                    style="width: 70px; text-align: right; font-weight: 600; padding: 2px; border: 1px solid #cbd5e1; border-radius: 4px;">
+                            </td>
+                            <td class="num-col">
+                                <input type="number" step="10" min="0" name="arrear_{{ it.id }}" id="inp-arrear-{{ it.id }}"
+                                    value="{{ '{:g}'.format(it.arrear or 0) }}"
+                                    oninput="recalcNewsRow({{ it.id }})"
+                                    style="width: 65px; text-align: right; font-weight: 600; padding: 2px; border: 1px solid #cbd5e1; border-radius: 4px; color: {% if (it.arrear or 0) > 0 %}#dc2626{% else %}inherit{% endif %};">
+                            </td>
+                            <td class="num-col" id="val-net-{{ it.id }}" style="font-weight: 800; color: #15803d; background: #f0fdf4;">
+                                ৳{{ "{:,.0f}".format(it.net_pay or 0) }}
+                            </td>
+                            <td class="num-col" style="color: #dc2626;">
+                                {{ "{:,.0f}".format(it.tds_deduction or 0) }}
+                            </td>
+                            <td class="num-col" id="val-net-after-tds-{{ it.id }}" style="font-weight: 800; color: #047857; background: #dcfce7;">
+                                ৳{{ "{:,.0f}".format(it.net_after_tds or 0) }}
+                            </td>
+                            <td style="text-align: center;">
+                                <span class="badge" style="font-size: 0.72rem; {% if it.payment_method == 'EFT' %}background: #dbeafe; color: #1e40af;{% elif it.payment_method == 'BEFTN' %}background: #ffedd5; color: #9a3412;{% else %}background: #f1f5f9; color: #334155;{% endif %}">
+                                    {{ it.payment_method }}
+                                </span>
+                            </td>
+                            <td style="font-size: 0.75rem; color: #475569;">
+                                {{ it.bank_name }}<br>
+                                <span style="font-family: monospace; font-weight: 700; color: #0f172a;">{{ it.bank_account_no or '-' }}</span>
+                            </td>
+                            <td style="text-align: center;" class="no-print">
+                                <button type="button" class="btn btn-sm" onclick="saveSingleDutyItem({{ it.id }}, 'News Presenter')" style="padding: 2px 6px; font-size: 0.72rem; background: #ea580c; color: white; border: none; border-radius: 4px;" title="Save row">
+                                    💾 Save
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr style="background: #fed7aa; font-weight: 900; font-size: 0.82rem; border-top: 2px solid #ea580c; color: #7c2d12;">
+                            <td colspan="5" style="text-align: right;">TOTAL NEWS PRESENTERS (12 STAFF):</td>
+                            <td style="text-align: center;" id="foot-news-eve">{{ "{:g}".format(news_totals.eve_duty) }}</td>
+                            <td style="text-align: center;" id="foot-news-night">{{ "{:g}".format(news_totals.night_duty) }}</td>
+                            <td style="text-align: center;" id="foot-news-morn">{{ "{:g}".format(news_totals.morn_duty) }}</td>
+                            <td class="num-col" style="text-align: center;" id="foot-news-duty">{{ "{:g}".format(news_totals.total_duty) }}</td>
+                            <td class="num-col" id="foot-news-sal">৳{{ "{:,.0f}".format(news_totals.salary) }}</td>
+                            <td class="num-col">৳{{ "{:,.0f}".format(news_totals.loyalty) }}</td>
+                            <td class="num-col" id="foot-news-addl">৳{{ "{:,.0f}".format(news_totals.additional) }}</td>
+                            <td class="num-col" id="foot-news-arrear">৳{{ "{:,.0f}".format(news_totals.arrear) }}</td>
+                            <td class="num-col" id="foot-news-net" style="color: #15803d; background: #dcfce7; font-size: 0.9rem;">
+                                ৳{{ "{:,.0f}".format(news_totals.net_pay) }}
+                            </td>
+                            <td class="num-col">৳{{ "{:,.0f}".format(news_totals.tds) }}</td>
+                            <td class="num-col" id="foot-news-net-tds" style="color: #047857; background: #bbf7d0; font-size: 0.92rem;">
+                                ৳{{ "{:,.0f}".format(news_totals.net_after_tds) }}
+                            </td>
+                            <td colspan="3"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================
+     TAB: CUSTOMER CARE AGENTS (PER-DUTY SHIFT CALCULATION)
+     ======================================================================== -->
+<div id="tabContentCustomerCare" class="tab-pane" style="display: none;">
+    <div class="card" style="margin-bottom: 1.25rem;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.6rem; background: #f0fdf4; border-bottom: 1px solid #bbf7d0;">
+            <div>
+                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #15803d; display: flex; align-items: center; gap: 0.5rem;">
+                    🎧 Customer Relations &bull; Part-Time Agents (Per-Duty Pay)
+                </h3>
+                <div style="font-size: 0.8rem; color: #475569; margin-top: 3px;">
+                    Paid as per actual duties &bull; Shift Rates:
+                    <span class="badge" style="background: #fef3c7; color: #92400e; font-weight: 700; border: 1px solid #fde68a; margin-left: 4px;">🌅 Morning: ৳500 BDT</span>
+                    <span class="badge" style="background: #ffedd5; color: #9a3412; font-weight: 700; border: 1px solid #fed7aa; margin-left: 4px;">☀️ Afternoon: ৳700 BDT</span>
+                    <span class="badge" style="background: #e0e7ff; color: #3730a3; font-weight: 700; border: 1px solid #c7d2fe; margin-left: 4px;">🌙 Night: ৳500 BDT</span>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <a href="{{ url_for('export_part_time_excel', sheet_id=sheet.id) }}" class="btn btn-sm btn-outline" style="background: white; border-color: #16a34a; color: #16a34a; font-weight: 700;">
+                    📥 Export Customer Care Sheet (.xlsx)
+                </a>
+                <button type="submit" form="ccDutyBulkForm" class="btn btn-sm btn-success" style="background: #16a34a; border-color: #16a34a; font-weight: 700;">
+                    💾 Save Customer Care Duties
+                </button>
+            </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('bulk_update_part_time', sheet_id=sheet.id) }}" id="ccDutyBulkForm">
+            <input type="hidden" name="category" value="Customer Care Agent">
+            <div class="table-responsive">
+                <table class="table report-table" style="font-size: 0.8rem; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #dcfce7; color: #14532d; font-size: 0.76rem;">
+                            <th style="width: 50px; text-align: center;">SL No</th>
+                            <th style="min-width: 170px;">Name</th>
+                            <th style="width: 110px;">Department</th>
+                            <th style="min-width: 120px;">Designation</th>
+                            <th style="width: 110px; text-align: center; background: #fef3c7;" title="Morning Shift @ ৳500">Morning<br><span style="font-weight: 400; font-size: 0.7rem;">(500 BDT)</span></th>
+                            <th style="width: 110px; text-align: center; background: #ffedd5;" title="Afternoon Shift @ ৳700">Afternoon<br><span style="font-weight: 400; font-size: 0.7rem;">(700 BDT)</span></th>
+                            <th style="width: 110px; text-align: center; background: #e0e7ff;" title="Night Shift @ ৳500">Night<br><span style="font-weight: 400; font-size: 0.7rem;">(500 BDT)</span></th>
+                            <th class="num-col" style="width: 75px; font-weight: 800; background: #bbf7d0;">Total Duty</th>
+                            <th class="num-col" style="width: 95px; font-weight: 800; background: #dcfce7;">Gross Salary</th>
+                            <th class="num-col" style="width: 85px;">Arrear (৳)</th>
+                            <th class="num-col" style="width: 80px; color: #dc2626;">Absent</th>
+                            <th class="num-col" style="width: 80px; color: #dc2626;">Late</th>
+                            <th class="num-col" style="width: 80px; color: #dc2626;">Other Ded</th>
+                            <th class="num-col" style="width: 105px; font-weight: 900; color: #15803d; background: #f0fdf4;">Net Pay (৳)</th>
+                            <th class="num-col" style="width: 75px; color: #dc2626;">TDS</th>
+                            <th class="num-col" style="width: 105px; font-weight: 900; color: #047857; background: #dcfce7;">Net After TDS</th>
+                            <th style="width: 90px; text-align: center;">Payment Method</th>
+                            <th style="min-width: 140px;">Bank / Account No</th>
+                            <th style="width: 70px; text-align: center;" class="no-print">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for it in customer_care_items %}
+                        <tr id="cc-row-{{ it.id }}" style="border-bottom: 1px solid #bbf7d0;">
+                            <input type="hidden" name="item_id[]" value="{{ it.id }}">
+                            <td style="text-align: center; font-weight: 700; font-family: monospace; color: #15803d;">{{ it.emp_code }}</td>
+                            <td><strong style="color: #0f172a;">{{ it.name }}</strong></td>
+                            <td style="color: #475569;">{{ it.department }}</td>
+                            <td style="color: #475569;">{{ it.designation }}</td>
+                            <td style="background: #fffbeb; text-align: center;">
+                                <input type="number" step="1" min="0" name="cc_morn_{{ it.id }}" id="inp-cc-morn-{{ it.id }}"
+                                    value="{{ '{:g}'.format(it.shift_morn_duty or 0) }}"
+                                    data-rate="{{ it.shift_morn_rate or 500 }}"
+                                    oninput="recalcCcRow({{ it.id }})"
+                                    style="width: 55px; text-align: center; font-weight: 700; padding: 2px; border: 1px solid #fde68a; border-radius: 4px;">
+                            </td>
+                            <td style="background: #fffaf5; text-align: center;">
+                                <input type="number" step="1" min="0" name="cc_aft_{{ it.id }}" id="inp-cc-aft-{{ it.id }}"
+                                    value="{{ '{:g}'.format(it.shift_aft_duty or 0) }}"
+                                    data-rate="{{ it.shift_aft_rate or 700 }}"
+                                    oninput="recalcCcRow({{ it.id }})"
+                                    style="width: 55px; text-align: center; font-weight: 700; padding: 2px; border: 1px solid #fed7aa; border-radius: 4px;">
+                            </td>
+                            <td style="background: #f5f7ff; text-align: center;">
+                                <input type="number" step="1" min="0" name="cc_night_{{ it.id }}" id="inp-cc-night-{{ it.id }}"
+                                    value="{{ '{:g}'.format(it.shift_night_duty or 0) }}"
+                                    data-rate="{{ it.shift_night_rate or 500 }}"
+                                    oninput="recalcCcRow({{ it.id }})"
+                                    style="width: 55px; text-align: center; font-weight: 700; padding: 2px; border: 1px solid #c7d2fe; border-radius: 4px;">
+                            </td>
+                            <td class="num-col" id="val-cc-duty-{{ it.id }}" style="font-weight: 800; background: #f0fdf4; text-align: center;">
+                                {{ "{:g}".format(it.total_duty or 0) }}
+                            </td>
+                            <td class="num-col" id="val-cc-sal-{{ it.id }}" style="font-weight: 700; background: #f0fdf4;">
+                                ৳{{ "{:,.0f}".format(it.gross_salary or 0) }}
+                            </td>
+                            <td class="num-col">
+                                <input type="number" step="0.5" min="0" name="cc_arrear_{{ it.id }}" id="inp-cc-arrear-{{ it.id }}"
+                                    value="{{ '{:g}'.format(it.arrear or 0) }}"
+                                    oninput="recalcCcRow({{ it.id }})"
+                                    style="width: 65px; text-align: right; font-weight: 600; padding: 2px; border: 1px solid #cbd5e1; border-radius: 4px; color: {% if (it.arrear or 0) > 0 %}#dc2626{% else %}inherit{% endif %};">
+                            </td>
+                            <td class="num-col" style="color: #dc2626;">{{ "{:,.0f}".format(it.absenteeism_amount or 0) }}</td>
+                            <td class="num-col" style="color: #dc2626;">{{ "{:,.0f}".format(it.late_leave_amount or 0) }}</td>
+                            <td class="num-col" style="color: #dc2626;">{{ "{:,.0f}".format(it.other_deduction or 0) }}</td>
+                            <td class="num-col" id="val-cc-net-{{ it.id }}" style="font-weight: 800; color: #15803d; background: #f0fdf4;">
+                                ৳{{ "{:,.0f}".format(it.net_pay or 0) }}
+                            </td>
+                            <td class="num-col" style="color: #dc2626;">
+                                {{ "{:,.0f}".format(it.tds_deduction or 0) }}
+                            </td>
+                            <td class="num-col" id="val-cc-net-after-tds-{{ it.id }}" style="font-weight: 800; color: #047857; background: #dcfce7;">
+                                ৳{{ "{:,.0f}".format(it.net_after_tds or 0) }}
+                            </td>
+                            <td style="text-align: center;">
+                                <span class="badge" style="font-size: 0.72rem; {% if it.payment_method == 'EFT' %}background: #dbeafe; color: #1e40af;{% elif it.payment_method == 'BEFTN' %}background: #ffedd5; color: #9a3412;{% else %}background: #f1f5f9; color: #334155;{% endif %}">
+                                    {{ it.payment_method }}
+                                </span>
+                            </td>
+                            <td style="font-size: 0.75rem; color: #475569;">
+                                {{ it.bank_name }}<br>
+                                <span style="font-family: monospace; font-weight: 700; color: #0f172a;">{{ it.bank_account_no or '-' }}</span>
+                            </td>
+                            <td style="text-align: center;" class="no-print">
+                                <button type="button" class="btn btn-sm" onclick="saveSingleDutyItem({{ it.id }}, 'Customer Care Agent')" style="padding: 2px 6px; font-size: 0.72rem; background: #16a34a; color: white; border: none; border-radius: 4px;" title="Save row">
+                                    💾 Save
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr style="background: #bbf7d0; font-weight: 900; font-size: 0.82rem; border-top: 2px solid #16a34a; color: #14532d;">
+                            <td colspan="4" style="text-align: right;">TOTAL CUSTOMER CARE (6 STAFF):</td>
+                            <td style="text-align: center;" id="foot-cc-morn">{{ "{:g}".format(cc_totals.morn_duty) }}</td>
+                            <td style="text-align: center;" id="foot-cc-aft">{{ "{:g}".format(cc_totals.aft_duty) }}</td>
+                            <td style="text-align: center;" id="foot-cc-night">{{ "{:g}".format(cc_totals.night_duty) }}</td>
+                            <td class="num-col" style="text-align: center;" id="foot-cc-duty">{{ "{:g}".format(cc_totals.total_duty) }}</td>
+                            <td class="num-col" id="foot-cc-sal">৳{{ "{:,.0f}".format(cc_totals.salary) }}</td>
+                            <td class="num-col" id="foot-cc-arrear">৳{{ "{:,.0f}".format(cc_totals.arrear) }}</td>
+                            <td class="num-col" colspan="3">৳{{ "{:,.0f}".format(cc_totals.deductions) }}</td>
+                            <td class="num-col" id="foot-cc-net" style="color: #15803d; background: #dcfce7; font-size: 0.9rem;">
+                                ৳{{ "{:,.0f}".format(cc_totals.net_pay) }}
+                            </td>
+                            <td class="num-col">৳{{ "{:,.0f}".format(cc_totals.tds) }}</td>
+                            <td class="num-col" id="foot-cc-net-tds" style="color: #047857; background: #86efac; font-size: 0.92rem;">
+                                ৳{{ "{:,.0f}".format(cc_totals.net_after_tds) }}
+                            </td>
+                            <td colspan="3"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================
+     TAB 2: PREMIER BANK (EFT TRANSFER SHEET & ADVICE LETTER)
+     ======================================================================== -->
+<div id="tabContentEft" class="tab-pane" style="display: none;">
+    <div class="card" style="margin-bottom: 1.25rem;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; background: #eff6ff; border-bottom: 1px solid #bfdbfe;">
+            <div>
+                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #1e3a8a;">
+                    🏦 The Premier Bank PLC &bull; Internal EFT Salary Disbursal
+                </h3>
+                <div style="font-size: 0.8rem; color: #475569; margin-top: 2px;">
+                    Debit Account: <strong>02071110000026</strong> &bull; Banani Branch, Dhaka &bull; 
+                    Total Disbursal: <strong>৳{{ "{:,.2f}".format(sheet.total_eft_amount) }}</strong> ({{ sheet.total_eft_count }} Employees)
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <a href="{{ url_for('export_premier_bank_eft_excel', sheet_id=sheet.id) }}" class="btn btn-primary btn-sm" style="font-weight: 700;">
+                    📥 Export Premier Bank EFT Excel File
+                </a>
+                <a href="{{ url_for('view_salary_bank_advice_letter', sheet_id=sheet.id, channel='eft') }}" target="_blank" class="btn btn-outline btn-sm" style="background: white; border-color: #2563eb; color: #2563eb; font-weight: 700;">
+                    📜 View &amp; Print Premier Bank Advice Letter ↗
+                </a>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table report-table" style="font-size: 0.82rem;">
+                <thead>
+                    <tr>
+                        <th style="width: 50px; text-align: center;">SL</th>
+                        <th style="width: 90px;">Emp ID</th>
+                        <th>Employee Name</th>
+                        <th>Department &amp; Designation</th>
+                        <th style="width: 170px;">Premier Bank A/C Number</th>
+                        <th class="num-col" style="width: 150px; color: #1e40af;">Net Amount (৳)</th>
+                        <th>Transfer Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for it in eft_items %}
+                    <tr>
+                        <td style="text-align: center; color: var(--text-muted);">{{ loop.index }}</td>
+                        <td style="font-family: monospace; font-weight: 700; color: #1e40af;">{{ it.emp_code }}</td>
+                        <td><strong style="color: #0f172a;">{{ it.name }}</strong></td>
+                        <td style="color: #475569;">{{ it.department }} &bull; {{ it.designation }}</td>
+                        <td style="font-family: monospace; font-weight: 700; color: #047857;">{{ it.bank_account_no }}</td>
+                        <td class="num-col" style="font-weight: 800; color: #1e40af; font-family: monospace;">
+                            ৳{{ "{:,.2f}".format(it.net_after_tds) }}
+                        </td>
+                        <td style="font-size: 0.76rem; color: var(--text-muted);">
+                            Salary {{ sheet.salary_month }} (EFT)
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr style="background: #f8fafc; font-weight: 800; border-top: 2px solid var(--border-color);">
+                        <td colspan="5" style="text-align: right;">TOTAL PREMIER BANK DISBURSAL:</td>
+                        <td class="num-col" style="color: #1e40af; font-size: 0.95rem;">
+                            ৳{{ "{:,.2f}".format(sheet.total_eft_amount) }}
+                        </td>
+                        <td>{{ sheet.total_eft_count }} Transactions</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================
+     TAB 3: OTHER BANKS (BEFTN CLEARING TRANSFER SHEET & CLEARING FILE)
+     ======================================================================== -->
+<div id="tabContentBeftn" class="tab-pane" style="display: none;">
+    <div class="card" style="margin-bottom: 1.25rem;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; background: #fff7ed; border-bottom: 1px solid #fed7aa;">
+            <div>
+                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #9a3412;">
+                    🏛️ Other Commercial Banks &bull; Bangladesh Bank BEFTN Disbursal
+                </h3>
+                <div style="font-size: 0.8rem; color: #475569; margin-top: 2px;">
+                    Originated from: <strong>The Premier Bank PLC</strong> &bull; Total Inter-Bank Sum: 
+                    <strong>৳{{ "{:,.2f}".format(sheet.total_beftn_amount) }}</strong> ({{ sheet.total_beftn_count }} Employees)
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <a href="{{ url_for('export_beftn_clearing_excel', sheet_id=sheet.id) }}" class="btn btn-warning btn-sm" style="font-weight: 700; color: #fff; background: #ea580c; border-color: #ea580c;">
+                    📥 Export BEFTN Clearing Excel File
+                </a>
+                <a href="{{ url_for('view_salary_bank_advice_letter', sheet_id=sheet.id, channel='beftn') }}" target="_blank" class="btn btn-outline btn-sm" style="background: white; border-color: #ea580c; color: #ea580c; font-weight: 700;">
+                    📜 View &amp; Print BEFTN Forwarding Letter ↗
+                </a>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table report-table" style="font-size: 0.82rem;">
+                <thead>
+                    <tr>
+                        <th style="width: 50px; text-align: center;">SL</th>
+                        <th style="width: 90px;">Emp ID</th>
+                        <th>Employee Name</th>
+                        <th>Beneficiary Bank Name</th>
+                        <th>Branch Name</th>
+                        <th style="width: 110px;">Routing Number</th>
+                        <th style="width: 170px;">Account Number</th>
+                        <th class="num-col" style="width: 140px; color: #c2410c;">Amount (৳)</th>
+                        <th>Payment Reference</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for it in beftn_items %}
+                    <tr>
+                        <td style="text-align: center; color: var(--text-muted);">{{ loop.index }}</td>
+                        <td style="font-family: monospace; font-weight: 700; color: #1e40af;">{{ it.emp_code }}</td>
+                        <td><strong style="color: #0f172a;">{{ it.name }}</strong></td>
+                        <td style="font-weight: 600; color: #1e3a8a;">{{ it.bank_name }}</td>
+                        <td style="color: #475569;">{{ it.bank_branch or 'Principal Branch' }}</td>
+                        <td style="font-family: monospace; font-weight: 700; color: #475569;">{{ it.routing_no }}</td>
+                        <td style="font-family: monospace; font-weight: 700; color: #0f172a;">{{ it.bank_account_no }}</td>
+                        <td class="num-col" style="font-weight: 800; color: #c2410c; font-family: monospace;">
+                            ৳{{ "{:,.2f}".format(it.net_after_tds) }}
+                        </td>
+                        <td style="font-size: 0.76rem; color: var(--text-muted);">
+                            Salary {{ sheet.salary_month }} (BEFTN)
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr style="background: #f8fafc; font-weight: 800; border-top: 2px solid var(--border-color);">
+                        <td colspan="7" style="text-align: right;">TOTAL BEFTN CLEARING DISBURSAL:</td>
+                        <td class="num-col" style="color: #c2410c; font-size: 0.95rem;">
+                            ৳{{ "{:,.2f}".format(sheet.total_beftn_amount) }}
+                        </td>
+                        <td>{{ sheet.total_beftn_count }} Inter-Bank Transfers</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================
+     TAB 4: CASH DISBURSEMENT SHEET
+     ======================================================================== -->
+<div id="tabContentCash" class="tab-pane" style="display: none;">
+    <div class="card" style="margin-bottom: 1.25rem;">
+        <div class="card-header" style="background: #f8fafc; border-bottom: 1px solid var(--border-color);">
+            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #334155;">
+                💵 Cash Salary Disbursement &bull; Receipt Slips
+            </h3>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+                Total Cash Disbursal: <strong>৳{{ "{:,.2f}".format(sheet.total_cash_amount) }}</strong> ({{ sheet.total_cash_count }} Staff)
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table report-table" style="font-size: 0.82rem;">
+                <thead>
+                    <tr>
+                        <th style="width: 50px; text-align: center;">SL</th>
+                        <th style="width: 90px;">Emp ID</th>
+                        <th>Employee Name</th>
+                        <th>Department &amp; Designation</th>
+                        <th class="num-col" style="width: 140px;">Cash Amount (৳)</th>
+                        <th style="width: 250px; text-align: center;">Employee Signature / Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for it in cash_items %}
+                    <tr>
+                        <td style="text-align: center; color: var(--text-muted);">{{ loop.index }}</td>
+                        <td style="font-family: monospace; font-weight: 700; color: #1e40af;">{{ it.emp_code }}</td>
+                        <td><strong style="color: #0f172a;">{{ it.name }}</strong></td>
+                        <td style="color: #475569;">{{ it.department }} &bull; {{ it.designation }}</td>
+                        <td class="num-col" style="font-weight: 800; color: #0f172a; font-family: monospace;">
+                            ৳{{ "{:,.2f}".format(it.net_after_tds) }}
+                        </td>
+                        <td style="border-bottom: 1px dashed #cbd5e1; text-align: center; color: #94a3b8; font-style: italic; font-size: 0.76rem;">
+                            &nbsp;
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr style="background: #f8fafc; font-weight: 800;">
+                        <td colspan="4" style="text-align: right;">TOTAL CASH DISBURSAL:</td>
+                        <td class="num-col" style="font-size: 0.95rem;">
+                            ৳{{ "{:,.2f}".format(sheet.total_cash_amount) }}
+                        </td>
+                        <td>{{ sheet.total_cash_count }} Staff</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================
+     TAB 5: INACTIVE EMPLOYEES (EXCLUDED FROM RUNNING SALARY DISBURSAL)
+     ======================================================================== -->
+<div id="tabContentInactive" class="tab-pane" style="display: none;">
+    <div class="card" style="margin-bottom: 1.25rem;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; background: #fef2f2; border-bottom: 1px solid #fecaca;">
+            <div>
+                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #991b1b;">
+                    🚫 Inactive Employees (Excluded from Running Payroll)
+                </h3>
+                <div style="font-size: 0.8rem; color: #475569; margin-top: 2px;">
+                    These employees are marked as Inactive and are <strong>not included</strong> in the running payroll calculations, bank transfer files, or GL disbursals.
+                </div>
+            </div>
+            <div>
+                <span class="badge" style="background: #fee2e2; color: #991b1b; font-weight: 700; font-size: 0.85rem; padding: 0.35rem 0.75rem; border: 1px solid #fca5a5;">
+                    <span id="inactiveCountHeader">{{ inactive_count }}</span> Inactive Employee(s)
+                </span>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table report-table" style="font-size: 0.82rem;" id="inactiveEmployeesTable">
+                <thead>
+                    <tr style="background: #f8fafc;">
+                        <th style="width: 50px; text-align: center;">SL</th>
+                        <th style="width: 90px; text-align: center;">Emp ID</th>
+                        <th>Employee Name</th>
+                        <th>Department</th>
+                        <th>Designation</th>
+                        <th class="num-col" style="width: 100px;">Basic Salary</th>
+                        <th class="num-col" style="width: 100px;">Gross Salary</th>
+                        <th>Bank / Payment Channel</th>
+                        <th style="width: 110px; text-align: center;">Status</th>
+                        <th style="width: 170px; text-align: center;">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="inactiveTableBody">
+                    {% for it in inactive_items %}
+                    <tr id="inactive-row-{{ it.id }}" style="background: #fffafa;">
+                        <td style="text-align: center; color: var(--text-muted);">{{ loop.index }}</td>
+                        <td style="font-family: monospace; font-weight: 700; color: #64748b; text-align: center;">{{ it.emp_code }}</td>
+                        <td>
+                            <strong style="color: #0f172a;">{{ it.name }}</strong>
+                            <span class="badge" style="margin-left: 0.3rem; background: #fee2e2; color: #991b1b; font-size: 0.65rem;">Inactive</span>
+                        </td>
+                        <td style="color: #475569;">{{ it.department }}</td>
+                        <td style="color: #475569;">{{ it.designation }}</td>
+                        <td class="num-col">৳{{ "{:,.0f}".format(it.basic) }}</td>
+                        <td class="num-col" style="font-weight: 700;">৳{{ "{:,.0f}".format(it.gross_salary) }}</td>
+                        <td>
+                            {% if it.payment_method == 'EFT' %}
+                            <span style="color: #059669; font-weight: 600;">🏦 Premier Bank</span> ({{ it.bank_account_no }})
+                            {% elif it.payment_method == 'BEFTN' %}
+                            <span style="color: #ea580c; font-weight: 600;">🏛️ {{ it.bank_name }}</span> ({{ it.bank_account_no }})
+                            {% else %}
+                            <span style="color: #64748b;">💵 Cash</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: center;">
+                            <span class="badge" style="background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; font-size: 0.72rem; font-weight: 700;">
+                                Inactive
+                            </span>
+                        </td>
+                        <td style="text-align: center;">
+                            <button type="button" class="btn btn-sm btn-success" onclick="toggleEmployeeStatus({{ it.id }}, 'Running', '{{ it.name|escape }}')" style="font-size: 0.75rem; font-weight: 700; padding: 0.25rem 0.65rem;" title="Restore this employee back to Running in payroll">
+                                ↩ Restore to Running
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr id="noInactiveRow">
+                        <td colspan="10" style="text-align: center; padding: 2.5rem; color: #64748b;">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎉</div>
+                            <strong style="color: #0f172a; font-size: 0.95rem;">No Inactive Employees</strong>
+                            <p style="margin: 0.25rem 0 0 0; font-size: 0.82rem; color: var(--text-muted);">
+                                All employees on this worksheet are currently active and running. To mark someone inactive, click the tick option <span style="color: #059669; font-weight: 800;">✔ Running</span> on their line in the Master Sheet.
+                            </p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================
+     OFFICIAL EXECUTIVE SIGNATURE BLOCKS (PRINT READY)
+     ======================================================================== -->
+<div class="card" style="margin-top: 1.5rem; padding: 1.5rem 2rem; background: #fff; border: 1px solid var(--border-color);">
+    <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1.5rem; text-transform: uppercase; font-weight: 700; text-align: center; letter-spacing: 0.05em;">
+        Executive Approvals &amp; Certification
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; text-align: center;">
+        <div>
+            <div style="height: 45px; border-bottom: 1.5px dashed #94a3b8; margin-bottom: 0.4rem;"></div>
+            <strong style="font-size: 0.84rem; color: #0f172a; display: block;">Prepared By</strong>
+            <small style="color: var(--text-muted); font-size: 0.74rem;">Executive &bull; Payroll &amp; Accounts</small>
+        </div>
+        <div>
+            <div style="height: 45px; border-bottom: 1.5px dashed #94a3b8; margin-bottom: 0.4rem;"></div>
+            <strong style="font-size: 0.84rem; color: #0f172a; display: block;">Checked By</strong>
+            <small style="color: var(--text-muted); font-size: 0.74rem;">Manager &bull; Finance &amp; Accounts</small>
+        </div>
+        <div>
+            <div style="height: 45px; border-bottom: 1.5px dashed #94a3b8; margin-bottom: 0.4rem;"></div>
+            <strong style="font-size: 0.84rem; color: #0f172a; display: block;">Verified By</strong>
+            <small style="color: var(--text-muted); font-size: 0.74rem;">Head of HR &amp; Administration</small>
+        </div>
+        <div>
+            <div style="height: 45px; border-bottom: 1.5px dashed #94a3b8; margin-bottom: 0.4rem;"></div>
+            <strong style="font-size: 0.84rem; color: #0f172a; display: block;">Approved By</strong>
+            <small style="color: var(--text-muted); font-size: 0.74rem;">Managing Director / CEO</small>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================
+     MODAL: EDIT SALARY ITEM ROW DETAILS
+     ======================================================================== -->
+<div id="editSalaryItemModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 620px;">
+        <div class="modal-header">
+            <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.4rem;">
+                <span>✏️</span> Edit Employee Salary Details &amp; Deductions
+            </h3>
+            <button type="button" class="btn-close" onclick="closeModal('editSalaryItemModal')">&times;</button>
+        </div>
+        <form method="POST" id="editItemForm" action="">
+            <div class="modal-body">
+                <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1rem;">
+                    <div style="font-weight: 800; color: #1e3a8a; font-size: 0.94rem;" id="modalItemEmpName"></div>
+                    <div style="font-size: 0.78rem; color: #475569; margin-top: 2px;" id="modalItemEmpMeta"></div>
+                </div>
+
+                <!-- Core Salary Numbers (Display Only or Readonly) -->
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; background: #f8fafc; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.65rem; margin-bottom: 1rem; text-align: center;">
+                    <div>
+                        <span style="display: block; font-size: 0.7rem; color: #64748b; font-weight: 600;">Basic Pay</span>
+                        <strong style="font-size: 0.85rem; color: #0f172a;" id="displayBasic"></strong>
+                    </div>
+                    <div>
+                        <span style="display: block; font-size: 0.7rem; color: #64748b; font-weight: 600;">House Rent</span>
+                        <strong style="font-size: 0.85rem; color: #0f172a;" id="displayHr"></strong>
+                    </div>
+                    <div>
+                        <span style="display: block; font-size: 0.7rem; color: #64748b; font-weight: 600;">Gross Salary</span>
+                        <strong style="font-size: 0.85rem; color: #2563eb;" id="displayGross"></strong>
+                    </div>
+                    <div>
+                        <span style="display: block; font-size: 0.7rem; color: #64748b; font-weight: 600;">PF Deduction</span>
+                        <strong style="font-size: 0.85rem; color: #dc2626;" id="displayPf"></strong>
+                    </div>
+                </div>
+
+                <!-- Allowances Grid -->
+                <div style="font-size: 0.8rem; font-weight: 700; color: #1e3a8a; margin-bottom: 0.4rem;">
+                    🎁 Additional Allowances &amp; Bonuses (৳):
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-size: 0.78rem;">Loyalty Allowance (7.5% / 15%)</label>
+                        <input type="number" step="0.01" name="loyalty_allowance" id="modalLoyalty" class="form-control" style="font-size: 0.82rem;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-size: 0.78rem;">Holiday &amp; Extra Duty</label>
+                        <input type="number" step="0.01" name="holiday_extra_duty" id="modalHoliday" class="form-control" style="font-size: 0.82rem;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-size: 0.78rem;">Eid Bonus</label>
+                        <input type="number" step="0.01" name="eid_bonus" id="modalEidBonus" class="form-control" style="font-size: 0.82rem;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-size: 0.78rem;">Other Allowances</label>
+                        <input type="number" step="0.01" name="other_allowance" id="modalOtherAllowance" class="form-control" style="font-size: 0.82rem;">
+                    </div>
+                </div>
+
+                <!-- Attendance & Deductions Grid -->
+                <div style="font-size: 0.8rem; font-weight: 700; color: #dc2626; margin-bottom: 0.4rem;">
+                    ⚠️ Attendance &amp; Deductions:
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.65rem; margin-bottom: 0.75rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-size: 0.78rem;">Working Days</label>
+                        <input type="number" name="working_days" id="modalWorkDays" class="form-control" style="font-size: 0.82rem;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-size: 0.78rem; color: #dc2626;">Absent Days</label>
+                        <input type="number" name="absent_days" id="modalAbsentDays" class="form-control" style="font-size: 0.82rem;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-size: 0.78rem; color: #dc2626;">Late Days</label>
+                        <input type="number" name="late_days" id="modalLateDays" class="form-control" style="font-size: 0.82rem;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.65rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-size: 0.78rem; color: #dc2626;">Loan Deduction</label>
+                        <input type="number" step="0.01" name="loan_deduction" id="modalLoan" class="form-control" style="font-size: 0.82rem;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-size: 0.78rem; color: #dc2626;">Other Deductions</label>
+                        <input type="number" step="0.01" name="other_deduction" id="modalOtherDed" class="form-control" style="font-size: 0.82rem;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-size: 0.78rem; color: #b91c1c;">Arrear (+ / -)</label>
+                        <input type="number" step="0.01" name="arrear" id="modalArrear" class="form-control" style="font-size: 0.82rem;">
+                    </div>
+                </div>
+
+                <!-- Tax & Bank Account Adjustment -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; background: #f8fafc; padding: 0.75rem; border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700; font-size: 0.8rem; color: #991b1b;">TDS Deduction (Tax ৳)</label>
+                        <input type="number" step="0.01" name="tds_deduction" id="modalTds" class="form-control" style="font-size: 0.82rem;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700; font-size: 0.8rem;">Disbursal Channel</label>
+                        <select name="payment_method" id="modalMethod" class="form-control" style="font-size: 0.82rem;">
+                            <option value="EFT">🏦 EFT (The Premier Bank PLC)</option>
+                            <option value="BEFTN">🏛️ BEFTN (Other Banks)</option>
+                            <option value="Cash">💵 Cash</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('editSalaryItemModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="font-weight: 700;">💾 Save Employee Adjustments</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================
+     MODAL: DISBURSE & POST PAYMENT VOUCHER TO GENERAL LEDGER
+     ======================================================================== -->
+<div id="disburseGlModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 520px;">
+        <div class="modal-header" style="background: #f0fdf4; border-bottom: 1px solid #bbf7d0;">
+            <h3 style="margin: 0; font-size: 1.15rem; color: #166534; display: flex; align-items: center; gap: 0.4rem;">
+                <span>💳</span> Disburse Salary &amp; Post to General Ledger
+            </h3>
+            <button type="button" class="btn-close" onclick="closeModal('disburseGlModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('disburse_salary_sheet_gl', sheet_id=sheet.id) }}">
+            <div class="modal-body">
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0; margin-bottom: 1rem;">
+                    This will finalize the salary sheet and post a balanced <strong>Payment Voucher (PV)</strong> to Accounts General Ledger.
+                </p>
+
+                <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.85rem; margin-bottom: 1.25rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem; font-size: 0.84rem;">
+                        <span>Total Bank Disbursal (EFT + BEFTN):</span>
+                        <strong style="color: #1e3a8a;">৳{{ "{:,.2f}".format(sheet.total_eft_amount + sheet.total_beftn_amount) }}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem; font-size: 0.84rem;">
+                        <span>Total Cash Disbursal:</span>
+                        <strong style="color: #334155;">৳{{ "{:,.2f}".format(sheet.total_cash_amount) }}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem; font-size: 0.84rem;">
+                        <span>Total TDS (Tax Deducted):</span>
+                        <strong style="color: #991b1b;">৳{{ "{:,.2f}".format(sheet.total_tds) }}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-top: 1px solid #cbd5e1; padding-top: 0.35rem; font-size: 0.9rem;">
+                        <strong>Total Disbursable Amount:</strong>
+                        <strong style="color: #047857;">৳{{ "{:,.2f}".format(sheet.total_net_after_tds) }}</strong>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 600;">Disbursing Bank Account *</label>
+                    <select name="bank_account_id" class="form-control" required>
+                        {% for b in bank_accounts %}
+                        <option value="{{ b.id }}" {% if 'Premier' in b.name %}selected{% endif %}>
+                            {{ b.code }} &bull; {{ b.name }} (Bal: ৳{{ "{:,.2f}".format(b.balance) }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('disburseGlModal')">Cancel</button>
+                <button type="submit" class="btn btn-success" style="font-weight: 700; background: #059669; border-color: #059669;">
+                    ✓ Confirm Disbursal &amp; Post Voucher
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// JSON cache of salary sheet items for modal
+const salaryItemsData = {
+    {% for it in sheet.items %}
+    {{ it.id }}: {
+        id: {{ it.id }},
+        emp_code: {{ it.emp_code|tojson }},
+        name: {{ it.name|tojson }},
+        department: {{ it.department|tojson }},
+        designation: {{ it.designation|tojson }},
+        basic: {{ it.basic }},
+        hr: {{ it.hr_allowance }},
+        gross: {{ it.gross_salary }},
+        pf_employee: {{ it.pf_employee }},
+        loyalty: {{ it.loyalty_allowance }},
+        holiday: {{ it.holiday_extra_duty }},
+        eid_bonus: {{ it.eid_bonus }},
+        other_allowance: {{ it.other_allowance }},
+        working_days: {{ it.working_days }},
+        absent_days: {{ it.absent_days }},
+        late_days: {{ it.late_days }},
+        loan_deduction: {{ it.loan_deduction }},
+        other_deduction: {{ it.other_deduction }},
+        arrear: {{ it.arrear }},
+        tds: {{ it.tds_deduction }},
+        payment_method: {{ it.payment_method|tojson }}
+    },
+    {% endfor %}
+};
+
+function openEditSalaryItemModal(itemId) {
+    const d = salaryItemsData[itemId];
+    if (!d) return;
+
+    document.getElementById('editItemForm').action = "/payroll/salary-sheet/{{ sheet.id }}/update-item/" + itemId;
+    document.getElementById('modalItemEmpName').textContent = d.name + " (" + d.emp_code + ")";
+    document.getElementById('modalItemEmpMeta').textContent = d.department + " • " + d.designation;
+
+    document.getElementById('displayBasic').textContent = "৳" + Number(d.basic).toLocaleString();
+    document.getElementById('displayHr').textContent = "৳" + Number(d.hr).toLocaleString();
+    document.getElementById('displayGross').textContent = "৳" + Number(d.gross).toLocaleString();
+    document.getElementById('displayPf').textContent = "-৳" + Number(d.pf_employee).toLocaleString();
+
+    document.getElementById('modalLoyalty').value = d.loyalty || 0;
+    document.getElementById('modalHoliday').value = d.holiday || 0;
+    document.getElementById('modalEidBonus').value = d.eid_bonus || 0;
+    document.getElementById('modalOtherAllowance').value = d.other_allowance || 0;
+
+    document.getElementById('modalWorkDays').value = d.working_days || 31;
+    document.getElementById('modalAbsentDays').value = d.absent_days || 0;
+    document.getElementById('modalLateDays').value = d.late_days || 0;
+    document.getElementById('modalLoan').value = d.loan_deduction || 0;
+    document.getElementById('modalOtherDed').value = d.other_deduction || 0;
+    document.getElementById('modalArrear').value = d.arrear || 0;
+    document.getElementById('modalTds').value = d.tds || 0;
+    document.getElementById('modalMethod').value = d.payment_method || 'EFT';
+
+    openModal('editSalaryItemModal');
+}
+
+// Wide Screen Display Controller
+let isWideScreen = true; // Default ON for 32-column master sheet
+
+function setWideScreen(state) {
+    isWideScreen = state;
+    const container = document.querySelector('.container');
+    const label = document.getElementById('wideScreenStatusLabel');
+    const btn = document.getElementById('btnToggleWideScreen');
+
+    if (container) {
+        if (isWideScreen) {
+            container.classList.add('wide-mode');
+            document.body.classList.add('wide-screen-mode');
+            if (label) label.textContent = 'ON';
+            if (btn) {
+                btn.style.color = '#4338ca';
+                btn.style.borderColor = '#818cf8';
+                btn.style.background = '#eef2ff';
+            }
+        } else {
+            container.classList.remove('wide-mode');
+            document.body.classList.remove('wide-screen-mode');
+            if (label) label.textContent = 'OFF';
+            if (btn) {
+                btn.style.color = '#64748b';
+                btn.style.borderColor = '#cbd5e1';
+                btn.style.background = '#ffffff';
+            }
+        }
+    }
+    localStorage.setItem('salary_wide_view', isWideScreen ? '1' : '0');
+}
+
+function toggleWideScreen() {
+    setWideScreen(!isWideScreen);
+}
+
+// Auto-initialize Wide Screen on load (default to wide or saved user pref)
+document.addEventListener('DOMContentLoaded', function() {
+    const saved = localStorage.getItem('salary_wide_view');
+    // Default to true (wide) if not explicitly set to '0'
+    const shouldBeWide = (saved === null || saved === '1');
+    setWideScreen(shouldBeWide);
+});
+
+// Toast notification helper
+function showToast(message, isSuccess = true) {
+    const existing = document.getElementById('salaryStatusToast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'salaryStatusToast';
+    toast.className = 'status-toast';
+    toast.style.background = isSuccess ? '#065f46' : '#991b1b';
+    toast.innerHTML = `<span>${isSuccess ? '✅' : '⚠️'}</span><span>${message}</span>`;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        if (toast && toast.parentNode) {
+            toast.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(20px)';
+            setTimeout(() => toast.remove(), 400);
+        }
+    }, 3500);
+}
+
+// Toggle Employee Running / Inactive Status
+function toggleEmployeeStatus(itemId, newStatus, empName) {
+    const actionLabel = newStatus === 'Inactive' ? 'move to Inactive Employees' : 'restore to Running payroll';
+    const confirmPrompt = newStatus === 'Inactive' 
+        ? `Are you sure you want to mark ${empName} as Inactive?\n\nThey will be excluded from this month's running payroll totals, bank transfer orders, and Payment Voucher.`
+        : `Restore ${empName} back to active Running payroll?`;
+
+    if (!confirm(confirmPrompt)) {
+        return;
+    }
+
+    fetch(`/payroll/salary-sheet/{{ sheet.id }}/toggle-status/${itemId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ status: newStatus })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message || `Status updated for ${empName}`);
+
+            // Update badge counts and metric cards
+            if (data.running_count !== undefined) {
+                const elHdrRun = document.getElementById('headerRunningCount');
+                const elBadgeRun = document.getElementById('runningBadgeCount');
+                if (elHdrRun) elHdrRun.textContent = data.running_count;
+                if (elBadgeRun) elBadgeRun.textContent = data.running_count;
+            }
+            if (data.inactive_count !== undefined) {
+                const elHdrInact = document.getElementById('headerInactiveCount');
+                const elBadgeInact = document.getElementById('inactiveBadgeCount');
+                const elHdrInactCount = document.getElementById('inactiveCountHeader');
+                if (elHdrInact) elHdrInact.textContent = data.inactive_count;
+                if (elBadgeInact) elBadgeInact.textContent = data.inactive_count;
+                if (elHdrInactCount) elHdrInactCount.textContent = data.inactive_count;
+            }
+            if (data.total_gross !== undefined) {
+                const el = document.getElementById('metricGrossSalary');
+                if (el) el.textContent = data.total_gross;
+            }
+            if (data.total_net_after_tds !== undefined) {
+                const el = document.getElementById('metricNetDisbursable');
+                if (el) el.textContent = data.total_net_after_tds;
+            }
+            if (data.total_eft_amount !== undefined) {
+                const el = document.getElementById('metricEftAmount');
+                if (el) el.textContent = data.total_eft_amount;
+            }
+            if (data.total_eft_count !== undefined) {
+                const el = document.getElementById('metricEftCount');
+                const elTab = document.getElementById('tabEftCount');
+                if (el) el.textContent = data.total_eft_count;
+                if (elTab) elTab.textContent = data.total_eft_count;
+            }
+            if (data.total_beftn_amount !== undefined) {
+                const el = document.getElementById('metricBeftnAmount');
+                if (el) el.textContent = data.total_beftn_amount;
+            }
+            if (data.total_beftn_count !== undefined) {
+                const el = document.getElementById('metricBeftnCount');
+                const elTab = document.getElementById('tabBeftnCount');
+                if (el) el.textContent = data.total_beftn_count;
+                if (elTab) elTab.textContent = data.total_beftn_count;
+            }
+
+            // Animate and remove from current view
+            if (newStatus === 'Inactive') {
+                const runningRow = document.getElementById(`row-${itemId}`);
+                if (runningRow) {
+                    runningRow.style.transition = 'all 0.35s ease';
+                    runningRow.style.opacity = '0';
+                    runningRow.style.transform = 'translateX(-20px)';
+                    setTimeout(() => runningRow.remove(), 350);
+                }
+            } else if (newStatus === 'Running') {
+                const inactRow = document.getElementById(`inactive-row-${itemId}`);
+                if (inactRow) {
+                    inactRow.style.transition = 'all 0.35s ease';
+                    inactRow.style.opacity = '0';
+                    inactRow.style.transform = 'translateX(20px)';
+                    setTimeout(() => inactRow.remove(), 350);
+                }
+                // Reload softly to re-inject employee into the running department structure
+                setTimeout(() => window.location.reload(), 500);
+            }
+        } else {
+            alert(data.message || 'Error updating employee status');
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('Network error while updating employee status.');
+    });
+}
+
+// Tab Switching
+function switchSalaryTab(tabId) {
+    const tabs = ['master', 'news', 'customercare', 'eft', 'beftn', 'cash', 'inactive'];
+    const tabPanes = {
+        'master': document.getElementById('tabContentMaster'),
+        'news': document.getElementById('tabContentNews'),
+        'customercare': document.getElementById('tabContentCustomerCare'),
+        'eft': document.getElementById('tabContentEft'),
+        'beftn': document.getElementById('tabContentBeftn'),
+        'cash': document.getElementById('tabContentCash'),
+        'inactive': document.getElementById('tabContentInactive')
+    };
+    const tabBtns = {
+        'master': document.getElementById('tabBtnMaster'),
+        'news': document.getElementById('tabBtnNews'),
+        'customercare': document.getElementById('tabBtnCustomerCare'),
+        'eft': document.getElementById('tabBtnEft'),
+        'beftn': document.getElementById('tabBtnBeftn'),
+        'cash': document.getElementById('tabBtnCash'),
+        'inactive': document.getElementById('tabBtnInactive')
+    };
+
+    tabs.forEach(t => {
+        if (tabPanes[t]) tabPanes[t].style.display = (t === tabId) ? 'block' : 'none';
+        if (tabBtns[t]) {
+            if (t === tabId) {
+                tabBtns[t].classList.add('active');
+                if (t === 'news') tabBtns[t].style.borderBottom = '3px solid #ea580c';
+                else if (t === 'customercare') tabBtns[t].style.borderBottom = '3px solid #16a34a';
+                else tabBtns[t].style.borderBottom = '';
+            } else {
+                tabBtns[t].classList.remove('active');
+                tabBtns[t].style.borderBottom = '2px solid transparent';
+            }
+        }
+    });
+}
+
+// Live Dynamic Calculations for News Presenters (Per-Duty)
+function recalcNewsRow(itemId) {
+    const inpEve = document.getElementById(`inp-eve-${itemId}`);
+    const inpNight = document.getElementById(`inp-night-${itemId}`);
+    const inpMorn = document.getElementById(`inp-morn-${itemId}`);
+    const inpAddl = document.getElementById(`inp-addl-${itemId}`);
+    const inpArrear = document.getElementById(`inp-arrear-${itemId}`);
+
+    const eve = parseFloat(inpEve ? inpEve.value : 0) || 0;
+    const eveRate = parseFloat(inpEve ? inpEve.dataset.rate : 800) || 800;
+    const night = parseFloat(inpNight ? inpNight.value : 0) || 0;
+    const nightRate = parseFloat(inpNight ? inpNight.dataset.rate : 1400) || 1400;
+    const morn = parseFloat(inpMorn ? inpMorn.value : 0) || 0;
+    const mornRate = parseFloat(inpMorn ? inpMorn.dataset.rate : 1500) || 1500;
+    const addl = parseFloat(inpAddl ? inpAddl.value : 0) || 0;
+    const arrear = parseFloat(inpArrear ? inpArrear.value : 0) || 0;
+
+    const totalDuty = eve + night + morn;
+    const dutySal = (eve * eveRate) + (night * nightRate) + (morn * mornRate);
+    const net = dutySal + addl + arrear;
+
+    const elDuty = document.getElementById(`val-duty-${itemId}`);
+    const elSal = document.getElementById(`val-sal-${itemId}`);
+    const elNet = document.getElementById(`val-net-${itemId}`);
+    const elNetAfterTds = document.getElementById(`val-net-after-tds-${itemId}`);
+
+    if (elDuty) elDuty.textContent = totalDuty;
+    if (elSal) elSal.textContent = '৳' + dutySal.toLocaleString('en-US', {maximumFractionDigits: 0});
+    if (elNet) elNet.textContent = '৳' + net.toLocaleString('en-US', {maximumFractionDigits: 0});
+    if (elNetAfterTds) elNetAfterTds.textContent = '৳' + net.toLocaleString('en-US', {maximumFractionDigits: 0});
+
+    // Update News Totals Row in Footer
+    let totEve = 0, totNight = 0, totMorn = 0, totDuty = 0, totSal = 0, totAddl = 0, totArrear = 0, totNet = 0;
+    document.querySelectorAll('#tabContentNews tbody tr').forEach(row => {
+        const id = row.id.replace('news-row-', '');
+        if (!id) return;
+        const e = parseFloat(document.getElementById(`inp-eve-${id}`)?.value || 0) || 0;
+        const er = parseFloat(document.getElementById(`inp-eve-${id}`)?.dataset.rate || 800) || 800;
+        const n = parseFloat(document.getElementById(`inp-night-${id}`)?.value || 0) || 0;
+        const nr = parseFloat(document.getElementById(`inp-night-${id}`)?.dataset.rate || 1400) || 1400;
+        const m = parseFloat(document.getElementById(`inp-morn-${id}`)?.value || 0) || 0;
+        const mr = parseFloat(document.getElementById(`inp-morn-${id}`)?.dataset.rate || 1500) || 1500;
+        const a = parseFloat(document.getElementById(`inp-addl-${id}`)?.value || 0) || 0;
+        const arr = parseFloat(document.getElementById(`inp-arrear-${id}`)?.value || 0) || 0;
+
+        totEve += e; totNight += n; totMorn += m; totDuty += (e + n + m);
+        const sal = (e * er) + (n * nr) + (m * mr);
+        totSal += sal; totAddl += a; totArrear += arr;
+        totNet += (sal + a + arr);
+    });
+
+    const fEve = document.getElementById('foot-news-eve'); if (fEve) fEve.textContent = totEve;
+    const fNight = document.getElementById('foot-news-night'); if (fNight) fNight.textContent = totNight;
+    const fMorn = document.getElementById('foot-news-morn'); if (fMorn) fMorn.textContent = totMorn;
+    const fDuty = document.getElementById('foot-news-duty'); if (fDuty) fDuty.textContent = totDuty;
+    const fSal = document.getElementById('foot-news-sal'); if (fSal) fSal.textContent = '৳' + totSal.toLocaleString('en-US', {maximumFractionDigits: 0});
+    const fAddl = document.getElementById('foot-news-addl'); if (fAddl) fAddl.textContent = '৳' + totAddl.toLocaleString('en-US', {maximumFractionDigits: 0});
+    const fArrear = document.getElementById('foot-news-arrear'); if (fArrear) fArrear.textContent = '৳' + totArrear.toLocaleString('en-US', {maximumFractionDigits: 0});
+    const fNet = document.getElementById('foot-news-net'); if (fNet) fNet.textContent = '৳' + totNet.toLocaleString('en-US', {maximumFractionDigits: 0});
+    const fNetTds = document.getElementById('foot-news-net-tds'); if (fNetTds) fNetTds.textContent = '৳' + totNet.toLocaleString('en-US', {maximumFractionDigits: 0});
+}
+
+// Live Dynamic Calculations for Customer Care Agents (Per-Duty)
+function recalcCcRow(itemId) {
+    const inpMorn = document.getElementById(`inp-cc-morn-${itemId}`);
+    const inpAft = document.getElementById(`inp-cc-aft-${itemId}`);
+    const inpNight = document.getElementById(`inp-cc-night-${itemId}`);
+    const inpArrear = document.getElementById(`inp-cc-arrear-${itemId}`);
+
+    const morn = parseFloat(inpMorn ? inpMorn.value : 0) || 0;
+    const mornRate = parseFloat(inpMorn ? inpMorn.dataset.rate : 500) || 500;
+    const aft = parseFloat(inpAft ? inpAft.value : 0) || 0;
+    const aftRate = parseFloat(inpAft ? inpAft.dataset.rate : 700) || 700;
+    const night = parseFloat(inpNight ? inpNight.value : 0) || 0;
+    const nightRate = parseFloat(inpNight ? inpNight.dataset.rate : 500) || 500;
+    const arrear = parseFloat(inpArrear ? inpArrear.value : 0) || 0;
+
+    const totalDuty = morn + aft + night;
+    const dutySal = (morn * mornRate) + (aft * aftRate) + (night * nightRate);
+    const net = dutySal + arrear;
+
+    const elDuty = document.getElementById(`val-cc-duty-${itemId}`);
+    const elSal = document.getElementById(`val-cc-sal-${itemId}`);
+    const elNet = document.getElementById(`val-cc-net-${itemId}`);
+    const elNetAfterTds = document.getElementById(`val-cc-net-after-tds-${itemId}`);
+
+    if (elDuty) elDuty.textContent = totalDuty;
+    if (elSal) elSal.textContent = '৳' + dutySal.toLocaleString('en-US', {maximumFractionDigits: 0});
+    if (elNet) elNet.textContent = '৳' + Math.round(net).toLocaleString('en-US', {maximumFractionDigits: 0});
+    if (elNetAfterTds) elNetAfterTds.textContent = '৳' + Math.round(net).toLocaleString('en-US', {maximumFractionDigits: 0});
+
+    // Update Customer Care Totals Row in Footer
+    let totMorn = 0, totAft = 0, totNight = 0, totDuty = 0, totSal = 0, totArrear = 0, totNet = 0;
+    document.querySelectorAll('#tabContentCustomerCare tbody tr').forEach(row => {
+        const id = row.id.replace('cc-row-', '');
+        if (!id) return;
+        const m = parseFloat(document.getElementById(`inp-cc-morn-${id}`)?.value || 0) || 0;
+        const mr = parseFloat(document.getElementById(`inp-cc-morn-${id}`)?.dataset.rate || 500) || 500;
+        const a = parseFloat(document.getElementById(`inp-cc-aft-${id}`)?.value || 0) || 0;
+        const ar = parseFloat(document.getElementById(`inp-cc-aft-${id}`)?.dataset.rate || 700) || 700;
+        const n = parseFloat(document.getElementById(`inp-cc-night-${id}`)?.value || 0) || 0;
+        const nr = parseFloat(document.getElementById(`inp-cc-night-${id}`)?.dataset.rate || 500) || 500;
+        const arr = parseFloat(document.getElementById(`inp-cc-arrear-${id}`)?.value || 0) || 0;
+
+        totMorn += m; totAft += a; totNight += n; totDuty += (m + a + n);
+        const sal = (m * mr) + (a * ar) + (n * nr);
+        totSal += sal; totArrear += arr;
+        totNet += (sal + arr);
+    });
+
+    const fMorn = document.getElementById('foot-cc-morn'); if (fMorn) fMorn.textContent = totMorn;
+    const fAft = document.getElementById('foot-cc-aft'); if (fAft) fAft.textContent = totAft;
+    const fNight = document.getElementById('foot-cc-night'); if (fNight) fNight.textContent = totNight;
+    const fDuty = document.getElementById('foot-cc-duty'); if (fDuty) fDuty.textContent = totDuty;
+    const fSal = document.getElementById('foot-cc-sal'); if (fSal) fSal.textContent = '৳' + totSal.toLocaleString('en-US', {maximumFractionDigits: 0});
+    const fArrear = document.getElementById('foot-cc-arrear'); if (fArrear) fArrear.textContent = '৳' + Math.round(totArrear).toLocaleString('en-US', {maximumFractionDigits: 0});
+    const fNet = document.getElementById('foot-cc-net'); if (fNet) fNet.textContent = '৳' + Math.round(totNet).toLocaleString('en-US', {maximumFractionDigits: 0});
+    const fNetTds = document.getElementById('foot-cc-net-tds'); if (fNetTds) fNetTds.textContent = '৳' + Math.round(totNet).toLocaleString('en-US', {maximumFractionDigits: 0});
+}
+
+// AJAX Single Duty Row Save
+function saveSingleDutyItem(itemId, category) {
+    let payload = { duty_category: category };
+    if (category === 'News Presenter') {
+        payload.shift_eve_duty = parseFloat(document.getElementById(`inp-eve-${itemId}`)?.value || 0) || 0;
+        payload.shift_night_duty = parseFloat(document.getElementById(`inp-night-${itemId}`)?.value || 0) || 0;
+        payload.shift_morn_duty = parseFloat(document.getElementById(`inp-morn-${itemId}`)?.value || 0) || 0;
+        payload.additional_allowance = parseFloat(document.getElementById(`inp-addl-${itemId}`)?.value || 0) || 0;
+        payload.arrear = parseFloat(document.getElementById(`inp-arrear-${itemId}`)?.value || 0) || 0;
+    } else {
+        payload.shift_morn_duty = parseFloat(document.getElementById(`inp-cc-morn-${itemId}`)?.value || 0) || 0;
+        payload.shift_aft_duty = parseFloat(document.getElementById(`inp-cc-aft-${itemId}`)?.value || 0) || 0;
+        payload.shift_night_duty = parseFloat(document.getElementById(`inp-cc-night-${itemId}`)?.value || 0) || 0;
+        payload.arrear = parseFloat(document.getElementById(`inp-cc-arrear-${itemId}`)?.value || 0) || 0;
+    }
+
+    const rowEl = document.getElementById(category === 'News Presenter' ? `news-row-${itemId}` : `cc-row-${itemId}`);
+    if (rowEl) rowEl.style.opacity = '0.6';
+
+    fetch(`/payroll/salary-sheet/{{ sheet.id }}/update-part-time-item/${itemId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (rowEl) {
+            rowEl.style.opacity = '1';
+            rowEl.style.transition = 'background-color 0.5s';
+            const origBg = rowEl.style.backgroundColor;
+            rowEl.style.backgroundColor = '#dcfce7';
+            setTimeout(() => { rowEl.style.backgroundColor = origBg; }, 1200);
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        if (rowEl) rowEl.style.opacity = '1';
+        alert('Network error saving row.');
+    });
+}
+
+// Inline Spreadsheet Edit Mode Toggle
+let isSpreadsheetMode = false;
+function toggleSpreadsheetMode(forceState) {
+    if (forceState !== undefined) {
+        isSpreadsheetMode = forceState;
+    } else {
+        isSpreadsheetMode = !isSpreadsheetMode;
+    }
+
+    const banner = document.getElementById('spreadsheetActiveBar');
+    const toggleBtn = document.getElementById('btnToggleSpreadsheet');
+    const normalViews = document.querySelectorAll('.normal-view');
+    const editViews = document.querySelectorAll('.edit-view');
+
+    if (isSpreadsheetMode) {
+        if (banner) banner.style.display = 'flex';
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '✕ Exit Spreadsheet Mode';
+            toggleBtn.style.color = '#dc2626';
+            toggleBtn.style.borderColor = '#fca5a5';
+            toggleBtn.style.background = '#fef2f2';
+        }
+        normalViews.forEach(el => el.style.display = 'none');
+        editViews.forEach(el => el.style.display = '');
+    } else {
+        if (banner) banner.style.display = 'none';
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '⚡ Inline Spreadsheet Mode';
+            toggleBtn.style.color = '#0284c7';
+            toggleBtn.style.borderColor = '#38bdf8';
+            toggleBtn.style.background = '#f0f9ff';
+        }
+        normalViews.forEach(el => el.style.display = '');
+        editViews.forEach(el => el.style.display = 'none');
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,405 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Contribution Fund Management - ZR-ERP ERP{% endblock %}
+
+{% block content %}
+<div class="page-header no-print">
+    <div>
+        <h1 class="page-title">💰 Employee Contribution Fund (Provident & Welfare)</h1>
+        <p class="page-description">
+            Track employee-wise fund accumulation, matching company contributions, profit accruals, and Excel data synchronization.
+        </p>
+    </div>
+    <div class="header-actions">
+        <a href="{{ url_for('download_fund_sample_excel') }}" class="btn btn-outline">
+            📥 Download Template
+        </a>
+        <button type="button" class="btn btn-primary" onclick="openModal('importFundModal')">
+            📤 Import Contributions from Excel
+        </button>
+        <button type="button" class="btn btn-outline" onclick="openModal('manualFundModal')">
+            ➕ Add Manual Entry
+        </button>
+        <button type="button" class="btn btn-danger" onclick="openModal('clearFundModal')" style="display: inline-flex; align-items: center; gap: 0.4rem; background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border: none; color: #fff; font-weight: 600; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);">
+            🗑️ Clear Previous Data
+        </button>
+    </div>
+</div>
+
+<!-- KPI Metrics Grid -->
+<div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+    <div class="metric-card profit">
+        <div class="metric-label">Total Fund Portfolio Value</div>
+        <div class="metric-value" style="color: #059669;">৳{{ "{:,.2f}".format(total_fund_accumulated) }}</div>
+        <div class="metric-sub">Cumulative portfolio balance</div>
+    </div>
+
+    <div class="metric-card asset">
+        <div class="metric-label">Employee PF Contributions</div>
+        <div class="metric-value" style="color: #2563eb;">৳{{ "{:,.2f}".format(total_emp_share) }}</div>
+        <div class="metric-sub">Staff salary deductions</div>
+    </div>
+
+    <div class="metric-card expense">
+        <div class="metric-label">Employer Matching Share</div>
+        <div class="metric-value" style="color: #7c3aed;">৳{{ "{:,.2f}".format(total_comp_share) }}</div>
+        <div class="metric-sub">Company matching funds</div>
+    </div>
+
+    <div class="metric-card" style="border-left: 4px solid #0284c7; background: #f0f9ff;">
+        <div class="metric-label">Welfare Fund</div>
+        <div class="metric-value" style="color: #0284c7;">৳{{ "{:,.2f}".format(total_welfare_share) }}</div>
+        <div class="metric-sub">Staff welfare contribution</div>
+    </div>
+
+    <div class="metric-card liability">
+        <div class="metric-label">Accrued Return / Profit</div>
+        <div class="metric-value" style="color: #d97706;">৳{{ "{:,.2f}".format(total_profit_accrued) }}</div>
+        <div class="metric-sub">Portfolio interest & dividends</div>
+    </div>
+</div>
+
+<!-- Employee-Wise Fund Table -->
+<div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 class="card-title">👨‍💼 Employee Contribution Fund Summary ({{ fund_summaries|length }})</h2>
+        <span class="badge" style="background-color: #d1fae5; color: #065f46;">Independent Fund Module</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 100px;">Emp ID</th>
+                    <th>Employee Name</th>
+                    <th>Department</th>
+                    <th class="num-col">Employee PF (৳)</th>
+                    <th class="num-col">Employer PF (৳)</th>
+                    <th class="num-col" style="color: #0284c7;">Welfare Fund (৳)</th>
+                    <th class="num-col">Profit Accrued (৳)</th>
+                    <th class="num-col" style="width: 160px; color: #059669;">Cumulative Fund (৳)</th>
+                    <th style="width: 130px; text-align: center;" class="no-print">Fund Ledger</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if fund_summaries %}
+                    {% for item in fund_summaries %}
+                    <tr>
+                        <td style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent);">
+                            {{ item.employee.employee_id }}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('employee_profile', emp_id=item.employee.id) }}" style="text-decoration: none; color: var(--text-primary); font-weight: 600;">
+                                {{ item.employee.name }}
+                            </a>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">{{ item.employee.designation }}</div>
+                        </td>
+                        <td>
+                            <span style="font-size: 0.8rem; color: var(--text-secondary);">{{ item.employee.department }}</span>
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
+                            ৳{{ "{:,.2f}".format(item.emp_share) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #7c3aed;">
+                            ৳{{ "{:,.2f}".format(item.comp_share) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #0284c7;">
+                            ৳{{ "{:,.2f}".format(item.welfare_share) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #d97706;">
+                            ৳{{ "{:,.2f}".format(item.profit) }}
+                        </td>
+                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #059669; font-size: 1rem;">
+                            ৳{{ "{:,.2f}".format(item.balance) }}
+                        </td>
+                        <td style="text-align: center;" class="no-print">
+                            <a href="{{ url_for('employee_fund_ledger', emp_id=item.employee.id) }}" class="btn btn-outline btn-sm" style="font-size: 0.78rem; padding: 0.25rem 0.65rem;">
+                                📖 Ledger ({{ item.record_count }}) ↗
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="9" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                            No employee contribution records found. Import from Excel or add manual entries.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+            <tfoot>
+                <tr class="report-grandtotal-row">
+                    <td colspan="3" style="text-align: right; font-weight: 700;">TOTAL FUND PORTFOLIO:</td>
+                    <td class="num-col" style="font-weight: 700;">৳{{ "{:,.2f}".format(total_emp_share) }}</td>
+                    <td class="num-col" style="font-weight: 700; color: #7c3aed;">৳{{ "{:,.2f}".format(total_comp_share) }}</td>
+                    <td class="num-col" style="font-weight: 700; color: #0284c7;">৳{{ "{:,.2f}".format(total_welfare_share) }}</td>
+                    <td class="num-col" style="font-weight: 700; color: #d97706;">৳{{ "{:,.2f}".format(total_profit_accrued) }}</td>
+                    <td class="num-col" style="font-weight: 800; color: #059669; font-size: 1.1rem;">৳{{ "{:,.2f}".format(total_fund_accumulated) }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<!-- MODAL: IMPORT CONTRIBUTIONS FROM EXCEL -->
+<div id="importFundModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 580px;">
+        <div class="modal-header">
+            <h3 style="margin: 0; font-size: 1.15rem; font-family: 'Outfit', sans-serif;">📤 Import Fund Contributions from Excel</h3>
+            <button type="button" class="btn-close" onclick="closeModal('importFundModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('import_fund_contributions_excel') }}" enctype="multipart/form-data">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Select Excel File (.xlsx / .xls)</label>
+                    <input type="file" name="excel_file" class="form-control" accept=".xlsx,.xls" required>
+                </div>
+
+                <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: var(--radius-sm); padding: 0.85rem; font-size: 0.82rem; color: #166534; margin-bottom: 0.85rem;">
+                    <strong>🛡️ Separate Module & Smart Pipeline:</strong><br>
+                    • Reads & analyzes full Excel across all sheets (multi-year 2018 to 2026).<br>
+                    • <strong>Auto-creates employees</strong> by ID number if not already present.<br>
+                    • Automatically recalculates chronological cumulative running balances.<br>
+                    • Completely separate from Accounts: <strong>zero impact on GL, Cash Book, or P&L</strong>.
+                </div>
+
+                <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius-sm); padding: 0.85rem; font-size: 0.82rem; color: #1e40af; margin-bottom: 1rem;">
+                    <strong>Expected Columns in Excel:</strong><br>
+                    <code>Emp ID</code>, <code>Employee Name</code> (optional), <code>Month (YYYY-MM)</code>, <code>Date (YYYY-MM-DD)</code>, <code>PF Employee Share</code>, <code>PF Employer Share</code>, <code>Welfare Fund</code>, <code>Profit / Interest</code>, <code>Remarks</code>.
+                </div>
+
+                <div style="text-align: right;">
+                    <a href="{{ url_for('download_fund_sample_excel') }}" style="font-size: 0.82rem; color: #2563eb; text-decoration: none; font-weight: 600;">
+                        📥 Download Sample Contribution Template (.xlsx)
+                    </a>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('importFundModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Start Import</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: ADD MANUAL CONTRIBUTION -->
+<div id="manualFundModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 540px;">
+        <div class="modal-header">
+            <h3 style="margin: 0; font-size: 1.15rem; font-family: 'Outfit', sans-serif;">➕ Add Contribution Entry</h3>
+            <button type="button" class="btn-close" onclick="closeModal('manualFundModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('add_fund_contribution_manual') }}">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Employee</label>
+                    <select name="employee_id" class="form-control" required>
+                        {% for item in fund_summaries %}
+                        <option value="{{ item.employee.id }}">
+                            {{ item.employee.employee_id }} - {{ item.employee.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label">Contribution Month</label>
+                        <input type="text" name="contribution_month" value="2026-03" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Contribution Date</label>
+                        <input type="date" name="contribution_date" value="{{ now.strftime('%Y-%m-%d') }}" class="form-control" required>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label">PF Employee Share (৳)</label>
+                        <input type="number" step="0.01" name="employee_share" placeholder="0.00" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">PF Employer Share (৳)</label>
+                        <input type="number" step="0.01" name="employer_share" placeholder="0.00" class="form-control" required>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label">Welfare Fund (৳)</label>
+                        <input type="number" step="0.01" name="welfare_fund" placeholder="0.00" value="0.00" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Profit / Accrued Return (৳)</label>
+                        <input type="number" step="0.01" name="profit_interest" value="0.00" class="form-control">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Remarks</label>
+                    <input type="text" name="remarks" value="Monthly PF & Welfare contribution" class="form-control">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('manualFundModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Contribution</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: CLEAR PREVIOUS FUND DATA -->
+<div id="clearFundModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 580px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); color: #ffffff;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 1.25rem;">🗑️</span>
+                <h3 style="margin: 0; font-size: 1.15rem; font-family: 'Outfit', sans-serif; color: #ffffff;">Clear Previous Contribution Fund Data</h3>
+            </div>
+            <button type="button" class="btn-close" onclick="closeModal('clearFundModal')" style="color: #ffffff;">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('clear_fund_contributions') }}" onsubmit="return confirmFundClear();">
+            <div class="modal-body" style="padding: 1.25rem 1.5rem;">
+                
+                <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: var(--radius-sm); padding: 0.85rem; font-size: 0.82rem; color: #991b1b; margin-bottom: 1.25rem;">
+                    <strong>⚠️ Separate Module Protection:</strong><br>
+                    This will clear historical records <strong>only from Employee Contribution Fund</strong> (Provident & Welfare). Your General Accounts, Journal Entries, Cash Book, and Bank Book will <strong>NOT</strong> be affected.
+                </div>
+
+                <!-- Scope Selection -->
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label" style="font-weight: 700; margin-bottom: 0.5rem; display: block;">Select Clearing Scope:</label>
+                    <div style="display: flex; flex-direction: column; gap: 0.65rem;">
+                        <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; padding: 0.6rem 0.85rem; border: 1px solid var(--border); border-radius: 6px; background: #fafafa;">
+                            <input type="radio" name="clear_scope" value="all" checked onchange="toggleScopeInputs('all')" style="margin-top: 0.2rem;">
+                            <div>
+                                <span style="font-weight: 600; color: #b91c1c;">Clear ALL Previous Fund Data (Complete Reset)</span>
+                                <div style="font-size: 0.78rem; color: var(--text-muted);">Permanently wipes all historical fund contributions to start fresh with new Excel uploads.</div>
+                            </div>
+                        </label>
+
+                        <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; padding: 0.6rem 0.85rem; border: 1px solid var(--border); border-radius: 6px; background: #fafafa;">
+                            <input type="radio" name="clear_scope" value="date_range" onchange="toggleScopeInputs('date_range')" style="margin-top: 0.2rem;">
+                            <div>
+                                <span style="font-weight: 600; color: var(--text-primary);">Clear by Date Range (From Date to To Date)</span>
+                                <div style="font-size: 0.78rem; color: var(--text-muted);">Deletes only fund contributions recorded within specific dates.</div>
+                            </div>
+                        </label>
+
+                        <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; padding: 0.6rem 0.85rem; border: 1px solid var(--border); border-radius: 6px; background: #fafafa;">
+                            <input type="radio" name="clear_scope" value="month" onchange="toggleScopeInputs('month')" style="margin-top: 0.2rem;">
+                            <div>
+                                <span style="font-weight: 600; color: var(--text-primary);">Clear by Specific Month (YYYY-MM)</span>
+                                <div style="font-size: 0.78rem; color: var(--text-muted);">Deletes fund contributions for a single month (e.g. 2026-03).</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Date Range Container (hidden by default) -->
+                <div id="dateRangeContainer" style="display: none; background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1.25rem;">
+                    <div style="font-weight: 600; font-size: 0.82rem; margin-bottom: 0.5rem; color: var(--text-secondary);">Quick Date Presets:</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.85rem;">
+                        <button type="button" class="btn btn-outline btn-sm" onclick="setFundClearPreset('2026-03-01', '2026-03-31')">March 2026</button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="setFundClearPreset('2026-02-01', '2026-02-28')">Feb 2026</button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="setFundClearPreset('2026-01-01', '2026-01-31')">Jan 2026</button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="setFundClearPreset('2026-01-01', '2026-12-31')">Full Year 2026</button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="setFundClearPreset('2025-01-01', '2025-12-31')">Full Year 2025</button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="setFundClearPreset('2020-01-01', '2030-12-31')" style="color: #b91c1c; border-color: #fca5a5;">All History</button>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: 0.82rem;">From Date</label>
+                            <input type="date" name="from_date" id="fund_clear_from" class="form-control" value="2026-01-01">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: 0.82rem;">To Date</label>
+                            <input type="date" name="to_date" id="fund_clear_to" class="form-control" value="2026-12-31">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Month Container (hidden by default) -->
+                <div id="monthContainer" style="display: none; background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1.25rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-size: 0.82rem;">Contribution Month (YYYY-MM)</label>
+                        <input type="text" name="month_str" placeholder="e.g. 2026-03" class="form-control" value="2026-03">
+                    </div>
+                </div>
+
+                <!-- Employee Target Selection -->
+                <div class="form-group" style="margin-bottom: 0.5rem;">
+                    <label class="form-label" style="font-weight: 600;">Target Employees</label>
+                    <select name="employee_id" class="form-control">
+                        <option value="0">All Employees (Entire Fund)</option>
+                        {% for item in fund_summaries %}
+                        <option value="{{ item.employee.id }}">
+                            {{ item.employee.employee_id }} - {{ item.employee.name }} ({{ item.record_count }} records)
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="background: #fef2f2; border-top: 1px solid #fee2e2;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('clearFundModal')">Cancel</button>
+                <button type="submit" class="btn btn-danger" style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border: none; font-weight: 600; padding: 0.5rem 1.25rem; color: #fff;">
+                    🗑️ Permanently Clear Fund Data
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openModal(id) {
+    document.getElementById(id).style.display = 'flex';
+}
+function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
+}
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal-overlay')) {
+        event.target.style.display = 'none';
+    }
+}
+function toggleScopeInputs(scope) {
+    document.getElementById('dateRangeContainer').style.display = (scope === 'date_range') ? 'block' : 'none';
+    document.getElementById('monthContainer').style.display = (scope === 'month') ? 'block' : 'none';
+}
+function setFundClearPreset(fromVal, toVal) {
+    document.getElementById('fund_clear_from').value = fromVal;
+    document.getElementById('fund_clear_to').value = toVal;
+}
+function confirmFundClear() {
+    return confirm("ATTENTION: Are you sure you want to permanently clear previous Employee Contribution Fund data?\n\nThis will remove previous records and recalculate running balances for any remaining items.\n\nGeneral Accounts and Ledger calculations will NOT be affected.\n\nProceed?");
+}
+</script>
+
+<style>
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1050; backdrop-filter: blur(4px);
+}
+.modal-box {
+    background: #ffffff; border-radius: var(--radius-md);
+    width: 90%; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+}
+.modal-header {
+    padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center; background: #f8fafc;
+}
+.modal-body { padding: 1.25rem; }
+.modal-footer {
+    padding: 0.85rem 1.25rem; border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-end; gap: 0.5rem; background: #f8fafc;
+}
+.btn-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); }
+</style>
+{% endblock %}

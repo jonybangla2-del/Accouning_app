@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Executive Budget Variance Report - {{ month_name }} - ZR-ERP{% endblock %}
+
+{% block content %}
+<div class="page-header no-print" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+        <h1 class="page-title" style="margin: 0; font-size: 1.5rem; font-weight: 800;">🖨️ Executive Budget Variance Report</h1>
+        <p class="page-description" style="margin: 0; color: #64748b; font-size: 0.85rem;">Official printable financial variance statement for {{ month_name }}.</p>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+        <button onclick="window.print()" class="nav-cta-btn" style="padding: 0.5rem 1.1rem; cursor: pointer;">
+            🖨️ Print / Save PDF
+        </button>
+        <a href="{{ url_for('budget_dashboard', month=month) }}" class="btn btn-secondary">
+            ← Return to Cockpit
+        </a>
+    </div>
+</div>
+
+<div class="card report-print-container" style="background: white; border-radius: 12px; padding: 2.5rem; border: 1px solid #cbd5e1; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 3rem;">
+    <!-- Formal Corporate Header -->
+    <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 1.25rem; margin-bottom: 1.5rem;">
+        <div style="font-size: 0.85rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #2563eb; margin-bottom: 0.25rem;">
+            ZR-ERP ENTERPRISE ACCOUNTING SYSTEM
+        </div>
+        <h1 style="font-family: 'Outfit', sans-serif; font-size: 1.65rem; font-weight: 800; color: #0f172a; margin: 0 0 0.35rem 0; letter-spacing: -0.01em;">
+            STATEMENT OF MONTHLY BUDGET VS ACTUAL EXPENDITURE
+        </h1>
+        <div style="font-size: 1rem; font-weight: 700; color: #334155; margin-bottom: 0.25rem;">
+            Reporting Period: <span style="color: #2563eb;">{{ month_name }}</span> (Fiscal Year: {{ budget.fiscal_year if budget else '2026-2027' }})
+        </div>
+        <div style="font-size: 0.78rem; color: #64748b;">
+            Document Generated: {{ generated_at.strftime('%d-%b-%Y at %I:%M %p') }} &bull; Status: {{ budget.status if budget else 'Unapproved' }}
+        </div>
+    </div>
+
+    <!-- Executive Summary Key Metrics Strip -->
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 2rem;">
+        <div>
+            <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: #64748b;">Total Approved Budget</div>
+            <div style="font-size: 1.25rem; font-weight: 800; color: #0f172a;">৳{{ "{:,.2f}".format(total_budgeted) }}</div>
+        </div>
+        <div>
+            <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: #64748b;">Actual Expenditure</div>
+            <div style="font-size: 1.25rem; font-weight: 800; color: {% if total_actual > total_budgeted and total_budgeted > 0 %}#e11d48{% else %}#0f172a{% endif %};">
+                ৳{{ "{:,.2f}".format(total_actual) }}
+            </div>
+        </div>
+        <div>
+            <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: #64748b;">Net Variance (Savings)</div>
+            <div style="font-size: 1.25rem; font-weight: 800; color: {% if total_variance >= 0 %}#059669{% else %}#e11d48{% endif %};">
+                {% if total_variance < 0 %}
+                    ({{ "{:,.2f}".format(total_variance|abs) }})
+                {% else %}
+                    +{{ "{:,.2f}".format(total_variance) }}
+                {% endif %}
+            </div>
+        </div>
+        <div>
+            <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: #64748b;">Budget Burn Rate</div>
+            <div style="font-size: 1.25rem; font-weight: 800; color: {% if overall_utilization > 100 %}#e11d48{% elif overall_utilization >= 85 %}#d97706{% else %}#059669{% endif %};">
+                {{ "{:.1f}".format(overall_utilization) }}%
+            </div>
+        </div>
+    </div>
+
+    <!-- Variance Table -->
+    <table class="table report-table" style="width: 100%; border-collapse: collapse; margin-bottom: 2.5rem; font-size: 0.88rem;">
+        <thead>
+            <tr style="border-bottom: 2px solid #0f172a; background: #f1f5f9;">
+                <th style="padding: 0.65rem; text-align: left;">Head of Account</th>
+                <th style="padding: 0.65rem; width: 100px; text-align: center;">Code</th>
+                <th class="num-col" style="padding: 0.65rem; width: 150px; text-align: right;">Budget (৳)</th>
+                <th class="num-col" style="padding: 0.65rem; width: 150px; text-align: right;">Actual (৳)</th>
+                <th class="num-col" style="padding: 0.65rem; width: 160px; text-align: right;">Variance (৳)</th>
+                <th style="padding: 0.65rem; width: 110px; text-align: right;">Burn %</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cat_name, items in items_by_cat.items() %}
+                {% if items %}
+                    <!-- Category Section Header -->
+                    <tr style="background: #e2e8f0; font-weight: 800; color: #1e293b;">
+                        <td colspan="6" style="padding: 0.5rem 0.65rem; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em;">
+                            SECTION: {{ cat_name }}
+                        </td>
+                    </tr>
+                    
+                    {% set cat_b = namespace(val=0) %}
+                    {% set cat_a = namespace(val=0) %}
+
+                    {% for item in items %}
+                        {% set cat_b.val = cat_b.val + item.budgeted %}
+                        {% set cat_a.val = cat_a.val + item.actual %}
+                        <tr style="border-bottom: 1px solid #f1f5f9;">
+                            <td style="padding: 0.5rem 0.65rem; font-weight: 600; color: #1e293b;">{{ item.name }}</td>
+                            <td style="padding: 0.5rem 0.65rem; font-family: monospace; text-align: center; color: #64748b;">{{ item.code }}</td>
+                            <td class="num-col" style="padding: 0.5rem 0.65rem; text-align: right;">৳{{ "{:,.2f}".format(item.budgeted) }}</td>
+                            <td class="num-col" style="padding: 0.5rem 0.65rem; text-align: right; color: {% if item.actual > item.budgeted and item.budgeted > 0 %}#e11d48{% else %}#1e293b{% endif %};">
+                                ৳{{ "{:,.2f}".format(item.actual) }}
+                            </td>
+                            <td class="num-col" style="padding: 0.5rem 0.65rem; text-align: right; font-weight: 700; color: {% if item.variance >= 0 %}#059669{% else %}#e11d48{% endif %};">
+                                {% if item.variance < 0 %}
+                                    ({{ "{:,.2f}".format(item.variance|abs) }})
+                                {% else %}
+                                    +{{ "{:,.2f}".format(item.variance) }}
+                                {% endif %}
+                            </td>
+                            <td style="padding: 0.5rem 0.65rem; text-align: right; font-weight: 600;">
+                                {{ "{:.1f}".format(item.utilization) }}%
+                            </td>
+                        </tr>
+                    {% endfor %}
+
+                    <!-- Subtotal Row -->
+                    <tr style="background: #f8fafc; font-weight: 700; border-top: 1px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
+                        <td colspan="2" style="padding: 0.5rem 0.65rem; color: #475569;">SUBTOTAL: {{ cat_name|upper }}</td>
+                        <td class="num-col" style="padding: 0.5rem 0.65rem; text-align: right;">৳{{ "{:,.2f}".format(cat_b.val) }}</td>
+                        <td class="num-col" style="padding: 0.5rem 0.65rem; text-align: right;">৳{{ "{:,.2f}".format(cat_a.val) }}</td>
+                        <td class="num-col" style="padding: 0.5rem 0.65rem; text-align: right; color: {% if (cat_b.val - cat_a.val) >= 0 %}#059669{% else %}#e11d48{% endif %};">
+                            {% if (cat_b.val - cat_a.val) < 0 %}
+                                ({{ "{:,.2f}".format((cat_b.val - cat_a.val)|abs) }})
+                            {% else %}
+                                +{{ "{:,.2f}".format(cat_b.val - cat_a.val) }}
+                            {% endif %}
+                        </td>
+                        <td style="padding: 0.5rem 0.65rem; text-align: right;">
+                            {{ "{:.1f}".format((cat_a.val / cat_b.val * 100) if cat_b.val > 0 else 0) }}%
+                        </td>
+                    </tr>
+                {% endif %}
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr style="background: #0f172a; color: white; font-weight: 800; font-size: 0.95rem;">
+                <td colspan="2" style="padding: 0.85rem 0.65rem;">TOTAL OPERATIONAL EXPENDITURE</td>
+                <td class="num-col" style="padding: 0.85rem 0.65rem; text-align: right;">৳{{ "{:,.2f}".format(total_budgeted) }}</td>
+                <td class="num-col" style="padding: 0.85rem 0.65rem; text-align: right; color: #38bdf8;">৳{{ "{:,.2f}".format(total_actual) }}</td>
+                <td class="num-col" style="padding: 0.85rem 0.65rem; text-align: right; color: {% if total_variance >= 0 %}#34d399{% else %}#f87171{% endif %};">
+                    {% if total_variance < 0 %}
+                        ({{ "{:,.2f}".format(total_variance|abs) }})
+                    {% else %}
+                        +{{ "{:,.2f}".format(total_variance) }}
+                    {% endif %}
+                </td>
+                <td style="padding: 0.85rem 0.65rem; text-align: right;">{{ "{:.1f}".format(overall_utilization) }}%</td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <!-- Management Sign-Off Section -->
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-top: 4rem; padding-top: 1rem; text-align: center;">
+        <div>
+            <div style="border-top: 1px solid #0f172a; width: 80%; margin: 0 auto 0.4rem auto;"></div>
+            <div style="font-weight: 700; font-size: 0.88rem; color: #0f172a;">Prepared By</div>
+            <div style="font-size: 0.75rem; color: #64748b;">Budget &amp; Accounts Officer</div>
+        </div>
+        <div>
+            <div style="border-top: 1px solid #0f172a; width: 80%; margin: 0 auto 0.4rem auto;"></div>
+            <div style="font-weight: 700; font-size: 0.88rem; color: #0f172a;">Verified &amp; Checked</div>
+            <div style="font-size: 0.75rem; color: #64748b;">Chief Financial Officer (CFO)</div>
+        </div>
+        <div>
+            <div style="border-top: 1px solid #0f172a; width: 80%; margin: 0 auto 0.4rem auto;"></div>
+            <div style="font-weight: 700; font-size: 0.88rem; color: #0f172a;">Approved By</div>
+            <div style="font-size: 0.75rem; color: #64748b;">Managing Director / CEO</div>
+        </div>
+    </div>
+</div>
+
+<style>
+@media print {
+    body { background: white !important; color: black !important; }
+    .top-nav, .filter-bar, .page-header, .no-print { display: none !important; }
+    .report-print-container {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+}
+</style>
+{% endblock %}

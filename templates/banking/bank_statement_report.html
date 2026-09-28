@@ -1,0 +1,1110 @@
+{% extends "base.html" %}
+
+{% block title %}Bank Statement Report - ZR-ERP{% endblock %}
+
+{% block content %}
+<style>
+/* Sticky Actions Column - Always Visible */
+.table-responsive {
+    position: relative;
+    overflow-x: auto;
+}
+th.col-actions-sticky {
+    position: sticky !important;
+    right: 0 !important;
+    background-color: #f8fafc !important;
+    z-index: 6 !important;
+    box-shadow: -5px 0 10px rgba(0, 0, 0, 0.05);
+}
+td.col-actions-sticky {
+    position: sticky !important;
+    right: 0 !important;
+    background-color: #ffffff !important;
+    z-index: 5 !important;
+    box-shadow: -5px 0 10px rgba(0, 0, 0, 0.05);
+}
+tr:hover td.col-actions-sticky {
+    background-color: #f1f5f9 !important;
+}
+.statement-row:hover {
+    background-color: #f8fafc;
+}
+.btn-pen-hover {
+    opacity: 0.35;
+    transition: opacity 0.15s ease-in-out;
+}
+.statement-row:hover .btn-pen-hover {
+    opacity: 1;
+}
+</style>
+<div class="page-header no-print" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+    <div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+            <span style="font-size: 1.6rem;">📑</span>
+            <h1 class="page-title" style="margin: 0; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em;">
+                Bank Statement Report
+            </h1>
+            <span class="badge" style="background: {% if recon_mode %}#ecfdf5; color: #047857; border: 1px solid #a7f3d0;{% else %}#f1f5f9; color: #475569; border: 1px solid #cbd5e1;{% endif %} font-size: 0.74rem; font-weight: 700; padding: 0.2rem 0.6rem;">
+                {% if recon_mode %}🔗 Reconciling with Bank Ledger{% else %}📑 Standalone External Statement{% endif %}
+            </span>
+        </div>
+        <p class="page-description" style="color: var(--text-muted); font-size: 0.88rem; margin: 0;">
+            Manage and inspect external bank statements for 
+            <strong style="color: var(--accent);">{{ selected_account.name if selected_account else 'Selected Account' }}</strong>. 
+            External statement data is completely separate from your general ledger vouchers.
+        </p>
+    </div>
+
+    <!-- Header Actions -->
+    <div class="header-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+        <!-- Add Custom Target Bank Button -->
+        <button type="button" class="btn btn-outline" onclick="openModal('addCustomBankModal')" style="font-size: 0.84rem; font-weight: 600; color: #2563eb; border-color: #93c5fd; background: #f0f7ff;">
+            🏛️ + Add Bank Account
+        </button>
+
+        <!-- Delete Statement Data Button -->
+        <button type="button" class="btn btn-outline" onclick="openModal('deleteStatementModal')" style="border-color: #fca5a5; color: #dc2626; font-weight: 600; font-size: 0.84rem;">
+            🗑️ Delete Statement Data
+        </button>
+
+        <button type="button" class="btn btn-outline" onclick="openModal('addEntryModal')" style="font-size: 0.84rem;">
+            ➕ Add Entry Manually
+        </button>
+
+        <button type="button" class="btn btn-primary" onclick="openModal('uploadFilesModal')" style="font-size: 0.84rem; font-weight: 700; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);">
+            📤 Upload Statement (PDF / Excel / CSV)
+        </button>
+
+        {% if selected_account %}
+        <a href="{{ url_for('export_bank_statement_excel', account_id=selected_account.id) }}" class="btn btn-success" style="font-size: 0.84rem;">
+            📊 Export to Excel
+        </a>
+        <a href="{{ url_for('bank_reconciliation', account_id=selected_account.id) }}" class="btn btn-outline" style="border-color: #059669; color: #059669; font-weight: 600; font-size: 0.84rem;">
+            ⚖️ Bank Reconciliation ↗
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Bank Account Selection Bar & Reconciliation Mode Switcher -->
+<div class="card no-print" style="margin-bottom: 1.5rem; padding: 1.15rem 1.25rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; padding-bottom: 0.85rem; border-bottom: 1px solid var(--border-color);">
+        <!-- Account Switcher Tabs -->
+        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <span style="font-size: 0.82rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Bank Statements:</span>
+            {% for b in bank_accounts %}
+            <a href="{{ url_for('bank_statement_report', account_id=b.id, recon_mode='1' if recon_mode else '0') }}" class="btn btn-sm {% if selected_account and selected_account.id == b.id %}btn-primary{% else %}btn-outline{% endif %}" style="border-radius: 20px; font-size: 0.82rem; padding: 0.35rem 0.85rem;">
+                🏦 {{ b.name }}
+            </a>
+            {% endfor %}
+            <button type="button" class="btn btn-sm btn-outline" onclick="openModal('addCustomBankModal')" style="border-radius: 20px; font-size: 0.82rem; padding: 0.35rem 0.85rem; border-style: dashed; color: #2563eb; border-color: #93c5fd; background: #eff6ff;" title="Add a new custom target bank for statements">
+                ➕ + Add Bank
+            </button>
+        </div>
+
+        <!-- Reconciliation Mode Toggle -->
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">View Mode:</span>
+            {% if recon_mode %}
+            <a href="{{ url_for('bank_statement_report', account_id=selected_account.id if selected_account else None, recon_mode='0') }}" class="btn btn-sm btn-outline" style="background: white; font-size: 0.8rem; border-color: #cbd5e1;" title="Switch to standalone external view (hides ledger comparison)">
+                📑 Switch to Standalone Statement
+            </a>
+            {% else %}
+            <a href="{{ url_for('bank_statement_report', account_id=selected_account.id if selected_account else None, recon_mode='1') }}" class="btn btn-sm btn-outline" style="background: #ecfdf5; color: #047857; border-color: #10b981; font-weight: 600; font-size: 0.8rem;" title="Compare and reconcile with Accounts General Ledger">
+                🔗 Enable Ledger Reconciliation
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Search & Date Filter Form -->
+    <form method="GET" action="{{ url_for('bank_statement_report') }}" style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;">
+        <input type="hidden" name="account_id" value="{{ selected_account.id if selected_account else '' }}">
+        <input type="hidden" name="recon_mode" value="{{ '1' if recon_mode else '0' }}">
+
+        <div style="flex: 1; min-width: 170px;">
+            <label style="display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.3rem;">
+                From Date
+            </label>
+            <input type="date" name="from_date" value="{{ from_date }}" class="form-control" style="font-size: 0.85rem;">
+        </div>
+
+        <div style="flex: 1; min-width: 170px;">
+            <label style="display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.3rem;">
+                To Date
+            </label>
+            <input type="date" name="to_date" value="{{ to_date }}" class="form-control" style="font-size: 0.85rem;">
+        </div>
+
+        <div style="flex: 2; min-width: 220px;">
+            <label style="display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.3rem;">
+                Search Particulars, Cheque #, or Notes
+            </label>
+            <input type="text" name="search" value="{{ search_query }}" placeholder="Filter transactions or notes..." class="form-control" style="font-size: 0.85rem;">
+        </div>
+
+        <div style="display: flex; gap: 0.5rem;">
+            <button type="submit" class="btn btn-primary" style="padding: 0.55rem 1.1rem; font-size: 0.85rem;">🔍 Filter</button>
+            <a href="{{ url_for('bank_statement_report', account_id=selected_account.id if selected_account else None, recon_mode='1' if recon_mode else '0') }}" class="btn btn-outline" style="padding: 0.55rem 0.9rem; font-size: 0.85rem;">Reset</a>
+        </div>
+    </form>
+</div>
+
+<!-- ========================================================================
+     EXECUTIVE SUMMARY METRICS COCKPIT
+     ======================================================================== -->
+<div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom: 1.75rem;">
+    <!-- 1. Statement Closing Balance -->
+    <div class="metric-card" style="border-top: 4px solid #1e40af; background: #eff6ff;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #1e40af;">Statement Balance (Bank)</span>
+            <div class="metric-icon-box" style="background: #dbeafe; color: #1e40af;">🏦</div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency" style="color: #2563eb;">৳</span>
+            <span style="color: #1e3a8a;">{{ "{:,.2f}".format(latest_balance) }}</span>
+        </div>
+        <div class="metric-sub">
+            <span class="metric-pill" style="background: #dbeafe; color: #1e40af;">External Feed</span>
+            <span style="color: var(--text-muted); font-size: 0.76rem;">{{ lines|length }} statement entries</span>
+        </div>
+    </div>
+
+    {% if recon_mode and selected_account %}
+    <!-- 2. Accounts Ledger Balance (GL Book) -->
+    <div class="metric-card" style="border-top: 4px solid #059669; background: #f0fdf4;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #065f46;">Accounts Ledger (GL Book)</span>
+            <div class="metric-icon-box" style="background: #dcfce7; color: #059669;">📖</div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency" style="color: #059669;">৳</span>
+            <span style="color: #065f46;">{{ "{:,.2f}".format(gl_book_balance) }}</span>
+        </div>
+        <div class="metric-sub">
+            <span class="metric-pill" style="background: #dcfce7; color: #047857;">Internal Book</span>
+            <span style="color: var(--text-muted); font-size: 0.76rem;">GL Account: {{ selected_account.code }}</span>
+        </div>
+    </div>
+
+    <!-- 3. Reconciliation Variance -->
+    <div class="metric-card" style="border-top: 4px solid {% if reconciliation_variance == 0 %}#10b981{% else %}#f59e0b{% endif %}; background: {% if reconciliation_variance == 0 %}#f0fdf4{% else %}#fffbeb{% endif %};">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: {% if reconciliation_variance == 0 %}#065f46{% else %}#92400e{% endif %};">Reconciliation Variance</span>
+            <div class="metric-icon-box" style="background: {% if reconciliation_variance == 0 %}#dcfce7{% else %}#fef3c7{% endif %}; color: {% if reconciliation_variance == 0 %}#059669{% else %}#d97706{% endif %};">⚖️</div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency">৳</span>
+            <span style="color: {% if reconciliation_variance == 0 %}#065f46{% else %}#b45309{% endif %}; font-weight: 800;">
+                {{ "{:,.2f}".format(reconciliation_variance|abs) }}
+            </span>
+        </div>
+        <div class="metric-sub">
+            <span class="metric-pill" style="background: {% if reconciliation_variance == 0 %}#dcfce7; color: #047857;{% else %}#fef3c7; color: #b45309;{% endif %}">
+                {% if reconciliation_variance == 0 %}✓ In Balance{% else %}Discrepancy{% endif %}
+            </span>
+            <span style="color: var(--text-muted); font-size: 0.76rem;">Statement minus Book</span>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 4. Total Deposits -->
+    <div class="metric-card" style="border-top: 4px solid #16a34a; background: #f0fdf4;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #166534;">Total Deposits (Cr)</span>
+            <div class="metric-icon-box" style="background: #dcfce7; color: #16a34a;">📥</div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency" style="color: #16a34a;">+৳</span>
+            <span style="color: #14532d;">{{ "{:,.2f}".format(total_deposits) }}</span>
+        </div>
+        <div class="metric-sub">
+            <span class="metric-pill" style="background: #dcfce7; color: #15803d;">Credits</span>
+            <span style="color: var(--text-muted); font-size: 0.76rem;">Inflows to account</span>
+        </div>
+    </div>
+
+    <!-- 5. Total Withdrawals -->
+    <div class="metric-card" style="border-top: 4px solid #dc2626; background: #fef2f2;">
+        <div class="metric-card-top">
+            <span class="metric-label" style="color: #991b1b;">Total Withdrawals (Dr)</span>
+            <div class="metric-icon-box" style="background: #fee2e2; color: #dc2626;">📤</div>
+        </div>
+        <div class="metric-value">
+            <span class="metric-currency" style="color: #dc2626;">-৳</span>
+            <span style="color: #991b1b;">{{ "{:,.2f}".format(total_withdrawals) }}</span>
+        </div>
+        <div class="metric-sub">
+            <span class="metric-pill" style="background: #fee2e2; color: #991b1b;">Debits</span>
+            <span style="color: var(--text-muted); font-size: 0.76rem;">Outflows from account</span>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================================
+     IMPORTED STATEMENT BATCHES (ARCHIVE & MEMOS)
+     ======================================================================== -->
+{% if statements %}
+<div class="card no-print" style="margin-bottom: 1.5rem; background-color: #f8fafc; border: 1px solid var(--border-color); padding: 1rem 1.25rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+        <div style="font-size: 0.88rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+            📁 <span>Imported Statement Batches ({{ statements|length }})</span>
+        </div>
+        <small style="color: var(--text-muted);">Each statement batch stores external bank records with its own audit memo &amp; balances</small>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0.75rem;">
+        {% for stmt in statements %}
+        <div style="background: white; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.85rem; display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem;">
+            <div style="flex: 1;">
+                <strong style="font-size: 0.86rem; color: #1e3a8a; display: block;">{{ stmt.statement_title }}</strong>
+                <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">
+                    📅 {{ stmt.from_date.strftime('%d-%b-%y') }} to {{ stmt.to_date.strftime('%d-%b-%y') }} &bull; {{ stmt.lines|length }} lines
+                </div>
+                <div style="font-size: 0.75rem; color: #1e40af; margin-top: 2px; font-weight: 600;">
+                    💰 Opening: ৳{{ "{:,.2f}".format(stmt.opening_balance) }} &bull; Closing: ৳{{ "{:,.2f}".format(stmt.closing_balance) }}
+                </div>
+                {% if stmt.notes %}
+                <div style="font-size: 0.74rem; color: #047857; margin-top: 3px; font-style: italic;">
+                    💬 {{ stmt.notes }}
+                </div>
+                {% endif %}
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.35rem; align-items: flex-end;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="openEditBatchModal({{ stmt.id }}, {{ stmt.statement_title|tojson }}, '{{ stmt.from_date.strftime('%Y-%m-%d') if stmt.from_date else '' }}', '{{ stmt.to_date.strftime('%Y-%m-%d') if stmt.to_date else '' }}', {{ stmt.opening_balance }}, {{ stmt.closing_balance }}, {{ (stmt.notes or '')|tojson }})" title="Edit Batch Details, Dates &amp; Opening/Closing Balances" style="padding: 0.25rem 0.55rem; font-size: 0.76rem; color: #2563eb; border-color: #93c5fd; background: #eff6ff; font-weight: 600; white-space: nowrap;">
+                    ✏️ Edit Batch
+                </button>
+                <form method="POST" action="{{ url_for('delete_bank_statement_data') }}" style="display: inline;" onsubmit="return confirm('Delete this statement batch ({{ stmt.statement_title }})? Only external statement lines will be deleted. Accounts General Ledger remains completely safe.');">
+                    <input type="hidden" name="bank_account_id" value="{{ selected_account.id if selected_account else '' }}">
+                    <input type="hidden" name="scope" value="statement_batch">
+                    <input type="hidden" name="statement_id" value="{{ stmt.id }}">
+                    <button type="submit" class="btn btn-outline btn-sm" title="Delete this batch only" style="padding: 0.22rem 0.5rem; font-size: 0.74rem; color: #dc2626; border-color: #fca5a5;">
+                        🗑️ Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- ========================================================================
+     STATEMENT TRANSACTIONS LEDGER TABLE (WITH INLINE SPREADSHEET EDITING)
+     ======================================================================== -->
+<div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+        <div>
+            <h2 class="card-title" style="margin: 0; font-size: 1.1rem; font-weight: 700;">
+                📜 Bank Statement Transactions
+            </h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">
+                Account: <strong>{{ selected_account.name if selected_account else 'All Accounts' }}</strong> &bull; 
+                Showing {{ lines|length }} verified transactions &bull; 
+                <span style="color: #2563eb; font-weight: 600;">💡 Double-click any row to edit everything</span>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <!-- Spreadsheet Inline Edit Toggle Button -->
+            <button type="button" class="btn btn-outline btn-sm" id="btnToggleSpreadsheet" onclick="toggleSpreadsheetMode()" style="color: #0284c7; border-color: #38bdf8; background: #f0f9ff; font-weight: 700; font-size: 0.8rem;">
+                ⚡ Inline Spreadsheet Mode (Edit All)
+            </button>
+            <button onclick="window.print()" class="btn btn-outline btn-sm no-print">🖨️ Print Statement</button>
+        </div>
+    </div>
+
+    <!-- Active Inline Spreadsheet Edit Bar (Shown in Spreadsheet Mode) -->
+    <div id="spreadsheetActiveBar" style="display: none; background: linear-gradient(135deg, #1e3a8a, #2563eb); color: white; padding: 0.8rem 1.25rem; border-radius: 6px; margin: 0.75rem 1.25rem 0.5rem 1.25rem; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem; box-shadow: 0 4px 12px rgba(37,99,235,0.25);">
+        <div style="font-size: 0.84rem;">
+            <strong>✏️ Inline Spreadsheet Edit Mode Active:</strong> You can edit any date, description, cheque/ref, withdrawals, deposits, balance, or notes directly below.
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button type="button" class="btn btn-sm" onclick="toggleSpreadsheetMode(false)" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); font-size: 0.8rem;">
+                ✕ Cancel
+            </button>
+            <button type="submit" form="spreadsheetForm" class="btn btn-sm btn-success" style="font-weight: 700; background: #10b981; border: none; padding: 0.35rem 1rem; font-size: 0.8rem; box-shadow: 0 2px 8px rgba(16,185,129,0.4);">
+                💾 Save All Statement Edits
+            </button>
+        </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('bulk_update_bank_statement_lines') }}" id="spreadsheetForm">
+        <input type="hidden" name="bank_account_id" value="{{ selected_account.id if selected_account else '' }}">
+
+        <div class="table-responsive">
+            <table class="table report-table" style="font-size: 0.82rem;">
+                <thead>
+                    <tr>
+                        <th style="width: 105px;">Txn Date</th>
+                        <th style="width: 95px;">Value Date</th>
+                        <th style="min-width: 250px;">Particulars / Description</th>
+                        <th style="width: 130px;">Cheque / Ref No</th>
+                        <th class="num-col" style="width: 115px; color: #dc2626;">Withdrawals (Dr)</th>
+                        <th class="num-col" style="width: 115px; color: #059669;">Deposits (Cr)</th>
+                        <th class="num-col" style="width: 135px;">Balance (৳)</th>
+                        <th style="width: 160px;">Notes / Remarks</th>
+                        {% if recon_mode %}
+                        <th style="width: 120px; text-align: center;">Recon Status</th>
+                        {% endif %}
+                        <th class="col-actions-sticky no-print" style="width: 110px; text-align: center;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if lines %}
+                        {% for l in lines %}
+                        <tr class="statement-row" id="row-{{ l.id }}" ondblclick="triggerRowEdit({{ l.id }})" title="Double-click to edit all fields of this row">
+                            <!-- 1. Txn Date -->
+                            <td>
+                                <span class="normal-view" style="font-family: monospace; font-size: 0.82rem; white-space: nowrap;">
+                                    {{ l.txn_date.strftime('%d-%b-%Y') if l.txn_date else '' }}
+                                </span>
+                                <input type="date" name="date_{{ l.id }}" value="{{ l.txn_date.strftime('%Y-%m-%d') if l.txn_date else '' }}" class="edit-view form-control form-control-sm" style="display: none; font-size: 0.78rem; padding: 0.2rem 0.3rem;">
+                            </td>
+
+                            <!-- 2. Value Date -->
+                            <td>
+                                <span class="normal-view" style="font-family: monospace; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap;">
+                                    {{ l.value_date.strftime('%d-%b-%Y') if l.value_date else (l.txn_date.strftime('%d-%b-%Y') if l.txn_date else '') }}
+                                </span>
+                                <span class="edit-view" style="display: none; font-size: 0.74rem; color: #64748b;">(auto)</span>
+                            </td>
+
+                            <!-- 3. Particulars / Description -->
+                            <td>
+                                <div class="normal-view" style="display: flex; align-items: flex-start; justify-content: space-between; gap: 0.4rem;">
+                                    <strong style="color: var(--text-primary);">{{ l.particulars }}</strong>
+                                    <button type="button" class="btn-pen-hover no-print" onclick="triggerRowEdit({{ l.id }})" title="Click to edit this transaction" style="border: none; background: none; cursor: pointer; color: #2563eb; font-size: 0.85rem; padding: 0; flex-shrink: 0;">
+                                        ✏️
+                                    </button>
+                                </div>
+                                <textarea name="particulars_{{ l.id }}" class="edit-view form-control form-control-sm" rows="2" style="display: none; font-size: 0.78rem; font-weight: 600; width: 100%; resize: vertical;">{{ l.particulars }}</textarea>
+                            </td>
+
+                            <!-- 4. Cheque / Ref No -->
+                            <td>
+                                <span class="normal-view" style="font-family: monospace; font-size: 0.8rem; color: var(--text-secondary);">
+                                    {{ l.cheque_ref or '—' }}
+                                </span>
+                                <input type="text" name="ref_{{ l.id }}" value="{{ l.cheque_ref or '' }}" placeholder="Ref #" class="edit-view form-control form-control-sm" style="display: none; font-family: monospace; font-size: 0.78rem;">
+                            </td>
+
+                            <!-- 5. Withdrawals (Dr) -->
+                            <td class="num-col">
+                                <span class="normal-view" style="color: #dc2626; font-weight: 600;">
+                                    {% if l.withdrawal_dr > 0 %}
+                                        ৳{{ "{:,.2f}".format(l.withdrawal_dr) }}
+                                    {% else %}
+                                        <span style="color: #cbd5e1;">-</span>
+                                    {% endif %}
+                                </span>
+                                <input type="number" step="0.01" name="withdrawal_{{ l.id }}" value="{{ l.withdrawal_dr }}" class="edit-view form-control form-control-sm text-end" style="display: none; color: #dc2626; font-weight: 600; font-size: 0.8rem; width: 105px;">
+                            </td>
+
+                            <!-- 6. Deposits (Cr) -->
+                            <td class="num-col">
+                                <span class="normal-view" style="color: #059669; font-weight: 600;">
+                                    {% if l.deposit_cr > 0 %}
+                                        ৳{{ "{:,.2f}".format(l.deposit_cr) }}
+                                    {% else %}
+                                        <span style="color: #cbd5e1;">-</span>
+                                    {% endif %}
+                                </span>
+                                <input type="number" step="0.01" name="deposit_{{ l.id }}" value="{{ l.deposit_cr }}" class="edit-view form-control form-control-sm text-end" style="display: none; color: #059669; font-weight: 600; font-size: 0.8rem; width: 105px;">
+                            </td>
+
+                            <!-- 7. Running Balance (৳) -->
+                            <td class="num-col">
+                                <span class="normal-view" style="font-weight: 700; color: #1e40af; font-family: monospace;">
+                                    ৳{{ "{:,.2f}".format(l.balance) }}
+                                </span>
+                                <input type="number" step="0.01" name="balance_{{ l.id }}" value="{{ l.balance }}" class="edit-view form-control form-control-sm text-end" style="display: none; color: #1e40af; font-weight: 700; font-size: 0.8rem; width: 115px;">
+                            </td>
+
+                            <!-- 8. Notes / Remarks -->
+                            <td>
+                                <div class="normal-view">
+                                    {% if l.notes %}
+                                        <span onclick="triggerRowEdit({{ l.id }})" style="cursor: pointer; background: #eff6ff; color: #1e40af; padding: 0.2rem 0.45rem; border-radius: 4px; font-size: 0.75rem; border: 1px solid #bfdbfe; display: inline-flex; align-items: center; gap: 0.25rem;" title="Click to edit note">
+                                            📝 {{ l.notes }} <small style="opacity: 0.6;">✏️</small>
+                                        </span>
+                                    {% else %}
+                                        <button type="button" onclick="triggerRowEdit({{ l.id }})" class="btn btn-sm btn-outline no-print" style="border-style: dashed; padding: 0.1rem 0.45rem; font-size: 0.72rem; color: #94a3b8; border-color: #cbd5e1;" title="Add note to this entry">+ Note</button>
+                                    {% endif %}
+                                </div>
+                                <input type="text" name="notes_{{ l.id }}" value="{{ l.notes or '' }}" placeholder="Notes..." class="edit-view form-control form-control-sm" style="display: none; font-size: 0.78rem;">
+                                <input type="hidden" name="line_ids" value="{{ l.id }}">
+                            </td>
+
+                            <!-- 9. Recon Status -->
+                            {% if recon_mode %}
+                            <td style="text-align: center;">
+                                <span class="normal-view" onclick="triggerRowEdit({{ l.id }})" style="cursor: pointer;" title="Click to edit reconciliation status &amp; matched voucher">
+                                    {% if l.is_reconciled %}
+                                        <span class="badge" style="background-color: #d1fae5; color: #065f46; font-size: 0.72rem; padding: 0.2rem 0.45rem;" title="Matched with GL Voucher {{ l.matched_voucher_no or '' }}">
+                                            ✓ Cleared {% if l.matched_voucher_no %}({{ l.matched_voucher_no }}){% endif %}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge" style="background-color: #fee2e2; color: #991b1b; font-size: 0.72rem; padding: 0.2rem 0.45rem;">
+                                            ⏳ Unreconciled
+                                        </span>
+                                    {% endif %}
+                                </span>
+                                <span class="edit-view" style="display: none; font-size: 0.74rem; color: #64748b;">
+                                    {% if l.is_reconciled %}✓ Cleared{% else %}⏳ Unrecon{% endif %}
+                                </span>
+                            </td>
+                            {% endif %}
+
+                            <!-- 10. Sticky Actions (NEVER cut off) -->
+                            <td class="col-actions-sticky no-print">
+                                <div class="normal-view" style="display: flex; gap: 0.35rem; justify-content: center; align-items: center;">
+                                    <!-- Edit Button -->
+                                    <button type="button" class="btn btn-sm btn-primary" onclick="triggerRowEdit({{ l.id }})" style="padding: 0.22rem 0.6rem; font-size: 0.76rem; font-weight: 700; background: #2563eb; border: none; box-shadow: 0 1px 4px rgba(37,99,235,0.3);" title="Edit transaction &amp; all fields">
+                                        ✏️ Edit
+                                    </button>
+                                    <!-- Delete Single Line Form -->
+                                    <form method="POST" action="{{ url_for('delete_bank_statement_line', line_id=l.id) }}" style="display: inline;" onsubmit="return confirm('Delete this bank statement entry? (Your General Ledger vouchers will NOT be affected)');">
+                                        <button type="submit" class="btn btn-outline btn-sm" style="padding: 0.22rem 0.45rem; font-size: 0.76rem; color: #dc2626; border-color: #fca5a5;" title="Delete entry">
+                                            🗑️
+                                        </button>
+                                    </form>
+                                </div>
+                                <div class="edit-view" style="display: none; text-align: center;">
+                                    <button type="submit" class="btn btn-sm btn-success" style="padding: 0.22rem 0.6rem; font-size: 0.76rem; font-weight: 700; background: #10b981; border: none;" title="Save edits">
+                                        💾 Save
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="{% if recon_mode %}10{% else %}9{% endif %}" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                                No bank statement transactions found. Click <strong>"Upload Statement (PDF / Excel / CSV)"</strong> or <strong>"➕ Add Entry Manually"</strong> to start.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+                <tfoot>
+                    <tr class="report-grandtotal-row" style="background: #f8fafc; font-weight: 700; border-top: 2px solid var(--border-color);">
+                        <td colspan="4" style="text-align: right;">TOTALS / CLOSING STATEMENT BALANCE:</td>
+                        <td class="num-col" style="color: #dc2626;">৳{{ "{:,.2f}".format(total_withdrawals) }}</td>
+                        <td class="num-col" style="color: #059669;">৳{{ "{:,.2f}".format(total_deposits) }}</td>
+                        <td class="num-col" style="color: #1e40af; font-size: 0.95rem;">৳{{ "{:,.2f}".format(latest_balance) }}</td>
+                        <td colspan="{% if recon_mode %}3{% else %}2{% endif %}" style="text-align: right; color: var(--text-muted); font-size: 0.78rem;">
+                            {{ lines|length }} entries
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </form>
+</div>
+
+<!-- ========================================================================
+     MODAL: DELETE STATEMENT DATA (ISOLATED FROM GL)
+     ======================================================================== -->
+<div id="deleteStatementModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 520px;">
+        <div class="modal-header" style="background: #fef2f2; border-bottom: 1px solid #fecaca;">
+            <h3 style="margin: 0; font-size: 1.15rem; color: #991b1b; display: flex; align-items: center; gap: 0.4rem;">
+                <span>🗑️</span> Delete Bank Statement Data
+            </h3>
+            <button type="button" class="btn-close" onclick="closeModal('deleteStatementModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('delete_bank_statement_data') }}">
+            <input type="hidden" name="bank_account_id" value="{{ selected_account.id if selected_account else '' }}">
+            <div class="modal-body">
+                <!-- Explanatory Safety Banner -->
+                <div style="background-color: #f0fdf4; border: 1px solid #86efac; border-radius: 6px; padding: 0.85rem; margin-bottom: 1.25rem; font-size: 0.82rem; color: #065f46;">
+                    <strong>🛡️ General Ledger Independence:</strong><br>
+                    Deleting statement data will <strong>ONLY</strong> remove external bank statement records. 
+                    Your Accounts General Ledger, journal vouchers, and ledger balances are completely separate and will remain <strong>100% untouched and safe</strong>.
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 700;">Select Deletion Scope:</label>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.5rem;">
+                        <label style="display: flex; align-items: flex-start; gap: 0.5rem; background: #f8fafc; border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 6px; cursor: pointer;">
+                            <input type="radio" name="scope" value="all" checked style="margin-top: 3px;">
+                            <div>
+                                <strong style="color: #991b1b; font-size: 0.88rem;">Clear ALL Statement Records for {{ selected_account.name if selected_account else 'Account' }}</strong>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                    Deletes all {{ lines|length }} statement transaction lines and imported batches for this account.
+                                </div>
+                            </div>
+                        </label>
+
+                        {% if statements %}
+                        <label style="display: flex; align-items: flex-start; gap: 0.5rem; background: #f8fafc; border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 6px; cursor: pointer;">
+                            <input type="radio" name="scope" value="statement_batch" style="margin-top: 3px;">
+                            <div style="flex: 1;">
+                                <strong style="color: #1e3a8a; font-size: 0.88rem;">Delete a Specific Statement Batch</strong>
+                                <div style="margin-top: 0.4rem;">
+                                    <select name="statement_id" class="form-control" style="font-size: 0.82rem;">
+                                        {% for s in statements %}
+                                        <option value="{{ s.id }}">
+                                            {{ s.statement_title }} ({{ s.from_date.strftime('%d-%b-%y') }} - {{ s.to_date.strftime('%d-%b-%y') }})
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </label>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="background: #f8fafc;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('deleteStatementModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="background: #dc2626; border-color: #dc2626;">
+                    Confirm &amp; Delete Statement Data
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================
+     MODAL: UPLOAD BANK STATEMENTS (MULTI-FILE + INTELLIGENT ANALYSIS)
+     ======================================================================== -->
+<div id="uploadFilesModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 580px;">
+        <div class="modal-header">
+            <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.4rem;">
+                <span>📤</span> Upload Bank Statement (PDF / Excel / CSV)
+            </h3>
+            <button type="button" class="btn-close" onclick="closeModal('uploadFilesModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('upload_bank_statement_files') }}" enctype="multipart/form-data">
+            <div class="modal-body">
+                <!-- Target Bank Account -->
+                <div class="form-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                        <label class="form-label" style="font-weight: 600; margin-bottom: 0;">Target Bank Account *</label>
+                        <button type="button" class="btn btn-sm btn-outline" id="toggleNewBankBtn" onclick="toggleCustomBankFields()" style="font-size: 0.78rem; padding: 0.2rem 0.65rem; color: #2563eb; border-color: #93c5fd; background: #eff6ff; font-weight: 600; border-radius: 4px;">
+                            ➕ + Add Custom Bank
+                        </button>
+                    </div>
+                    <select name="bank_account_id" id="uploadTargetBankSelect" class="form-control" onchange="handleBankSelectChange(this)" required>
+                        {% for b in bank_accounts %}
+                        <option value="{{ b.id }}" {% if selected_account and selected_account.id == b.id %}selected{% endif %}>
+                            {{ b.code }} &bull; {{ b.name }} (Book Bal: ৳{{ "{:,.2f}".format(b.balance) }})
+                        </option>
+                        {% endfor %}
+                        <option value="__new__" style="color: #2563eb; font-weight: 700; background: #eff6ff;">
+                            ➕ + Add New Custom Bank Account...
+                        </option>
+                    </select>
+                </div>
+
+                <!-- Custom Bank Inline Form (shown when '__new__' selected or button clicked) -->
+                <div id="customBankSection" style="display: none; background: #f0fdf4; border: 1.5px dashed #22c55e; border-radius: 8px; padding: 0.9rem; margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
+                        <span style="font-size: 0.88rem; font-weight: 700; color: #15803d; display: flex; align-items: center; gap: 0.35rem;">
+                            🏛️ New Custom Target Bank
+                        </span>
+                        <button type="button" onclick="cancelCustomBank()" style="background: none; border: none; font-size: 0.8rem; color: #64748b; cursor: pointer; text-decoration: underline;">
+                            ✕ Cancel (Select Existing)
+                        </button>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0.65rem;">
+                        <label class="form-label" style="font-size: 0.8rem; font-weight: 600; color: #166534;">Target Bank Name *</label>
+                        <input type="text" name="custom_bank_name" id="customBankNameInput" class="form-control" placeholder="e.g. Dutch-Bangla Bank PLC, City Bank, Islami Bank" style="font-size: 0.85rem; background: #fff;">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; margin-bottom: 0.65rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 600; color: #166534;">Bank Code / A/C Ref</label>
+                            <input type="text" name="custom_bank_code" id="customBankCodeInput" class="form-control" placeholder="Auto-generated (e.g. BS-003)" style="font-size: 0.82rem; background: #fff;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 600; color: #166534;">Opening Balance (৳)</label>
+                            <input type="number" step="0.01" name="custom_bank_balance" class="form-control" value="0.00" style="font-size: 0.82rem; background: #fff;">
+                        </div>
+                    </div>
+                    <div style="background: white; border: 1px solid #bbf7d0; border-radius: 6px; padding: 0.6rem; font-size: 0.78rem;">
+                        <span style="display: block; font-weight: 700; color: #166534; margin-bottom: 0.35rem;">Account Relationship:</span>
+                        <label style="display: flex; align-items: flex-start; gap: 0.45rem; cursor: pointer; margin-bottom: 0.4rem;">
+                            <input type="radio" name="custom_bank_ledger_mode" value="standalone" checked style="margin-top: 0.15rem;">
+                            <span>
+                                <strong>Standalone Statement Account</strong> (Separate from Ledger)
+                                <span style="display: block; color: #64748b; font-size: 0.73rem;">Maintains independent statement records and balances. General Ledger is not affected.</span>
+                            </span>
+                        </label>
+                        <label style="display: flex; align-items: flex-start; gap: 0.45rem; cursor: pointer; margin-bottom: 0;">
+                            <input type="radio" name="custom_bank_ledger_mode" value="gl_linked" style="margin-top: 0.15rem;">
+                            <span>
+                                <strong>Linked with General Ledger</strong>
+                                <span style="display: block; color: #64748b; font-size: 0.73rem;">Also registers an active ledger bank in Chart of Accounts for bookkeeping.</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Multi-File Upload Input -->
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 600;">
+                        Select File(s) &bull; PDF, Excel (.xlsx, .xls) or CSV *
+                    </label>
+                    <input type="file" name="statement_files" class="form-control" multiple accept=".pdf,.xlsx,.xls,.csv" required style="padding: 0.45rem;">
+                    <small style="display: block; color: var(--text-muted); margin-top: 0.35rem;">
+                        💡 You can select <strong>one or more files</strong> simultaneously (e.g. multiple monthly statements).
+                    </small>
+                </div>
+
+                <!-- Processing Mode Selection -->
+                <div class="form-group" style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.85rem;">
+                    <label class="form-label" style="font-weight: 700; margin-bottom: 0.5rem; display: block;">
+                        Intelligent Processing Mode:
+                    </label>
+                    
+                    <label style="display: flex; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.5rem; cursor: pointer;">
+                        <input type="radio" name="action_mode" value="analyze" checked style="margin-top: 3px;">
+                        <div>
+                            <strong style="color: #1e40af; font-size: 0.85rem;">🧠 Intelligent Pre-Posting Analysis &amp; Review (Recommended)</strong>
+                            <div style="font-size: 0.76rem; color: var(--text-muted);">
+                                Extracts rows, checks against existing statement entries for duplicates, verifies math continuity, and shows a preview screen to approve clean items.
+                            </div>
+                        </div>
+                    </label>
+
+                    <label style="display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer;">
+                        <input type="radio" name="action_mode" value="direct_post" style="margin-top: 3px;">
+                        <div>
+                            <strong style="color: #065f46; font-size: 0.85rem;">⚡ Direct Smart Post (Auto-Skip Duplicates)</strong>
+                            <div style="font-size: 0.76rem; color: var(--text-muted);">
+                                Immediately posts transactions into the statement report, automatically skipping all detected duplicate entries.
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('uploadFilesModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Process &amp; Analyze Files →</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================
+     MODAL: EDIT TRANSACTION LINE & NOTES ("EDIT EVERYTHING")
+     ======================================================================== -->
+<div id="editLineModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 580px;">
+        <div class="modal-header">
+            <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.4rem;">
+                <span>✏️</span> Edit Statement Transaction (All Fields)
+            </h3>
+            <button type="button" class="btn-close" onclick="closeModal('editLineModal')">&times;</button>
+        </div>
+        <form method="POST" id="editLineForm" action="">
+            <div class="modal-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600;">Transaction Date *</label>
+                        <input type="date" name="txn_date" id="editTxnDate" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600;">Value Date</label>
+                        <input type="date" name="value_date" id="editValueDate" class="form-control">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 600;">Particulars / Description *</label>
+                    <textarea name="particulars" id="editParticulars" class="form-control" rows="2" required placeholder="Transaction particulars or description..."></textarea>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600;">Cheque / Reference No</label>
+                        <input type="text" name="cheque_ref" id="editChequeRef" class="form-control" placeholder="e.g. NO.085261198">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600; color: #1e40af;">Running Balance (৳) *</label>
+                        <input type="number" step="0.01" name="balance" id="editBalance" class="form-control" required>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600; color: #dc2626;">Withdrawals / Debit (Dr)</label>
+                        <input type="number" step="0.01" name="withdrawal_dr" id="editWithdrawal" class="form-control" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600; color: #059669;">Deposits / Credit (Cr)</label>
+                        <input type="number" step="0.01" name="deposit_cr" id="editDeposit" class="form-control" placeholder="0.00">
+                    </div>
+                </div>
+
+                <!-- Custom Notes Field -->
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 600;">Custom Notes / Remarks</label>
+                    <input type="text" name="notes" id="editNotes" class="form-control" placeholder="Add custom notes, passbook references, or verification memo">
+                </div>
+
+                <!-- Reconciliation Status & Matched GL Voucher -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; background: #f8fafc; padding: 0.75rem; border-radius: 6px; border: 1px solid var(--border-color); margin-top: 0.25rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700; font-size: 0.8rem; color: #334155;">Reconciliation Status</label>
+                        <select name="is_reconciled" id="editIsReconciled" class="form-control" style="font-size: 0.82rem;">
+                            <option value="0">⏳ Unreconciled / Pending</option>
+                            <option value="1">✓ Cleared / Reconciled</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 600; font-size: 0.8rem; color: #334155;">Matched GL Voucher No</label>
+                        <input type="text" name="matched_voucher_no" id="editMatchedVoucher" class="form-control" placeholder="e.g. JV-2026-0001" style="font-size: 0.82rem;">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('editLineModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="font-weight: 700;">💾 Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================
+     MODAL: EDIT STATEMENT BATCH DETAILS & BALANCES
+     ======================================================================== -->
+<div id="editBatchModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 540px;">
+        <div class="modal-header">
+            <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.4rem;">
+                <span>✏️</span> Edit Statement Batch &amp; Opening Balances
+            </h3>
+            <button type="button" class="btn-close" onclick="closeModal('editBatchModal')">&times;</button>
+        </div>
+        <form method="POST" id="editBatchForm" action="">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 600;">Statement Batch Title *</label>
+                    <input type="text" name="statement_title" id="batchTitleInput" class="form-control" required>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600;">From Date</label>
+                        <input type="date" name="from_date" id="batchFromDateInput" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600;">To Date</label>
+                        <input type="date" name="to_date" id="batchToDateInput" class="form-control">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600; color: #1e40af;">Opening Balance (৳)</label>
+                        <input type="number" step="0.01" name="opening_balance" id="batchOpeningBalInput" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600; color: #1e40af;">Closing Balance (৳)</label>
+                        <input type="number" step="0.01" name="closing_balance" id="batchClosingBalInput" class="form-control">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 600;">Batch Notes &amp; Audit Memo</label>
+                    <textarea name="notes" id="batchNotesInput" class="form-control" rows="3" placeholder="Enter notes or audit memos about this statement batch..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('editBatchModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="font-weight: 700;">💾 Save Batch Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================
+     MODAL: ADD ENTRY MANUALLY
+     ======================================================================== -->
+<div id="addEntryModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 540px;">
+        <div class="modal-header">
+            <h3 style="margin: 0; font-size: 1.15rem; font-family: 'Outfit', sans-serif;">➕ Add Bank Statement Entry</h3>
+            <button type="button" class="btn-close" onclick="closeModal('addEntryModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('add_bank_statement_line') }}">
+            <input type="hidden" name="bank_account_id" value="{{ selected_account.id if selected_account else '' }}">
+            <div class="modal-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label">Transaction Date *</label>
+                        <input type="date" name="txn_date" value="{{ now.strftime('%Y-%m-%d') }}" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Transaction Type</label>
+                        <select name="txn_type" class="form-control" required>
+                            <option value="Deposit">Deposit / Credit (+)</option>
+                            <option value="Withdrawal">Withdrawal / Debit (-)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Particulars / Description *</label>
+                    <input type="text" name="particulars" placeholder="e.g. Cheque Deposit / Wire Transfer / Bank Fee" class="form-control" required>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label">Cheque / Reference No</label>
+                        <input type="text" name="cheque_ref" placeholder="e.g. CHQ-99120" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Amount (৳) *</label>
+                        <input type="number" step="0.01" name="amount" placeholder="0.00" class="form-control" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Statement Running Balance (৳) *</label>
+                    <input type="number" step="0.01" name="balance" value="{{ latest_balance }}" class="form-control" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Notes / Remarks</label>
+                    <input type="text" name="notes" placeholder="Optional notes for this entry" class="form-control">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('addEntryModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Entry</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================
+     MODAL: ADD CUSTOM TARGET BANK ACCOUNT
+     ======================================================================== -->
+<div id="addCustomBankModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 520px;">
+        <div class="modal-header">
+            <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.4rem;">
+                <span>🏛️</span> Add Target Bank Account for Statements
+            </h3>
+            <button type="button" class="btn-close" onclick="closeModal('addCustomBankModal')">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('create_custom_bank_account') }}">
+            <div class="modal-body">
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0; margin-bottom: 1rem;">
+                    Add a bank account to maintain its independent statement reports, upload PDFs/Excel files, or perform bank reconciliations.
+                </p>
+
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 600;">Bank Name *</label>
+                    <input type="text" name="bank_name" class="form-control" placeholder="e.g. City Bank PLC, Dutch-Bangla Bank, BRAC Bank" required>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600;">Bank Code / A/C Ref</label>
+                        <input type="text" name="bank_code" class="form-control" placeholder="Auto-generated (e.g. BS-003)">
+                        <small style="color: var(--text-muted); font-size: 0.75rem;">Leave empty for auto code</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600;">Opening Balance (৳)</label>
+                        <input type="number" step="0.01" name="opening_balance" class="form-control" value="0.00">
+                    </div>
+                </div>
+
+                <div class="form-group" style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.75rem;">
+                    <label class="form-label" style="font-weight: 700; margin-bottom: 0.4rem; display: block; font-size: 0.82rem;">
+                        Account Type &amp; Ledger Integration:
+                    </label>
+                    <label style="display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; margin-bottom: 0.5rem; font-size: 0.82rem;">
+                        <input type="radio" name="ledger_mode" value="standalone" checked style="margin-top: 0.2rem;">
+                        <span>
+                            <strong>Standalone Statement Account</strong> (Separate)
+                            <span style="display: block; color: var(--text-muted); font-size: 0.75rem;">
+                                Dedicated solely to bank statement tracking. Completely separated from General Ledger vouchers.
+                            </span>
+                        </span>
+                    </label>
+                    <label style="display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; margin-bottom: 0; font-size: 0.82rem;">
+                        <input type="radio" name="ledger_mode" value="gl_linked" style="margin-top: 0.2rem;">
+                        <span>
+                            <strong>Active Chart of Accounts Bank Ledger</strong>
+                            <span style="display: block; color: var(--text-muted); font-size: 0.75rem;">
+                                Creates an active bank account in the Chart of Accounts for journal voucher entries and full reconciliation.
+                            </span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeModal('addCustomBankModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="font-weight: 700;">🏛️ Create Target Bank</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// JSON cache of all lines for safe edit modal population
+const statementRowsData = {
+    {% for l in lines %}
+    {{ l.id }}: {
+        id: {{ l.id }},
+        txn_date: "{{ l.txn_date.strftime('%Y-%m-%d') if l.txn_date else '' }}",
+        value_date: "{{ l.value_date.strftime('%Y-%m-%d') if l.value_date else (l.txn_date.strftime('%Y-%m-%d') if l.txn_date else '') }}",
+        particulars: {{ l.particulars|tojson }},
+        cheque_ref: {{ (l.cheque_ref or '')|tojson }},
+        withdrawal_dr: {{ l.withdrawal_dr }},
+        deposit_cr: {{ l.deposit_cr }},
+        balance: {{ l.balance }},
+        notes: {{ (l.notes or '')|tojson }},
+        is_reconciled: {{ 'true' if l.is_reconciled else 'false' }},
+        matched_voucher_no: {{ (l.matched_voucher_no or '')|tojson }}
+    },
+    {% endfor %}
+};
+
+function triggerRowEdit(lineId) {
+    const d = statementRowsData[lineId];
+    if (!d) return;
+    openEditLineModal(
+        d.id,
+        d.txn_date,
+        d.value_date,
+        d.particulars,
+        d.cheque_ref,
+        d.withdrawal_dr,
+        d.deposit_cr,
+        d.balance,
+        d.notes,
+        d.is_reconciled,
+        d.matched_voucher_no
+    );
+}
+
+function openEditLineModal(lineId, txnDate, valDate, particulars, ref, wdr, dep, bal, notes, isRecon, voucherNo) {
+    document.getElementById('editLineForm').action = "/banking/statements/line/" + lineId + "/edit";
+    document.getElementById('editTxnDate').value = txnDate || '';
+    document.getElementById('editValueDate').value = valDate || txnDate || '';
+    document.getElementById('editParticulars').value = particulars || '';
+    document.getElementById('editChequeRef').value = ref || '';
+    document.getElementById('editWithdrawal').value = wdr !== undefined ? wdr : 0;
+    document.getElementById('editDeposit').value = dep !== undefined ? dep : 0;
+    document.getElementById('editBalance').value = bal !== undefined ? bal : 0;
+    document.getElementById('editNotes').value = notes || '';
+    
+    const isReconSelect = document.getElementById('editIsReconciled');
+    if (isReconSelect) {
+        isReconSelect.value = (isRecon === true || isRecon === 'true' || isRecon === 1 || isRecon === '1') ? '1' : '0';
+    }
+    const voucherInput = document.getElementById('editMatchedVoucher');
+    if (voucherInput) {
+        voucherInput.value = voucherNo || '';
+    }
+
+    openModal('editLineModal');
+}
+
+function openEditBatchModal(stmtId, title, fromDate, toDate, openBal, closeBal, notes) {
+    document.getElementById('editBatchForm').action = "/banking/statements/" + stmtId + "/edit-batch";
+    document.getElementById('batchTitleInput').value = title || '';
+    document.getElementById('batchFromDateInput').value = fromDate || '';
+    document.getElementById('batchToDateInput').value = toDate || '';
+    document.getElementById('batchOpeningBalInput').value = openBal !== undefined ? openBal : 0;
+    document.getElementById('batchClosingBalInput').value = closeBal !== undefined ? closeBal : 0;
+    document.getElementById('batchNotesInput').value = notes || '';
+    openModal('editBatchModal');
+}
+
+// Inline Spreadsheet Edit Mode Toggle
+let isSpreadsheetMode = false;
+function toggleSpreadsheetMode(forceState) {
+    if (forceState !== undefined) {
+        isSpreadsheetMode = forceState;
+    } else {
+        isSpreadsheetMode = !isSpreadsheetMode;
+    }
+
+    const banner = document.getElementById('spreadsheetActiveBar');
+    const toggleBtn = document.getElementById('btnToggleSpreadsheet');
+    const normalViews = document.querySelectorAll('.normal-view');
+    const editViews = document.querySelectorAll('.edit-view');
+
+    if (isSpreadsheetMode) {
+        if (banner) banner.style.display = 'flex';
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '✕ Exit Spreadsheet Mode';
+            toggleBtn.style.color = '#dc2626';
+            toggleBtn.style.borderColor = '#fca5a5';
+            toggleBtn.style.background = '#fef2f2';
+        }
+        normalViews.forEach(el => el.style.display = 'none');
+        editViews.forEach(el => el.style.display = '');
+    } else {
+        if (banner) banner.style.display = 'none';
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '⚡ Inline Spreadsheet Mode (Edit All)';
+            toggleBtn.style.color = '#0284c7';
+            toggleBtn.style.borderColor = '#38bdf8';
+            toggleBtn.style.background = '#f0f9ff';
+        }
+        normalViews.forEach(el => el.style.display = '');
+        editViews.forEach(el => el.style.display = 'none');
+    }
+}
+
+function handleBankSelectChange(selectElem) {
+    if (selectElem.value === '__new__') {
+        showCustomBankSection();
+    } else {
+        hideCustomBankSection();
+    }
+}
+
+function toggleCustomBankFields() {
+    const sec = document.getElementById('customBankSection');
+    if (sec.style.display === 'none') {
+        showCustomBankSection();
+    } else {
+        hideCustomBankSection();
+    }
+}
+
+function showCustomBankSection() {
+    const sec = document.getElementById('customBankSection');
+    const select = document.getElementById('uploadTargetBankSelect');
+    const nameInput = document.getElementById('customBankNameInput');
+    const btn = document.getElementById('toggleNewBankBtn');
+    
+    sec.style.display = 'block';
+    select.value = '__new__';
+    nameInput.required = true;
+    btn.textContent = '✕ Cancel Custom Bank';
+    nameInput.focus();
+}
+
+function hideCustomBankSection() {
+    const sec = document.getElementById('customBankSection');
+    const select = document.getElementById('uploadTargetBankSelect');
+    const nameInput = document.getElementById('customBankNameInput');
+    const btn = document.getElementById('toggleNewBankBtn');
+    
+    sec.style.display = 'none';
+    nameInput.required = false;
+    btn.textContent = '➕ + Add Custom Bank';
+    if (select.value === '__new__') {
+        select.selectedIndex = 0;
+    }
+}
+
+function cancelCustomBank() {
+    hideCustomBankSection();
+}
+</script>
+{% endblock %}

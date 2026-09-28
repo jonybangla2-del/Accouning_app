@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Payslip {{ item.employee.name }} ({{ item.payroll_record.payroll_month }}){% endblock %}
+
+{% block content %}
+<div class="page-header no-print">
+    <div>
+        <h1 class="page-title">📄 Employee Salary Payslip</h1>
+        <p class="page-description">Official monthly compensation slip for {{ item.employee.name }}.</p>
+    </div>
+    <div class="header-actions">
+        <button onclick="window.print()" class="btn btn-primary">🖨️ Print / Save PDF</button>
+        <a href="{{ url_for('view_payroll_run', record_id=item.payroll_record_id) }}" class="btn btn-outline">← Back to Payroll Run</a>
+    </div>
+</div>
+
+<div class="voucher-slip" style="max-width: 750px;">
+    <!-- Slip Header -->
+    <div class="voucher-slip-header">
+        <div>
+            <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.45rem; color: var(--primary); margin-bottom: 0.2rem;">
+                LEDGERPRO ENTERPRISE
+            </h2>
+            <div style="font-size: 0.85rem; color: var(--text-secondary);">Corporate Human Resources & Payroll</div>
+        </div>
+        <div style="text-align: right;">
+            <div class="badge" style="background-color: #d1fae5; color: #065f46; font-size: 0.85rem; padding: 0.35rem 0.8rem; margin-bottom: 0.35rem;">
+                SALARY PAYSLIP
+            </div>
+            <div style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 700; color: var(--primary);">
+                Period: {{ item.payroll_record.payroll_month }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Employee Particulars Grid -->
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1.5rem; background-color: #f8fafc; padding: 1.1rem 1.25rem; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+        <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Employee Name</div>
+            <div style="font-weight: 700; font-size: 1rem; color: var(--text-primary); margin-top: 0.15rem;">{{ item.employee.name }}</div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.2rem;">ID: <strong style="font-family: 'JetBrains Mono', monospace;">{{ item.employee.employee_id }}</strong></div>
+        </div>
+        <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Department & Role</div>
+            <div style="font-weight: 600; font-size: 0.95rem; color: var(--text-primary); margin-top: 0.15rem;">{{ item.employee.designation }}</div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.2rem;">Dept: {{ item.employee.department }}</div>
+        </div>
+        <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Payment Mode / Account</div>
+            <div style="font-weight: 600; font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.15rem;">{{ item.employee.bank_account_no or 'Bank Transfer / Cash' }}</div>
+        </div>
+        <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Disbursement Date</div>
+            <div style="font-weight: 600; font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.15rem;">{{ item.payroll_record.processed_date.strftime('%d-%b-%Y') if item.payroll_record.processed_date else '' }}</div>
+        </div>
+    </div>
+
+    <!-- Earnings & Deductions Breakdown -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+        <!-- Earnings Table -->
+        <div>
+            <h3 style="font-size: 0.9rem; text-transform: uppercase; font-weight: 700; color: #065f46; margin-bottom: 0.5rem; letter-spacing: 0.04em;">
+                Earnings (+)
+            </h3>
+            <table class="table report-table">
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th class="num-col" style="width: 110px;">Amount (৳)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Basic Salary</td>
+                        <td class="num-col">৳{{ "{:,.2f}".format(item.basic_salary) }}</td>
+                    </tr>
+                    <tr>
+                        <td>Allowances</td>
+                        <td class="num-col">৳{{ "{:,.2f}".format(item.allowances) }}</td>
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr class="report-subtotal-row">
+                        <td><strong>Total Gross Earnings</strong></td>
+                        <td class="num-col" style="color: #059669; font-weight: 700;">৳{{ "{:,.2f}".format(item.basic_salary + item.allowances) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- Deductions Table -->
+        <div>
+            <h3 style="font-size: 0.9rem; text-transform: uppercase; font-weight: 700; color: #991b1b; margin-bottom: 0.5rem; letter-spacing: 0.04em;">
+                Deductions (-)
+            </h3>
+            <table class="table report-table">
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th class="num-col" style="width: 110px;">Amount (৳)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Statutory & Voluntary Deductions</td>
+                        <td class="num-col">৳{{ "{:,.2f}".format(item.deductions) }}</td>
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr class="report-subtotal-row">
+                        <td><strong>Total Deductions</strong></td>
+                        <td class="num-col" style="color: #dc2626; font-weight: 700;">৳{{ "{:,.2f}".format(item.deductions) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- Net Pay Highlight -->
+    <div style="background-color: #eff6ff; border: 2px solid #3b82f6; border-radius: var(--radius-sm); padding: 1.25rem; display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <div>
+            <div style="font-size: 0.8rem; text-transform: uppercase; font-weight: 700; color: #1e40af; letter-spacing: 0.05em;">NET TAKE-HOME SALARY</div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.2rem;">Total Earnings less Total Deductions</div>
+        </div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 1.75rem; font-weight: 700; color: #1e40af;">
+            ৳{{ "{:,.2f}".format(item.net_salary) }}
+        </div>
+    </div>
+
+    <!-- Signatures -->
+    <div class="voucher-signatures">
+        <div class="signature-box">
+            Prepared By<br>
+            <span style="font-size: 0.7rem; color: var(--text-muted);">HR Officer</span>
+        </div>
+        <div class="signature-box">
+            Verified & Approved<br>
+            <span style="font-size: 0.7rem; color: var(--text-muted);">Finance Director</span>
+        </div>
+        <div class="signature-box">
+            Employee Signature<br>
+            <span style="font-size: 0.7rem; color: var(--text-muted);">Acknowledgment of Receipt</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
