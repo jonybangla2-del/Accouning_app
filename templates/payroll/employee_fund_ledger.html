@@ -65,8 +65,42 @@
     </div>
 </div>
 
-<!-- RESIGNATION SETTLED NOTIFICATION BANNER (IF SETTLED) -->
-{% if settlement %}
+<!-- REJOINED / SETTLED NOTIFICATION BANNER -->
+{% if is_rejoined %}
+<div class="card no-print" style="margin-bottom: 1.25rem; border-left: 5px solid #a855f7; background: #faf5ff; padding: 1.15rem 1.35rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <span style="font-size: 1.4rem;">🔄</span>
+                <strong style="color: #6b21a8; font-size: 1.1rem;">Rejoined &amp; Active Employee (Cycle 2 Accumulation)</strong>
+                <span class="badge" style="background: #e9d5ff; color: #6b21a8; font-weight: 800; font-size: 0.82rem; padding: 0.3rem 0.6rem;">Rejoined &amp; Active</span>
+            </div>
+            <div style="font-size: 0.9rem; color: #7e22ce; margin-top: 0.45rem; line-height: 1.5;">
+                {% if settlement %}
+                Previous Cycle Settlement: <strong>{{ settlement.settlement_date.strftime('%d-%b-%Y') if settlement.settlement_date else 'Feb 2025' }}</strong> &bull; 
+                Settlement Payout Disbursed: <strong style="font-size: 1.05rem; color: #7e22ce; font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(settlement.payable_to_employee) }}</strong>
+                {% if settlement.forfeited_company_share > 0 %}
+                &bull; Forfeited Com: <strong style="color: #b91c1c; font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(settlement.forfeited_company_share) }}</strong>
+                {% endif %}
+                <br>
+                {% endif %}
+                Rejoin Date: <strong>{{ rejoin_date.strftime('%d-%b-%Y') if rejoin_date else 'May 2025' }}</strong> &bull;
+                Current Active Net Balance: <strong style="font-size: 1.08rem; color: #15803d; font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(closing_bal) }}</strong> (Cycle 1 closed at ৳0.00).
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+            {% if settlement %}
+            <a href="{{ url_for('employee_resignation_clearance_by_settlement', settlement_id=settlement.id) }}" target="_blank" class="btn btn-outline" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; font-size: 0.88rem; font-weight: 700; color: #7e22ce; border-color: #d8b4fe; background: #faf5ff;" title="Open editable and printable Employee Financial Settlement Clearance Declaration">
+                📜 Cycle 1 Clearance ↗
+            </a>
+            <a href="{{ url_for('print_fund_settlement', settlement_id=settlement.id) }}" target="_blank" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; font-size: 0.88rem; font-weight: 600; background: linear-gradient(135deg, #7e22ce 0%, #6b21a8 100%); border: none;">
+                🖨️ Cycle 1 Certificate
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% elif settlement %}
 <div class="card no-print" style="margin-bottom: 1.25rem; border-left: 5px solid #10b981; background: #f0fdf4; padding: 1.15rem 1.35rem;">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
         <div>
@@ -151,15 +185,19 @@
     <!-- Summary KPI Badges -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px dashed #e2e8f0;">
         <div style="background: #f8fafc; padding: 0.6rem 0.85rem; border-radius: 6px; border-left: 3px solid #3b82f6;">
-            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Emp Share</div>
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">
+                {% if is_rejoined %}Total Emp Share (Cycle 2){% else %}Total Emp Share{% endif %}
+            </div>
             <div id="kpi_tot_emp" style="font-size: 1.05rem; font-weight: 800; color: #1e293b; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
-                ৳{{ "{:,.2f}".format(tot_emp) }}
+                ৳{{ "{:,.2f}".format(tot_emp_current if is_rejoined else tot_emp) }}
             </div>
         </div>
         <div style="background: #f8fafc; padding: 0.6rem 0.85rem; border-radius: 6px; border-left: 3px solid #8b5cf6;">
-            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Com Share</div>
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">
+                {% if is_rejoined %}Total Com Share (Cycle 2){% else %}Total Com Share{% endif %}
+            </div>
             <div id="kpi_tot_comp" style="font-size: 1.05rem; font-weight: 800; color: #7c3aed; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
-                ৳{{ "{:,.2f}".format(tot_comp) }}
+                ৳{{ "{:,.2f}".format(tot_comp_current if is_rejoined else tot_comp) }}
             </div>
         </div>
         <div style="background: #f8fafc; padding: 0.6rem 0.85rem; border-radius: 6px; border-left: 3px solid #f59e0b;">
@@ -313,6 +351,13 @@
                     {% for grp in year_groups %}
                         {% for r in grp.records %}
                         {% set global_row_idx.val = global_row_idx.val + 1 %}
+                        {% if r.is_rejoin_start %}
+                        <tr class="no-print" style="background: linear-gradient(90deg, #f3e8ff 0%, #fae8ff 100%); border-top: 2px dashed #c084fc; border-bottom: 2px dashed #c084fc;">
+                            <td colspan="10" style="text-align: center; padding: 0.65rem 1rem; color: #6b21a8; font-weight: 800; font-size: 0.88rem;">
+                                🔄 REJOINED &amp; ACTIVE — CYCLE 2 ACCUMULATION (from {{ r.month_display }}) &bull; Previous Settlement Balance Closed at ৳0.00
+                            </td>
+                        </tr>
+                        {% endif %}
                         <tr style="border-bottom: 1px solid #f1f5f9;" id="row_{{ r.id }}">
                             <!-- Month -->
                             <td style="font-family: 'Calibri', sans-serif; font-weight: 600; color: #0f172a; padding: 0.45rem 0.85rem;">

@@ -165,6 +165,9 @@
             <button type="button" class="btn btn-sm btn-fund-filter" data-status="active" onclick="setFundFilter('active', this)" style="border-radius: 20px; font-size: 0.78rem; font-weight: 600; padding: 0.25rem 0.75rem; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;">
                 🔵 Active / Unwithdrawn ({{ count_active }})
             </button>
+            <button type="button" class="btn btn-sm btn-fund-filter" data-status="rejoined" onclick="setFundFilter('rejoined', this)" style="border-radius: 20px; font-size: 0.78rem; font-weight: 600; padding: 0.25rem 0.75rem; background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe;">
+                🟣 Rejoined &amp; Active ({{ count_rejoined }})
+            </button>
 
             <!-- Save All Changes Button (enabled when rows are edited) -->
             <button type="button" class="btn btn-sm" id="btnSaveAllChanges" onclick="saveAllDirtyRows()" style="display: none; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; font-weight: 700; border: none; padding: 0.25rem 0.75rem; border-radius: 20px; box-shadow: 0 2px 6px rgba(5,150,105,0.3); cursor: pointer;">
@@ -309,6 +312,9 @@
                                     oninput="onExcelInput('{{ item.employee.employee_id }}')" 
                                     onkeydown="onExcelKeydown(event, '{{ item.employee.employee_id }}')">
                             </div>
+                            {% if item.withdrawal_type == 'rejoined' and item.withdrawal > 0 %}
+                            <div style="font-size: 0.65rem; color: #7e22ce; font-weight: 700; margin-top: 2px;">Cycle 1 Settled</div>
+                            {% endif %}
                         </td>
 
                         <!-- Forfeited Com (Direct Excel Editable) -->
@@ -334,6 +340,9 @@
                         <!-- Net Balance (Auto Computed Live) -->
                         <td class="num-col font-mono" style="font-weight: 800; color: #047857; font-size: 0.84rem; background: #ecfdf5; border-left: 1.5px solid #a7f3d0; border-right: 1.5px solid #a7f3d0; white-space: nowrap; min-width: 140px;" id="cell_bal_{{ item.employee.employee_id }}">
                             ৳{{ "{:,.2f}".format(item.balance) }}
+                            {% if item.withdrawal_type == 'rejoined' %}
+                            <div style="font-size: 0.68rem; color: #7e22ce; font-weight: 700;">(Cycle 2 Active)</div>
+                            {% endif %}
                         </td>
 
                         <!-- Withdrawal Status (Dropdown Selector) -->
@@ -344,6 +353,7 @@
                                 data-original="{{ item.withdrawal_type }}" 
                                 onchange="onExcelStatusChange('{{ item.employee.employee_id }}', this.value)">
                                 <option value="active" {% if item.withdrawal_type == 'active' %}selected{% endif %}>🔵 Active</option>
+                                <option value="rejoined" {% if item.withdrawal_type == 'rejoined' %}selected{% endif %}>🟣 Paid &amp; Active (Rejoined)</option>
                                 <option value="full_withdrawal" {% if item.withdrawal_type == 'full_withdrawal' %}selected{% endif %}>🟢 Full Withdrawal</option>
                                 <option value="own_only" {% if item.withdrawal_type == 'own_only' %}selected{% endif %}>🟠 Own Share Only</option>
                                 <option value="custom" {% if item.withdrawal_type in ['partial_withdrawal', 'custom'] %}selected{% endif %}>🟣 Custom</option>
@@ -768,6 +778,17 @@
                             </div>
                         </label>
 
+                        <!-- Paid & Active (Rejoined) Option -->
+                        <label style="display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.65rem 0.85rem; border: 1.5px solid #d8b4fe; border-radius: 6px; background: #faf5ff; cursor: pointer;">
+                            <input type="radio" name="withdrawal_action" value="rejoined" id="m_radio_rejoined" onchange="onWithdrawalActionChange()" style="margin-top: 0.25rem;">
+                            <div>
+                                <span style="font-weight: 700; color: #7e22ce; font-size: 0.9rem;">🟣 Paid &amp; Active (Rejoined / পূর্বে হিসাব পরিশোধকৃত ও পুনরায় কর্মরত)</span>
+                                <div style="font-size: 0.78rem; color: #6b21a8; line-height: 1.4;">
+                                    পূর্বের পর্বের নিষ্পত্তি/পরিশোধ (Cycle 1 Settlement) ব্যালেন্স <strong>৳0.00</strong> এ সংরক্ষিত থাকবে। পুনরায় যোগদানের পর থেকে (Cycle 2) নতুন জমা হওয়া টাকা বর্তমান সক্রিয় নেট ব্যালেন্সে যুক্ত হবে।
+                                </div>
+                            </div>
+                        </label>
+
                         <!-- Custom Option -->
                         <label style="display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.65rem 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px; background: #f8fafc; cursor: pointer;">
                             <input type="radio" name="withdrawal_action" value="custom" id="m_radio_custom" onchange="onWithdrawalActionChange()" style="margin-top: 0.25rem;">
@@ -798,6 +819,20 @@
                             <label class="form-label" style="font-size: 0.82rem; font-weight: 700; color: #b91c1c;">Forfeited Company Share (৳)</label>
                             <input type="number" step="0.01" min="0" name="forfeited_company_share" id="m_forfeited_company_share" class="form-control" placeholder="0.00">
                             <span style="font-size: 0.72rem; color: var(--text-muted);">Company share forfeited/adjusted</span>
+                        </div>
+                    </div>
+
+                    <!-- Rejoin Specific Box (shown when rejoined is selected) -->
+                    <div id="m_rejoin_meta_box" style="display: none; grid-template-columns: 1fr 1fr; gap: 0.85rem; padding: 0.85rem; background: #faf5ff; border-radius: 6px; border: 1.5px dashed #c084fc; margin-bottom: 0.85rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: 0.82rem; font-weight: 700; color: #6b21a8;">Rejoin Month / Cycle 2 Start</label>
+                            <input type="text" name="rejoin_month" id="m_rejoin_month" class="form-control" placeholder="YYYY-MM (e.g. 2025-05)">
+                            <span style="font-size: 0.72rem; color: #7e22ce;">নতুন কন্ট্রিবিউশন শুরুর মাস (e.g. 2025-05)</span>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: 0.82rem; font-weight: 700; color: #6b21a8;">Rejoin Date</label>
+                            <input type="date" name="rejoin_date" id="m_rejoin_date" class="form-control">
+                            <span style="font-size: 0.72rem; color: #7e22ce;">পুনরায় যোগদানের নির্দিষ্ট তারিখ</span>
                         </div>
                     </div>
 
@@ -1381,7 +1416,9 @@ function filterFundTable() {
         const rName = r.getAttribute('data-name') || '';
         const rDept = r.getAttribute('data-dept') || '';
 
-        const matchesStatus = (activeFundFilter === 'all') || (rStatus === activeFundFilter);
+        const matchesStatus = (activeFundFilter === 'all') 
+            || (rStatus === activeFundFilter) 
+            || (activeFundFilter === 'active' && (rStatus === 'active' || rStatus === 'rejoined'));
         const matchesQuery = !query || rCode.includes(query) || rName.includes(query) || rDept.includes(query);
 
         if (matchesStatus && matchesQuery) {
@@ -1425,7 +1462,10 @@ function openEditSummaryModal(item) {
 
     // Set radio
     const wType = item.withdrawal_type || 'active';
-    if (wType === 'full_withdrawal') {
+    if (wType === 'rejoined') {
+        const radR = document.getElementById('m_radio_rejoined');
+        if (radR) radR.checked = true;
+    } else if (wType === 'full_withdrawal') {
         document.getElementById('m_radio_full').checked = true;
     } else if (wType === 'own_only') {
         document.getElementById('m_radio_own').checked = true;
@@ -1434,6 +1474,11 @@ function openEditSummaryModal(item) {
     } else {
         document.getElementById('m_radio_active').checked = true;
     }
+
+    const rDateEl = document.getElementById('m_rejoin_date');
+    if (rDateEl) rDateEl.value = item.rejoin_date || '';
+    const rMonthEl = document.getElementById('m_rejoin_month');
+    if (rMonthEl) rMonthEl.value = item.rejoin_month || '';
 
     document.getElementById('m_withdrawal_amount').value = (item.withdrawal && item.withdrawal > 0) ? item.withdrawal : '';
     document.getElementById('m_forfeited_company_share').value = (item.adjustment && item.adjustment > 0) ? item.adjustment : '';
@@ -1477,14 +1522,24 @@ function onWithdrawalActionChange() {
     const profit = currentEditItem.profit || 0;
     const outstanding = currentEditItem.outstanding_loan || 0;
 
+    const boxRejoin = document.getElementById('m_rejoin_meta_box');
     if (val === 'active') {
         boxAmounts.style.display = 'none';
         boxMeta.style.display = 'none';
+        if (boxRejoin) boxRejoin.style.display = 'none';
         document.getElementById('m_withdrawal_amount').value = 0;
         document.getElementById('m_forfeited_company_share').value = 0;
+    } else if (val === 'rejoined') {
+        boxAmounts.style.display = 'grid';
+        boxMeta.style.display = 'grid';
+        if (boxRejoin) boxRejoin.style.display = 'grid';
+        if (!document.getElementById('m_rejoin_month').value) {
+            document.getElementById('m_rejoin_month').value = currentEditItem.rejoin_month || '2025-05';
+        }
     } else {
         boxAmounts.style.display = 'grid';
         boxMeta.style.display = 'grid';
+        if (boxRejoin) boxRejoin.style.display = 'none';
 
         if (val === 'full_withdrawal') {
             const fullAmt = Math.max(0, (empShare + compShare + welfare + profit) - outstanding);
@@ -1551,7 +1606,9 @@ async function submitEditSummary(e) {
 
                 const badgeEl = document.getElementById(`row_badge_${empCode}`);
                 if (badgeEl) {
-                    if (res.withdrawal_action === 'full_withdrawal') {
+                    if (res.withdrawal_action === 'rejoined') {
+                        badgeEl.innerHTML = '<span class="badge" style="background: #f3e8ff; color: #7e22ce; font-weight: 700; font-size: 0.75rem; padding: 0.25rem 0.55rem; border: 1px solid #d8b4fe;">🟣 Rejoined &amp; Active</span>';
+                    } else if (res.withdrawal_action === 'full_withdrawal') {
                         badgeEl.innerHTML = '<span class="badge" style="background: #dcfce7; color: #15803d; font-weight: 700; font-size: 0.75rem; padding: 0.25rem 0.55rem;">🟢 Full Withdrawal</span>';
                     } else if (res.withdrawal_action === 'own_only') {
                         badgeEl.innerHTML = '<span class="badge" style="background: #fef3c7; color: #b45309; font-weight: 700; font-size: 0.75rem; padding: 0.25rem 0.55rem;">🟠 Own Share Only</span>';
@@ -1560,6 +1617,11 @@ async function submitEditSummary(e) {
                     } else {
                         badgeEl.innerHTML = '<span class="badge" style="background: #e0f2fe; color: #0369a1; font-weight: 600; font-size: 0.75rem; padding: 0.25rem 0.55rem;">🔵 Active</span>';
                     }
+                }
+                const stSel = document.getElementById(`cell_status_${empCode}`);
+                if (stSel && res.withdrawal_action) {
+                    stSel.value = res.withdrawal_action;
+                    stSel.setAttribute('data-original', res.withdrawal_action);
                 }
             }
 

@@ -76,6 +76,12 @@
                 {{ count_own_withdrawn }} (৳{{ "{:,.2f}".format(total_own_withdrawn_amount) }})
             </div>
         </div>
+        <div style="border-left: 3px solid #a855f7; padding-left: 0.65rem;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Rejoined &amp; Active</div>
+            <div style="font-size: 1.15rem; font-weight: 800; color: #7e22ce; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
+                {{ count_rejoined }} (৳{{ "{:,.2f}".format(total_rejoined_balance) }})
+            </div>
+        </div>
         <div style="border-left: 3px solid #ef4444; padding-left: 0.65rem;">
             <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Forfeited Company Share</div>
             <div style="font-size: 1.15rem; font-weight: 800; color: #b91c1c; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
@@ -121,7 +127,11 @@
                     ৳{{ "{:,.2f}".format(item.total_deposit) }}
                 </td>
                 <td style="text-align: center; padding: 0.4rem 0.5rem;">
-                    {% if item.withdrawal_type == 'full_withdrawal' %}
+                    {% if item.withdrawal_type == 'rejoined' %}
+                    <span style="display: inline-block; background: #f3e8ff; color: #7e22ce; font-weight: 700; font-size: 0.7rem; padding: 0.15rem 0.45rem; border-radius: 4px; border: 1px solid #d8b4fe;">
+                        🟣 Paid &amp; Active (Rejoined)
+                    </span>
+                    {% elif item.withdrawal_type == 'full_withdrawal' %}
                     <span style="display: inline-block; background: #dcfce7; color: #15803d; font-weight: 700; font-size: 0.7rem; padding: 0.15rem 0.45rem; border-radius: 4px; border: 1px solid #bbf7d0;">
                         🟢 Full Withdrawal
                     </span>
@@ -147,6 +157,9 @@
                 </td>
                 <td style="text-align: right; font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #059669; padding: 0.4rem 0.6rem;">
                     ৳{{ "{:,.2f}".format(item.balance) }}
+                    {% if item.withdrawal_type == 'rejoined' %}
+                    <div style="font-size: 0.68rem; color: #7e22ce; font-weight: 700;">(Cycle 2 Active)</div>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}

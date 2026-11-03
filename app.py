@@ -545,6 +545,8 @@ class Employee(db.Model):
     status = db.Column(db.String(20), default='Active') # Active, Inactive
     joining_date = db.Column(db.Date, nullable=True)
     release_date = db.Column(db.Date, nullable=True)
+    is_rejoined = db.Column(db.Boolean, default=False)
+    rejoin_date = db.Column(db.Date, nullable=True)
     nid_passport = db.Column(db.String(50), nullable=True)
     email = db.Column(db.String(100), nullable=True)
     phone = db.Column(db.String(30), nullable=True)
@@ -1066,6 +1068,7 @@ class EmployeeFundContribution(db.Model):
     balance_com = db.Column(db.Float, default=0.00)     # Cumulative Employer Share Balance
     total_monthly = db.Column(db.Float, default=0.00)
     cumulative_balance = db.Column(db.Float, default=0.00)
+    cycle_no = db.Column(db.Integer, default=1)
     remarks = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -11295,6 +11298,8 @@ def fund_contributions_dashboard():
     total_full_withdrawn_amount = 0.0
     count_own_withdrawn = 0
     total_own_withdrawn_amount = 0.0
+    count_rejoined = 0
+    total_rejoined_balance = 0.0
     count_active = 0
     total_active_balance = 0.0
 
@@ -11322,9 +11327,37 @@ def fund_contributions_dashboard():
         balance_com = records[-1].balance_com if records else 0.0
         total_deposit = round(emp_tot + comp_tot + welfare_tot + prof_tot, 2)
 
-        # Categorize withdrawal status
+        # Check rejoining status
+        emp_obj = Employee.query.filter_by(employee_id=k).first()
+        if not emp_obj and k.isdigit():
+            emp_obj = Employee.query.get(int(k))
+        is_rejoined_emp = (emp_obj.is_rejoined if emp_obj else False)
+
+        has_later_contributions = False
+        if withdrawal_tot > 0:
+            last_withdraw_idx = -1
+            for idx, r in enumerate(records):
+                if (r.withdrawal or 0) > 0 or (r.adjustment or 0) > 0:
+                    last_withdraw_idx = idx
+            if last_withdraw_idx >= 0 and last_withdraw_idx < len(records) - 1:
+                has_later_contributions = any(((r.employee_share or 0) > 0 or (r.employer_share or 0) > 0) for r in records[last_withdraw_idx + 1:])
+
         settle = settlement_map.get(k)
-        if settle:
+
+        # Categorize withdrawal status
+        if is_rejoined_emp or has_later_contributions:
+            withdrawal_type = 'rejoined'
+            withdrawal_label = 'Paid & Active (Rejoined)'
+            count_rejoined += 1
+            total_rejoined_balance += cumul
+            count_active += 1
+            total_active_balance += cumul
+            settle_date = settle.settlement_date.strftime('%Y-%m-%d') if settle and settle.settlement_date else (records[-1].contribution_date.strftime('%Y-%m-%d') if records else '')
+            settle_month = settle.settlement_month if settle else ''
+            settle_ref = settle.payment_reference if settle else ''
+            settle_mode = settle.payment_mode if settle else 'Bank Transfer'
+            settle_remarks = settle.remarks if settle else ''
+        elif settle:
             if settle.is_eligible_full:
                 withdrawal_type = 'full_withdrawal'
                 withdrawal_label = 'Full Withdrawal (100% Emp + 100% Com)'
@@ -11394,6 +11427,9 @@ def fund_contributions_dashboard():
             'balance_emp': balance_emp,
             'balance_com': balance_com,
             'balance': cumul,
+            'is_rejoined': (is_rejoined_emp or has_later_contributions),
+            'rejoin_date': emp_obj.rejoin_date.strftime('%Y-%m-%d') if (emp_obj and emp_obj.rejoin_date) else '',
+            'rejoin_month': emp_obj.rejoin_date.strftime('%Y-%m') if (emp_obj and emp_obj.rejoin_date) else '',
             'record_count': len(records)
         })
 
@@ -11441,6 +11477,8 @@ def fund_contributions_dashboard():
         total_full_withdrawn_amount=total_full_withdrawn_amount,
         count_own_withdrawn=count_own_withdrawn,
         total_own_withdrawn_amount=total_own_withdrawn_amount,
+        count_rejoined=count_rejoined,
+        total_rejoined_balance=total_rejoined_balance,
         count_active=count_active,
         total_active_balance=total_active_balance,
         now_date_str=date.today().strftime('%B %d, %Y')
@@ -11538,9 +11576,29 @@ def employee_fund_ledger(emp_id):
     current_year = None
     curr_group_records = []
     
+    is_rejoined_emp = (emp.is_rejoined if emp else False)
+    rejoin_date = (emp.rejoin_date if emp else None)
+    
+    # Check if settled then has later records
+    has_settled_row = False
+    for r in records:
+        if (r.withdrawal or 0) > 0 or (r.adjustment or 0) > 0:
+            has_settled_row = True
+        elif has_settled_row and ((r.employee_share or 0) > 0 or (r.employer_share or 0) > 0):
+            is_rejoined_emp = True
+            break
+
+    cycle2_started = False
+
     for r in records:
         y = extract_fund_year(r.contribution_month, r.contribution_date)
         m_display = format_fund_month_label(r.contribution_month, r.contribution_date)
+        c_no = getattr(r, 'cycle_no', 1) or 1
+        is_rejoin_start = False
+        if is_rejoined_emp and c_no == 2 and not cycle2_started:
+            cycle2_started = True
+            is_rejoin_start = True
+
         rec_data = {
             'id': r.id,
             'month': r.contribution_month,
@@ -11557,6 +11615,8 @@ def employee_fund_ledger(emp_id):
             'balance_emp': r.balance_emp or 0.0,
             'balance_com': r.balance_com or 0.0,
             'total_balance': r.cumulative_balance or 0.0,
+            'cycle_no': c_no,
+            'is_rejoin_start': is_rejoin_start,
             'remarks': r.remarks or ''
         }
         
@@ -11710,7 +11770,11 @@ def employee_fund_ledger(emp_id):
         contribution_years=contribution_years,
         is_eligible_full=is_eligible_full,
         tentative_payable=tentative_payable,
-        tentative_forfeited=tentative_forfeited
+        tentative_forfeited=tentative_forfeited,
+        is_rejoined=is_rejoined_emp,
+        rejoin_date=rejoin_date,
+        tot_emp_current=sum(r.employee_share or 0.0 for r in records if getattr(r, 'cycle_no', 1) == 2) if is_rejoined_emp else tot_emp,
+        tot_comp_current=sum(r.employer_share or 0.0 for r in records if getattr(r, 'cycle_no', 1) == 2) if is_rejoined_emp else tot_comp
     )
 
 
@@ -12901,6 +12965,9 @@ def update_employee_fund_summary():
 
     if withdrawal_action == 'active':
         # Revert / Remove withdrawal, restore active fund
+        if emp:
+            emp.is_rejoined = False
+            emp.rejoin_date = None
         if existing_settle_cf:
             db.session.delete(existing_settle_cf)
         if existing_settle:
@@ -12910,7 +12977,97 @@ def update_employee_fund_summary():
                 pass
             db.session.delete(existing_settle)
 
+    elif withdrawal_action == 'rejoined':
+        # Rejoined employee: previous settlement preserved/created, employee reactivated
+        rejoin_month_val = str(data.get('rejoin_month', '')).strip()
+        rejoin_date_val = str(data.get('rejoin_date', '')).strip()
+        parsed_rejoin_date = parse_accounting_date(rejoin_date_val or rejoin_month_val) or date.today()
+        if isinstance(parsed_rejoin_date, datetime):
+            parsed_rejoin_date = parsed_rejoin_date.date()
+
+        if emp:
+            emp.is_rejoined = True
+            emp.rejoin_date = parsed_rejoin_date
+            emp.status = 'Active'
+
+        # Determine pre-rejoin settlement amounts
+        cutoff_month = (rejoin_month_val or parsed_rejoin_date.strftime('%Y-%m'))
+        pre_cfs = [r for r in all_cfs_now if (r.contribution_month and r.contribution_month < cutoff_month and (r.withdrawal or 0) == 0 and (r.adjustment or 0) == 0)]
+        pre_emp_sum = sum(r.employee_share or 0.0 for r in pre_cfs)
+        pre_comp_sum = sum(r.employer_share or 0.0 for r in pre_cfs)
+
+        withdrawal_amt = custom_withdrawal_amt if custom_withdrawal_amt > 0 else (pre_emp_sum + pre_comp_sum if pre_emp_sum > 0 else (existing_settle_cf.withdrawal if existing_settle_cf else 0.0))
+        forfeited_comp = custom_forfeited_amt if custom_forfeited_amt > 0 else (existing_settle_cf.adjustment if existing_settle_cf else 0.0)
+        is_eligible_full = (forfeited_comp == 0.0)
+        benefit_text = f"Cycle 1 Settlement (Paid: ৳{withdrawal_amt:,.2f}) | Rejoined & Active since {cutoff_month}"
+
+        settle_month_val = eff_month
+        if not settle_month_val or settle_month_val >= cutoff_month:
+            if pre_cfs:
+                settle_month_val = pre_cfs[-1].contribution_month
+            else:
+                settle_month_val = cutoff_month
+
+        if existing_settle_cf:
+            existing_settle_cf.withdrawal = withdrawal_amt
+            existing_settle_cf.adjustment = forfeited_comp
+            existing_settle_cf.contribution_month = settle_month_val
+            existing_settle_cf.contribution_date = eff_date
+            if hasattr(existing_settle_cf, 'cycle_no'):
+                existing_settle_cf.cycle_no = 1
+            existing_settle_cf.remarks = remarks or benefit_text
+        else:
+            new_settle_cf = EmployeeFundContribution(
+                employee_id=emp_db_id,
+                emp_code=emp_code,
+                emp_name=emp_name,
+                department=dept,
+                designation=desig,
+                contribution_month=settle_month_val,
+                contribution_date=eff_date,
+                employee_share=0.0,
+                employer_share=0.0,
+                withdrawal=withdrawal_amt,
+                adjustment=forfeited_comp,
+                remarks=remarks or benefit_text
+            )
+            if hasattr(new_settle_cf, 'cycle_no'):
+                new_settle_cf.cycle_no = 1
+            db.session.add(new_settle_cf)
+
+        if existing_settle:
+            existing_settle.is_eligible_full = is_eligible_full
+            existing_settle.payable_to_employee = withdrawal_amt
+            existing_settle.forfeited_company_share = forfeited_comp
+            existing_settle.settlement_month = settle_month_val
+            existing_settle.settlement_date = eff_date
+            existing_settle.payment_mode = payment_mode
+            existing_settle.payment_reference = payment_ref
+            existing_settle.status = 'Settled'
+            existing_settle.remarks = remarks or benefit_text
+        else:
+            new_settle = EmployeeFundSettlement(
+                employee_id=emp_db_id,
+                emp_code=emp_code,
+                emp_name=emp_name,
+                department=dept,
+                settlement_date=eff_date,
+                settlement_month=settle_month_val,
+                is_eligible_full=is_eligible_full,
+                emp_share_total=withdrawal_amt,
+                comp_share_total=forfeited_comp,
+                payable_to_employee=withdrawal_amt,
+                forfeited_company_share=forfeited_comp,
+                payment_mode=payment_mode,
+                payment_reference=payment_ref,
+                status='Settled',
+                remarks=remarks or benefit_text
+            )
+            db.session.add(new_settle)
+
     elif withdrawal_action in ['full_withdrawal', 'own_only', 'custom']:
+        if emp:
+            emp.is_rejoined = False
         is_eligible_full = (withdrawal_action == 'full_withdrawal')
 
         if withdrawal_action == 'full_withdrawal':
@@ -13340,6 +13497,8 @@ def fund_contributions_employee_report():
     total_full_withdrawn_amount = 0.0
     count_own_withdrawn = 0
     total_own_withdrawn_amount = 0.0
+    count_rejoined = 0
+    total_rejoined_balance = 0.0
     count_active = 0
 
     def fund_sort_key(x):
@@ -13364,8 +13523,31 @@ def fund_contributions_employee_report():
         cumul = records[-1].cumulative_balance if records else 0.0
         total_deposit = round(emp_tot + comp_tot + welfare_tot + prof_tot, 2)
 
+        emp_obj = Employee.query.filter_by(employee_id=k).first()
+        if not emp_obj and k.isdigit():
+            emp_obj = Employee.query.get(int(k))
+        is_rejoined_emp = (emp_obj.is_rejoined if emp_obj else False)
+
+        has_later_contributions = False
+        if withdrawal_tot > 0:
+            last_withdraw_idx = -1
+            for idx, r in enumerate(records):
+                if (r.withdrawal or 0) > 0 or (r.adjustment or 0) > 0:
+                    last_withdraw_idx = idx
+            if last_withdraw_idx >= 0 and last_withdraw_idx < len(records) - 1:
+                has_later_contributions = any(((r.employee_share or 0) > 0 or (r.employer_share or 0) > 0) for r in records[last_withdraw_idx + 1:])
+
         settle = settlement_map.get(k)
-        if settle:
+
+        if is_rejoined_emp or has_later_contributions:
+            withdrawal_type = 'rejoined'
+            withdrawal_label = 'Paid & Active (Rejoined)'
+            count_rejoined += 1
+            total_rejoined_balance += cumul
+            count_active += 1
+            settle_date = settle.settlement_date.strftime('%d-%b-%Y') if settle and settle.settlement_date else (records[-1].contribution_month if records else '')
+            settle_ref = settle.payment_reference if settle else ''
+        elif settle:
             if settle.is_eligible_full:
                 withdrawal_type = 'full_withdrawal'
                 withdrawal_label = 'Full Withdrawal (100% Emp + 100% Com)'
@@ -13446,6 +13628,8 @@ def fund_contributions_employee_report():
         total_full_withdrawn_amount=total_full_withdrawn_amount,
         count_own_withdrawn=count_own_withdrawn,
         total_own_withdrawn_amount=total_own_withdrawn_amount,
+        count_rejoined=count_rejoined,
+        total_rejoined_balance=total_rejoined_balance,
         count_active=count_active,
         now_date_str=date.today().strftime('%B %d, %Y')
     )
@@ -14067,16 +14251,43 @@ def recalculate_employee_fund_balances(emp_key):
             EmployeeFundContribution.contribution_date.asc(), 
             EmployeeFundContribution.id.asc()
         ).all()
-    running_emp = 0.0
-    running_com = 0.0
-    running_welfare = 0.0
-    running_profit = 0.0
-    running_loan = 0.0
-    running_return = 0.0
-    running_withdrawal = 0.0
-    running_adjustment = 0.0
+    # Check rejoining status and rejoin date
+    is_rejoined = (emp.is_rejoined if emp else False)
+    rejoin_date = emp.rejoin_date if emp else None
+    rejoin_month = rejoin_date.strftime('%Y-%m') if rejoin_date else None
 
-    for r in records:
+    # Detect if there is a settlement boundary followed by later contributions
+    settle_index = -1
+    has_later_deposits = False
+    for idx, r in enumerate(records):
+        if (r.withdrawal or 0) > 0 or (r.adjustment or 0) > 0:
+            settle_index = idx
+            break
+
+    if settle_index >= 0 and settle_index < len(records) - 1:
+        for r_after in records[settle_index + 1:]:
+            if (r_after.employee_share or 0) > 0 or (r_after.employer_share or 0) > 0:
+                has_later_deposits = True
+                break
+
+    if has_later_deposits:
+        is_rejoined = True
+        if emp and not emp.is_rejoined:
+            emp.is_rejoined = True
+
+    current_cycle = 1
+    cycle_running_emp = 0.0
+    cycle_running_com = 0.0
+    cycle_running_welfare = 0.0
+    cycle_running_profit = 0.0
+    cycle_running_loan = 0.0
+    cycle_running_return = 0.0
+    cycle_running_withdrawal = 0.0
+    cycle_running_adjustment = 0.0
+
+    all_time_return = 0.0
+
+    for idx, r in enumerate(records):
         emp_share = float(r.employee_share or 0.0)
         comp_share = float(r.employer_share or 0.0)
         welfare = float(r.welfare_fund or 0.0)
@@ -14086,18 +14297,44 @@ def recalculate_employee_fund_balances(emp_key):
         withdrawal_amt = float(r.withdrawal or 0.0)
         adjustment_amt = float(r.adjustment or 0.0)
 
-        running_emp = round(running_emp + emp_share, 2)
-        running_com = round(running_com + comp_share, 2)
-        running_welfare = round(running_welfare + welfare, 2)
-        running_profit = round(running_profit + profit, 2)
-        running_loan = round(running_loan + loan_amt, 2)
-        running_return = round(running_return + loan_ret, 2)
-        running_withdrawal = round(running_withdrawal + withdrawal_amt, 2)
-        running_adjustment = round(running_adjustment + adjustment_amt, 2)
+        all_time_return = round(all_time_return + loan_ret, 2)
 
-        total_inflows = round(running_emp + running_com + running_welfare + running_profit, 2)
-        total_outflows = round(running_withdrawal + running_adjustment, 2)
-        outstanding_loan = max(0.0, round(running_loan - running_return, 2))
+        # Detect cycle 2 boundary
+        starts_cycle_2 = False
+        if is_rejoined:
+            if settle_index >= 0 and idx > settle_index:
+                starts_cycle_2 = True
+            elif rejoin_month and r.contribution_month and r.contribution_month >= rejoin_month:
+                starts_cycle_2 = True
+            elif rejoin_date and r.contribution_date and r.contribution_date >= rejoin_date:
+                starts_cycle_2 = True
+
+        if starts_cycle_2 and current_cycle == 1:
+            current_cycle = 2
+            cycle_running_emp = 0.0
+            cycle_running_com = 0.0
+            cycle_running_welfare = 0.0
+            cycle_running_profit = 0.0
+            cycle_running_loan = 0.0
+            cycle_running_return = 0.0
+            cycle_running_withdrawal = 0.0
+            cycle_running_adjustment = 0.0
+
+        if hasattr(r, 'cycle_no'):
+            r.cycle_no = current_cycle
+
+        cycle_running_emp = round(cycle_running_emp + emp_share, 2)
+        cycle_running_com = round(cycle_running_com + comp_share, 2)
+        cycle_running_welfare = round(cycle_running_welfare + welfare, 2)
+        cycle_running_profit = round(cycle_running_profit + profit, 2)
+        cycle_running_loan = round(cycle_running_loan + loan_amt, 2)
+        cycle_running_return = round(cycle_running_return + loan_ret, 2)
+        cycle_running_withdrawal = round(cycle_running_withdrawal + withdrawal_amt, 2)
+        cycle_running_adjustment = round(cycle_running_adjustment + adjustment_amt, 2)
+
+        total_inflows = round(cycle_running_emp + cycle_running_com + cycle_running_welfare + cycle_running_profit, 2)
+        total_outflows = round(cycle_running_withdrawal + cycle_running_adjustment, 2)
+        outstanding_loan = max(0.0, round(cycle_running_loan - cycle_running_return, 2))
 
         if total_outflows >= total_inflows and total_inflows > 0:
             r.balance_emp = 0.0
@@ -14105,15 +14342,15 @@ def recalculate_employee_fund_balances(emp_key):
             r.cumulative_balance = 0.0
         elif total_outflows > 0:
             rem_out = total_outflows
-            deduct_emp = min(running_emp, rem_out)
-            r.balance_emp = max(0.0, round(running_emp - deduct_emp, 2))
+            deduct_emp = min(cycle_running_emp, rem_out)
+            r.balance_emp = max(0.0, round(cycle_running_emp - deduct_emp, 2))
             rem_out -= deduct_emp
-            deduct_com = min(running_com, rem_out)
-            r.balance_com = max(0.0, round(running_com - deduct_com, 2))
+            deduct_com = min(cycle_running_com, rem_out)
+            r.balance_com = max(0.0, round(cycle_running_com - deduct_com, 2))
             r.cumulative_balance = max(0.0, round(total_inflows - total_outflows - outstanding_loan, 2))
         else:
-            r.balance_emp = running_emp
-            r.balance_com = running_com
+            r.balance_emp = cycle_running_emp
+            r.balance_com = cycle_running_com
             r.cumulative_balance = max(0.0, round(total_inflows - outstanding_loan, 2))
 
         r.total_monthly = round(emp_share + comp_share + welfare + profit, 2)
@@ -14131,7 +14368,7 @@ def recalculate_employee_fund_balances(emp_key):
     
     loans = loans_query.all()
     for l in loans:
-        if running_return >= l.loan_amount and l.loan_amount > 0:
+        if all_time_return >= l.loan_amount and l.loan_amount > 0:
             l.status = 'Repaid'
             l.total_repaid = l.loan_amount
             l.installments_paid = l.installments_total
@@ -19832,6 +20069,22 @@ def ensure_user_table_columns():
                     if 'is_bst' not in columns:
                         conn.execute(text("ALTER TABLE audit_log ADD COLUMN is_bst BOOLEAN DEFAULT FALSE"))
                         conn.commit()
+
+            if 'employee' in inspector.get_table_names():
+                columns = [col['name'] for col in inspector.get_columns('employee')]
+                with db.engine.connect() as conn:
+                    if 'is_rejoined' not in columns:
+                        conn.execute(text("ALTER TABLE employee ADD COLUMN is_rejoined BOOLEAN DEFAULT 0"))
+                    if 'rejoin_date' not in columns:
+                        conn.execute(text("ALTER TABLE employee ADD COLUMN rejoin_date DATE"))
+                    conn.commit()
+
+            if 'employee_fund_contribution' in inspector.get_table_names():
+                columns = [col['name'] for col in inspector.get_columns('employee_fund_contribution')]
+                with db.engine.connect() as conn:
+                    if 'cycle_no' not in columns:
+                        conn.execute(text("ALTER TABLE employee_fund_contribution ADD COLUMN cycle_no INTEGER DEFAULT 1"))
+                    conn.commit()
                 # Migrate any existing UTC logs (+6 hours to BST)
                 try:
                     old_logs = AuditLog.query.filter((AuditLog.is_bst == False) | (AuditLog.is_bst == None)).all()
