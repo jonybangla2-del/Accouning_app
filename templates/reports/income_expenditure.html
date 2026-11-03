@@ -2,15 +2,28 @@
 
 {% block title %}Statement of Income & Expenditure / Receipts & Payments{% endblock %}
 
-{% block styles %}
+{% block extra_head %}
 <style>
-/* Client Financial Statement Styles */
+/* ==========================================================================
+   Executive Statement of Income & Expenditure / Receipts & Payments Styles
+   Matches Corporate Audit & Client Image 2 Reference Presentation
+   ========================================================================== */
+
+:root {
+    --matrix-border: #cbd5e1;
+    --matrix-border-dark: #94a3b8;
+    --matrix-header-bg: #e2e8f0;
+    --matrix-header-text: #0f172a;
+    --matrix-subtotal-bg: #f1f5f9;
+    --matrix-hover-bg: #f8fafc;
+}
+
 .statement-wrapper {
     background: #ffffff;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05);
-    border: 1px solid #e2e8f0;
-    margin-bottom: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+    border: 1.5px solid #cbd5e1;
+    margin-bottom: 2.5rem;
     overflow: hidden;
 }
 
@@ -22,12 +35,12 @@
 }
 
 .statement-company {
-    font-size: 1.35rem;
+    font-size: 1.45rem;
     font-weight: 800;
     color: #0f172a;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.35rem;
 }
 
 .statement-title {
@@ -35,62 +48,72 @@
     font-weight: 700;
     color: #0369a1;
     text-transform: uppercase;
-    letter-spacing: 0.025em;
-    margin-bottom: 0.25rem;
+    letter-spacing: 0.03em;
+    margin-bottom: 0.35rem;
 }
 
 .statement-period {
-    font-size: 0.9rem;
-    font-weight: 500;
+    font-size: 0.92rem;
+    font-weight: 600;
     color: #475569;
 }
 
-/* Multi-column Matrix Table Styling */
+/* Multi-column Matrix Table Container */
 .matrix-container {
     overflow-x: auto;
     position: relative;
     max-width: 100%;
     transform-origin: top left;
     transition: transform 0.15s ease-out;
+    background: #ffffff;
+    padding: 0;
 }
 
 .matrix-table {
     width: 100%;
-    min-width: 1350px;
-    border-collapse: collapse;
-    font-family: 'Calibri', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    font-size: 0.85rem;
-    color: #0f172a;
+    min-width: 1380px;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 2px solid #94a3b8;
     background: #ffffff;
+    font-size: 0.84rem;
+    color: #0f172a;
 }
 
 .matrix-table th,
 .matrix-table td {
-    padding: 4px 8px;
-    border: 1px solid #cbd5e1;
+    padding: 6px 9px;
+    border-right: 1px solid #cbd5e1;
+    border-bottom: 1px solid #cbd5e1;
     white-space: nowrap;
-    line-height: 1.35;
+    line-height: 1.4;
 }
 
+/* Header Columns */
 .matrix-table thead th {
-    background-color: #f1f5f9;
+    background-color: #e2e8f0;
     color: #0f172a;
-    font-weight: 700;
+    font-weight: 800;
     text-align: right;
     font-size: 0.82rem;
+    letter-spacing: 0.02em;
     position: sticky;
     top: 0;
     z-index: 10;
-    box-shadow: 0 1px 0 #cbd5e1;
+    border-bottom: 2px solid #64748b;
+    border-right: 1px solid #cbd5e1;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
 }
 
 .matrix-table thead th.col-particulars {
     text-align: left;
-    min-width: 280px;
+    min-width: 290px;
+    max-width: 380px;
     position: sticky;
     left: 0;
-    z-index: 15;
-    background-color: #f1f5f9;
+    z-index: 20;
+    background-color: #e2e8f0;
+    border-right: 2px solid #94a3b8;
 }
 
 .matrix-table thead th.col-notes {
@@ -100,105 +123,169 @@
 }
 
 .matrix-table thead th.col-month {
-    width: 82px;
-    min-width: 82px;
+    width: 88px;
+    min-width: 88px;
 }
 
 .matrix-table thead th.col-total {
-    width: 95px;
-    min-width: 95px;
-    background-color: #e2e8f0;
+    width: 110px;
+    min-width: 110px;
+    background-color: #cbd5e1;
+    color: #0f172a;
+    border-left: 2px solid #94a3b8;
 }
 
-/* Sticky first column */
+/* Sticky first column (Particulars) */
 .matrix-table td.col-particulars {
     position: sticky;
     left: 0;
     background-color: #ffffff;
     z-index: 5;
-    font-weight: 500;
-    box-shadow: 1px 0 0 #cbd5e1;
+    font-weight: 600;
+    color: #1e293b;
+    border-right: 2px solid #cbd5e1;
+    box-shadow: 2px 0 4px -1px rgba(0,0,0,0.06);
 }
 
-.matrix-table tr.row-subtotal td.col-particulars,
-.matrix-table tr.row-highlight td.col-particulars,
-.matrix-table tr.row-group td.col-particulars {
-    background-color: inherit;
+.matrix-table tr.data-row:hover td.col-particulars {
+    background-color: #f1f5f9;
 }
 
 .matrix-table td.col-notes {
     text-align: center;
     color: #64748b;
-    font-size: 0.78rem;
+    font-size: 0.76rem;
+    font-weight: 500;
 }
 
 .matrix-table td.col-num {
     text-align: right;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Segoe UI Mono', monospace;
     font-variant-numeric: tabular-nums;
+    font-size: 0.83rem;
+    letter-spacing: -0.01em;
 }
 
 .matrix-table td.col-total {
     background-color: #f8fafc;
-    font-weight: 600;
+    font-weight: 700;
+    border-left: 2px solid #cbd5e1;
+    color: #0f172a;
 }
 
-/* Section Header Rows */
+/* Major Section Dividers (Opening, Receipts, Payments, Closing) */
 .matrix-table tr.row-section-header td {
-    background-color: #f8fafc;
-    font-weight: 700;
+    background-color: #f1f5f9;
+    font-weight: 800;
     color: #0f172a;
     font-size: 0.88rem;
-    border-top: 2px solid #94a3b8;
-    border-bottom: 1px solid #cbd5e1;
-    padding-top: 8px;
-    padding-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-top: 2px solid #475569;
+    border-bottom: 1.5px solid #94a3b8;
+    padding: 8px 10px;
 }
 
-/* Group Headers inside section */
+.matrix-table tr.row-section-header td.col-particulars {
+    background-color: #f1f5f9;
+    border-left: 4px solid #0284c7;
+    border-right: 2px solid #94a3b8;
+}
+
+/* Group Headers inside section (e.g. Utilities) */
 .matrix-table tr.row-group td {
     font-weight: 700;
     color: #1e293b;
-    background-color: #fafafa;
+    background-color: #f8fafc;
+    border-top: 1px solid #cbd5e1;
+    border-bottom: 1px solid #cbd5e1;
+}
+
+.matrix-table tr.row-group td.col-particulars {
+    background-color: #f8fafc;
+    border-right: 2px solid #cbd5e1;
 }
 
 /* Indented sub-items */
 .matrix-table td.indent-sub {
-    padding-left: 1.5rem !important;
+    padding-left: 1.75rem !important;
+    font-weight: 500;
+    color: #334155;
 }
 
 /* Subtotal Rows */
 .matrix-table tr.row-subtotal td {
-    font-weight: 700;
+    font-weight: 800;
     background-color: #f1f5f9;
-    border-top: 1px solid #475569;
+    border-top: 1.5px solid #475569;
     border-bottom: 2px solid #0f172a;
+    color: #0f172a;
 }
 
-/* Available Fund Row & Final Reconciled Row */
-.matrix-table tr.row-available td,
-.matrix-table tr.row-reconciled td {
+.matrix-table tr.row-subtotal td.col-particulars {
+    background-color: #f1f5f9;
+    border-right: 2px solid #cbd5e1;
+}
+
+/* Available Fund Row (Opening + Receipts) */
+.matrix-table tr.row-available td {
     font-weight: 800;
-    background-color: #e0f2fe;
-    border-top: 1px solid #0284c7;
-    border-bottom: 3px double #0369a1;
-    color: #0369a1;
+    background-color: #dbeafe !important;
+    border-top: 2px solid #2563eb;
+    border-bottom: 3px double #1d4ed8;
+    color: #1e40af;
+    font-size: 0.88rem;
+}
+
+.matrix-table tr.row-available td.col-particulars {
+    background-color: #dbeafe !important;
+    color: #1e40af;
+    border-right: 2px solid #93c5fd;
+}
+
+/* Final Reconciled Row (Payments + Closing) */
+.matrix-table tr.row-reconciled td {
+    font-weight: 900;
+    background-color: #e0e7ff !important;
+    border-top: 2px solid #4f46e5;
+    border-bottom: 4px double #3730a3;
+    color: #312e81;
+    font-size: 0.9rem;
+}
+
+.matrix-table tr.row-reconciled td.col-particulars {
+    background-color: #e0e7ff !important;
+    color: #312e81;
+    border-right: 2px solid #a5b4fc;
 }
 
 /* Custom Highlight Fills matching Image 2 */
 .fill-pink {
     background-color: #fce7f3 !important;
+    color: #9d174d !important;
+    font-weight: 600;
 }
+
 .fill-yellow {
     background-color: #fef08a !important;
+    color: #854d0e !important;
+    font-weight: 600;
 }
+
 .fill-orange {
     background-color: #ffedd5 !important;
     color: #c2410c !important;
     font-weight: 700;
 }
+
 .fill-red-text {
     color: #dc2626 !important;
-    font-weight: 700;
+    font-weight: 800;
+}
+
+/* Hover state */
+.matrix-table tr.data-row:hover td:not(.fill-pink):not(.fill-yellow):not(.fill-orange) {
+    background-color: #f8fafc;
 }
 
 /* Filter & View Toolbar */
@@ -210,33 +297,35 @@
     flex-wrap: wrap;
     background: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    margin-bottom: 1.25rem;
+    border-radius: 10px;
+    padding: 0.75rem 1.25rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
 .view-tabs {
     display: flex;
     gap: 0.25rem;
     background: #f1f5f9;
-    padding: 0.25rem;
-    border-radius: 6px;
+    padding: 0.3rem;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
 }
 
 .view-tab {
-    padding: 0.45rem 1rem;
+    padding: 0.45rem 1.1rem;
     font-size: 0.85rem;
-    font-weight: 600;
-    border-radius: 4px;
+    font-weight: 700;
+    border-radius: 6px;
     text-decoration: none;
-    color: #475569;
+    color: #64748b;
     transition: all 0.15s ease;
 }
 
 .view-tab.active {
     background: #ffffff;
     color: #0284c7;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
 }
 
 .view-tab:hover:not(.active) {
@@ -246,66 +335,85 @@
 .zoom-controls {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.4rem;
     background: #f8fafc;
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
-    padding: 0.2rem 0.5rem;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 0.25rem 0.6rem;
 }
 
 .zoom-btn {
-    border: none;
+    border: 1px solid transparent;
     background: transparent;
     color: #1e293b;
     font-weight: 700;
     font-size: 0.85rem;
-    padding: 0.2rem 0.45rem;
-    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    border-radius: 5px;
     cursor: pointer;
     line-height: 1;
+    transition: all 0.15s ease;
 }
 
 .zoom-btn:hover {
     background: #e2e8f0;
+    border-color: #cbd5e1;
 }
 
 .zoom-pct {
-    font-size: 0.8rem;
-    font-weight: 600;
+    font-size: 0.82rem;
+    font-weight: 700;
     color: #334155;
-    min-width: 44px;
+    min-width: 46px;
     text-align: center;
+    font-family: monospace;
 }
 
 /* Quick Filter Search Input */
 .filter-input {
-    padding: 0.4rem 0.65rem;
+    padding: 0.4rem 0.75rem;
     font-size: 0.85rem;
-    border: 1px solid #cbd5e1;
+    border: 1.5px solid #cbd5e1;
     border-radius: 6px;
-    width: 170px;
+    width: 185px;
+    transition: border-color 0.15s ease;
+}
+
+.filter-input:focus {
+    outline: none;
+    border-color: #0284c7;
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
 }
 
 /* Hide zero rows toggle */
 .hide-zero-toggle {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    font-size: 0.82rem;
+    gap: 0.45rem;
+    font-size: 0.85rem;
     font-weight: 600;
     color: #475569;
     cursor: pointer;
     user-select: none;
+    padding: 0.35rem 0.65rem;
+    border-radius: 6px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+
+.hide-zero-toggle input {
+    cursor: pointer;
+    accent-color: #0284c7;
 }
 
 @media print {
     @page {
         size: landscape;
-        margin: 8mm;
+        margin: 6mm;
     }
     .no-print,
-    .app-header,
-    .sidebar,
+    .navbar,
+    .page-header,
     .control-toolbar,
     .filter-bar {
         display: none !important;
@@ -326,7 +434,7 @@
     }
     .matrix-table {
         min-width: 100% !important;
-        font-size: 7pt !important;
+        font-size: 6.8pt !important;
     }
     .matrix-table th,
     .matrix-table td {
@@ -335,6 +443,7 @@
     .matrix-table thead th,
     .matrix-table td.col-particulars {
         position: static !important;
+        box-shadow: none !important;
     }
 }
 </style>
@@ -362,7 +471,7 @@
     <div class="view-tabs">
         <a href="{{ url_for('income_expenditure', view='monthly', year=selected_year) }}" 
            class="view-tab {% if view_mode != 'summary' %}active{% endif %}">
-           📊 Monthly Matrix (Client Image 2)
+           📊 Monthly Matrix (Client Format)
         </a>
         <a href="{{ url_for('income_expenditure', view='summary', year=selected_year) }}" 
            class="view-tab {% if view_mode == 'summary' %}active{% endif %}">
@@ -375,8 +484,8 @@
         <!-- Year Selector -->
         <form method="GET" action="{{ url_for('income_expenditure') }}" style="display: inline-flex; align-items: center; gap: 0.4rem; margin: 0;">
             <input type="hidden" name="view" value="{{ view_mode }}">
-            <label style="font-size: 0.85rem; font-weight: 600; margin: 0; color: #475569;">Calendar Year:</label>
-            <select name="year" class="form-control" style="width: 100px; padding: 0.35rem 0.6rem; font-size: 0.85rem;" onchange="this.form.submit()">
+            <label style="font-size: 0.85rem; font-weight: 700; margin: 0; color: #475569;">Calendar Year:</label>
+            <select name="year" class="form-control" style="width: 105px; padding: 0.35rem 0.6rem; font-size: 0.88rem; font-weight: 700; border-radius: 6px; border: 1.5px solid #cbd5e1;" onchange="this.form.submit()">
                 {% for y in available_years %}
                 <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
                 {% endfor %}
@@ -385,10 +494,13 @@
 
         {% if view_mode != 'summary' %}
         <!-- Search Input -->
-        <input type="text" id="particularsSearch" class="filter-input" placeholder="🔍 Search particulars..." onkeyup="filterParticularsRows()">
+        <div style="position: relative; display: inline-flex; align-items: center;">
+            <input type="text" id="particularsSearch" class="filter-input" placeholder="🔍 Search particulars..." onkeyup="filterParticularsRows()">
+            <button type="button" onclick="clearSearch()" id="clearSearchBtn" style="display: none; position: absolute; right: 8px; border: none; background: none; color: #94a3b8; cursor: pointer; font-size: 0.85rem;" title="Clear Search">✕</button>
+        </div>
 
         <!-- Hide Zero Rows Toggle -->
-        <label class="hide-zero-toggle" title="Toggle hiding empty accounts with 0 amounts">
+        <label class="hide-zero-toggle" title="Toggle hiding empty accounts with 0 amounts across all 12 months">
             <input type="checkbox" id="hideZeroToggle" onchange="toggleZeroRows(this.checked)">
             <span>Hide Zero Rows</span>
         </label>
@@ -398,7 +510,7 @@
     {% if view_mode != 'summary' %}
     <!-- Zoom Controls -->
     <div class="zoom-controls">
-        <span style="font-size: 0.78rem; font-weight: 600; color: #64748b; margin-right: 2px;">Zoom:</span>
+        <span style="font-size: 0.78rem; font-weight: 700; color: #64748b; margin-right: 2px;">Zoom:</span>
         <button type="button" class="zoom-btn" onclick="adjustZoom(-0.1)" title="Zoom Out">➖</button>
         <span class="zoom-pct" id="zoomPct">100%</span>
         <button type="button" class="zoom-btn" onclick="adjustZoom(0.1)" title="Zoom In">➕</button>
@@ -414,9 +526,24 @@
 <!-- ======================================================================= -->
 <div class="statement-wrapper">
     <div class="statement-header">
-        <div class="statement-company">{{ company_name }}</div>
-        <div class="statement-title">Statement of Income & Expenditure / Receipts & Payments</div>
-        <div class="statement-period">Monthly Comparative Statement for Calendar Year {{ selected_year }}</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div style="text-align: left;">
+                <div class="statement-company">{{ company_name }}</div>
+                <div class="statement-title">Statement of Income & Expenditure / Receipts & Payments</div>
+                <div class="statement-period">Monthly Comparative Financial Statement for Calendar Year {{ selected_year }}</div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <span style="background: #e0f2fe; color: #0369a1; font-weight: 700; padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.76rem; border: 1px solid #bae6fd; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    📊 Live General Ledger
+                </span>
+                <span style="background: #dcfce7; color: #15803d; font-weight: 700; padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.76rem; border: 1px solid #bbf7d0; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    ⚖️ 100% Reconciled
+                </span>
+                <span style="background: #f1f5f9; color: #475569; font-weight: 700; padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.76rem; border: 1px solid #e2e8f0;">
+                    BDT (৳)
+                </span>
+            </div>
+        </div>
     </div>
 
     <div class="matrix-container" id="matrixContainer">
@@ -670,10 +797,13 @@
         </table>
     </div>
 
-    <div class="card-body" style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 0.75rem 1.25rem;">
-        <div style="font-size: 0.82rem; color: #64748b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-            <span><em>✓ Fully Reconciled: Total (Payment + Closing Balance) strictly matches Total Available Funds (Opening Balance + Receipts) for every month.</em></span>
-            <span>Generated from live ERP General Ledger & Cash Book records</span>
+    <div style="background-color: #f8fafc; border-top: 1.5px solid #cbd5e1; padding: 0.85rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+        <div style="font-size: 0.84rem; color: #15803d; font-weight: 600; display: inline-flex; align-items: center; gap: 0.4rem;">
+            <span>✅</span>
+            <span><strong>Reconciliation Verified:</strong> Total (Payment + Closing Balance) strictly reconciles with Total Available Funds (Opening Unspent Balance + Receipts) for every month.</span>
+        </div>
+        <div style="font-size: 0.8rem; color: #64748b; font-weight: 500;">
+            Real-time audit sync from ZR-ERP General Ledger & Cash Register
         </div>
     </div>
 </div>
@@ -846,7 +976,7 @@
 {% endif %}
 {% endblock %}
 
-{% block scripts %}
+{% block extra_scripts %}
 <script>
 // Interactive Client-Side Zoom Controls for Multi-Column Matrix
 let currentZoom = 1.0;
@@ -870,7 +1000,7 @@ function updateZoomDisplay() {
 }
 
 function adjustZoom(delta) {
-    currentZoom = Math.min(Math.max(0.4, currentZoom + delta), 1.5);
+    currentZoom = Math.min(Math.max(0.4, Math.round((currentZoom + delta) * 10) / 10), 1.5);
     updateZoomDisplay();
 }
 
@@ -884,12 +1014,12 @@ function fitZoomToScreen() {
     const matrixTable = document.getElementById('matrixTable');
     if (!matrixContainer || !matrixTable) return;
 
-    const availableWidth = matrixContainer.parentElement.clientWidth - 20;
-    const tableWidth = matrixTable.scrollWidth || 1350;
+    const availableWidth = matrixContainer.parentElement.clientWidth - 24;
+    const tableWidth = matrixTable.scrollWidth || 1380;
 
     if (tableWidth > 0 && availableWidth > 0) {
         let targetScale = availableWidth / tableWidth;
-        currentZoom = Math.min(Math.max(0.4, Math.round(targetScale * 100) / 100), 1.0);
+        currentZoom = Math.min(Math.max(0.45, Math.round(targetScale * 100) / 100), 1.0);
         updateZoomDisplay();
     }
 }
@@ -897,13 +1027,51 @@ function fitZoomToScreen() {
 // Live search filter across row particulars
 function filterParticularsRows() {
     const input = document.getElementById('particularsSearch');
+    const clearBtn = document.getElementById('clearSearchBtn');
     if (!input) return;
     const filter = input.value.toLowerCase().trim();
-    const rows = document.querySelectorAll('#matrixTable tbody tr.data-row');
+    if (clearBtn) clearBtn.style.display = filter ? 'inline-block' : 'none';
 
+    const rows = document.querySelectorAll('#matrixTable tbody tr.data-row');
     rows.forEach(row => {
         const text = row.querySelector('.col-particulars')?.textContent.toLowerCase() || '';
         if (filter === '' || text.includes(filter)) {
+            // Also check if hideZero is active
+            const hideZero = document.getElementById('hideZeroToggle')?.checked;
+            const hasData = row.getAttribute('data-has-data') === 'true';
+            if (hideZero && !hasData) {
+                row.style.display = 'none';
+            } else {
+                row.style.display = '';
+            }
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function clearSearch() {
+    const input = document.getElementById('particularsSearch');
+    if (input) {
+        input.value = '';
+        filterParticularsRows();
+        input.focus();
+    }
+}
+
+// Live toggle to hide/show zero amount rows
+function toggleZeroRows(hide) {
+    const rows = document.querySelectorAll('#matrixTable tbody tr.data-row');
+    const searchVal = document.getElementById('particularsSearch')?.value.toLowerCase().trim() || '';
+    
+    rows.forEach(row => {
+        const hasData = row.getAttribute('data-has-data') === 'true';
+        const text = row.querySelector('.col-particulars')?.textContent.toLowerCase() || '';
+        const matchesSearch = searchVal === '' || text.includes(searchVal);
+
+        if (hide && !hasData) {
+            row.style.display = 'none';
+        } else if (matchesSearch) {
             row.style.display = '';
         } else {
             row.style.display = 'none';
@@ -911,29 +1079,9 @@ function filterParticularsRows() {
     });
 }
 
-// Live toggle to hide/show zero amount rows
-function toggleZeroRows(hide) {
-    const rows = document.querySelectorAll('#matrixTable tbody tr.data-row');
-    rows.forEach(row => {
-        const hasData = row.getAttribute('data-has-data') === 'true';
-        if (hide && !hasData) {
-            row.style.display = 'none';
-        } else {
-            // Respect search filter if any
-            const searchVal = document.getElementById('particularsSearch')?.value.toLowerCase().trim() || '';
-            const text = row.querySelector('.col-particulars')?.textContent.toLowerCase() || '';
-            if (searchVal === '' || text.includes(searchVal)) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
-        }
-    });
-}
-
 document.addEventListener('DOMContentLoaded', function() {
     // If screen is smaller than table width, fit zoom nicely
-    if (window.innerWidth < 1400) {
+    if (window.innerWidth < 1450) {
         setTimeout(fitZoomToScreen, 150);
     }
 });

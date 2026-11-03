@@ -4,9 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Accounting System{% endblock %} - ZR-ERP</title>
+    <!-- PWA Primary Meta Tags -->
+    <meta name="theme-color" content="#0f172a">
+    <meta name="description" content="ZR-ERP Enterprise Accounting & Financial Management System">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/icon.svg') }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='images/icon-192.png') }}">
+    <!-- iOS Web App Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ZR-ERP">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/icon-192.png') }}">
+    
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
     {% block extra_head %}{% endblock %}
+    {% block styles %}{% endblock %}
 </head>
 <body>
     <nav class="navbar">
@@ -48,24 +61,43 @@
                     <a href="{{ url_for('configuration_hub') }}" class="dropdown-item" style="color: #38bdf8; font-weight: 600;">
                         ⚙️ Software Configuration &amp; Transfer
                     </a>
+                    <a href="{{ url_for('home') }}#autobackup" class="dropdown-item" style="color: #38bdf8; font-weight: 600;">
+                        ⚡ Auto Backup Settings
+                    </a>
+                    <a href="{{ url_for('home') }}#backup" class="dropdown-item" style="color: #34d399; font-weight: 600;">
+                        💾 Backup All Data
+                    </a>
+                    <a href="{{ url_for('home') }}#restore" class="dropdown-item" style="color: #a5b4fc; font-weight: 600;">
+                        🔄 Restore Backup
+                    </a>
                 </div>
             </div>
             {% endif %}
         </div>
 
-        <ul class="nav-menu">
+        <div class="nav-mobile-actions">
+            <button id="pwaInstallBtn" class="pwa-install-btn" style="display: none;" title="Install ZR-ERP as App">
+                <span>📲</span> <span>Install App</span>
+            </button>
+            <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle navigation menu" type="button">
+                <span>☰</span>
+            </button>
+        </div>
+
+        <ul class="nav-menu" id="mainNavMenu">
             <li><a href="{{ url_for('home') }}" class="nav-link {% if request.endpoint == 'home' %}active{% endif %}">🏠 Home</a></li>
             <li><a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">📊 Dashboard</a></li>
-            <li><a href="{{ url_for('chart_of_accounts') }}" class="nav-link {% if 'account' in request.endpoint %}active{% endif %}">📑 Accounts</a></li>
-            <li><a href="{{ url_for('voucher_list') }}" class="nav-link {% if 'voucher' in request.endpoint %}active{% endif %}">📖 Vouchers</a></li>
+            <li><a href="{{ url_for('chart_of_accounts') }}" class="nav-link {% if request.endpoint and 'account' in request.endpoint %}active{% endif %}">📑 Accounts</a></li>
+            <li><a href="{{ url_for('voucher_list') }}" class="nav-link {% if request.endpoint and 'voucher' in request.endpoint %}active{% endif %}">📖 Vouchers</a></li>
             
             <li class="nav-dropdown">
-                <a href="{{ url_for('budget_dashboard') }}" class="nav-link {% if 'budget' in request.endpoint %}active{% endif %}" style="{% if 'budget' in request.endpoint %}color: #38bdf8;{% endif %}">
+                <a href="{{ url_for('budget_dashboard') }}" class="nav-link {% if request.endpoint and 'budget' in request.endpoint %}active active-budget{% endif %}">
                     🎯 Budget &amp; Expenses ▾
                 </a>
                 <div class="dropdown-menu">
                     <a href="{{ url_for('budget_dashboard') }}" class="dropdown-item" style="color: #38bdf8; font-weight: 700;">📊 Budget vs Expense Cockpit</a>
                     <a href="{{ url_for('issue_budget') }}" class="dropdown-item" style="color: #34d399; font-weight: 600;">📝 Issue Monthly Budget</a>
+                    <a href="{{ url_for('import_budget_excel') }}" class="dropdown-item" style="color: #38bdf8; font-weight: 600;">📥 Import Budget from Excel</a>
                     <a href="{{ url_for('budget_list') }}" class="dropdown-item" style="color: #fbbf24; font-weight: 600;">📋 Monthly Budget Archive</a>
                     <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 0.25rem 0;"></div>
                     <a href="{{ url_for('budget_report') }}" class="dropdown-item">🖨️ Printable Variance Report</a>
@@ -73,10 +105,11 @@
             </li>
             
             <li class="nav-dropdown">
-                <a href="{{ url_for('remittance_dashboard') }}" class="nav-link {% if 'remittance' in request.endpoint %}active{% endif %}" style="{% if 'remittance' in request.endpoint %}color: #34d399;{% endif %}">
-                    💵 Remittance &amp; Incentive ▾
+                <a href="{{ url_for('remittance_dashboard') }}" class="nav-link {% if request.endpoint and ('remittance' in request.endpoint or 'invoice' in request.endpoint) %}active active-remittance{% endif %}">
+                    💵 Remittance &amp; Invoices ▾
                 </a>
                 <div class="dropdown-menu">
+                    <a href="{{ url_for('service_invoices_dashboard') }}" class="dropdown-item" style="color: #38bdf8; font-weight: 700;">🧾 Service Invoices (01PL &amp; 02PL)</a>
                     <a href="{{ url_for('remittance_dashboard') }}" class="dropdown-item" style="color: #34d399; font-weight: 700;">📊 Remittance &amp; Incentive Statement</a>
                     <a href="{{ url_for('create_remittance_entry') }}" class="dropdown-item" style="color: #60a5fa; font-weight: 600;">+ Record Remittance / Inflow</a>
                     <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 0.25rem 0;"></div>
@@ -85,10 +118,13 @@
             </li>
             
             <li class="nav-dropdown">
-                <a href="{{ url_for('employee_list') }}" class="nav-link {% if 'employee' in request.endpoint or 'payroll' in request.endpoint or 'document' in request.endpoint or 'fund' in request.endpoint or 'salary' in request.endpoint %}active{% endif %}">
+                <a href="{{ url_for('employee_list') }}" class="nav-link {% if request.endpoint and ('employee' in request.endpoint or 'payroll' in request.endpoint or 'document' in request.endpoint or 'fund' in request.endpoint or 'salary' in request.endpoint or 'attendance' in request.endpoint) %}active{% endif %}">
                     👥 HR &amp; Payroll ▾
                 </a>
-                <div class="dropdown-menu" style="min-width: 250px;">
+                <div class="dropdown-menu" style="min-width: 260px;">
+                    <a href="{{ url_for('attendance_dashboard') }}" class="dropdown-item" style="color: #c084fc; font-weight: 700;">🤖 Face Attendance &amp; AI Shifts</a>
+                    <a href="{{ url_for('attendance_month_matrix') }}" class="dropdown-item" style="color: #818cf8; font-weight: 600;">📅 Monthly Register (31-Day)</a>
+                    <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 0.25rem 0;"></div>
                     <a href="{{ url_for('monthly_salary_sheets') }}" class="dropdown-item" style="color: #38bdf8; font-weight: 700;">📋 Monthly Salary Sheets (32-Col)</a>
                     <a href="{{ url_for('employee_bank_info') }}" class="dropdown-item" style="color: #10b981; font-weight: 700;">🏦 Employee Bank Info (EFT / BEFTN)</a>
                     <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 0.25rem 0;"></div>
@@ -97,20 +133,30 @@
                     <a href="{{ url_for('employee_salary_report') }}" class="dropdown-item" style="color: #10b981; font-weight: 600;">📊 Career Paid Report</a>
                     <a href="{{ url_for('fund_contributions_dashboard') }}" class="dropdown-item" style="color: #34d399; font-weight: 600;">💰 Contribution Fund (PF)</a>
                     <a href="{{ url_for('documents_hub') }}" class="dropdown-item" style="color: #a78bfa; font-weight: 600;">📜 Certificates &amp; Documents</a>
+                    <a href="{{ url_for('employee_documents_manager') }}" class="dropdown-item" style="color: #0284c7; font-weight: 700; background: rgba(2, 132, 199, 0.08); border-radius: 6px; margin-top: 2px;">📁 Employee Document Manager</a>
                     <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 0.25rem 0;"></div>
                     <a href="{{ url_for('payroll_dashboard') }}" class="dropdown-item">⚡ Monthly Payroll Runs</a>
                 </div>
             </li>
             
             <li class="nav-dropdown">
-                <a href="{{ url_for('reports_hub') }}" class="nav-link {% if 'report' in request.endpoint or 'reconciliation' in request.endpoint or 'statement' in request.endpoint or 'balance' in request.endpoint or 'receipts' in request.endpoint or 'income' in request.endpoint %}active{% endif %}">
+                <a href="{{ url_for('reports_hub') }}" class="nav-link {% if request.endpoint and ('report' in request.endpoint or 'reconciliation' in request.endpoint or 'statement' in request.endpoint or 'balance' in request.endpoint or 'receipts' in request.endpoint or 'income' in request.endpoint) %}active{% endif %}">
                     📈 Reports ▾
                 </a>
-                <div class="dropdown-menu" style="min-width: 250px;">
+                <div class="dropdown-menu" style="min-width: 270px;">
+                    <a href="{{ url_for('ai_reports.ai_reports_hub') }}" class="dropdown-item" style="color: #a855f7; font-weight: 700; background: rgba(168, 85, 247, 0.12); border-radius: 6px; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between;">
+                        <span>🤖 Multi-Doc AI Report Generator</span>
+                        <span style="font-size: 0.65rem; background: #a855f7; color: white; padding: 1px 5px; border-radius: 4px; font-weight: 700;">AI</span>
+                    </a>
+                    <a href="javascript:void(0)" onclick="openQuarterlyReportModal()" class="dropdown-item" style="color: #0284c7; font-weight: 700; background: rgba(2, 132, 199, 0.08); border-radius: 6px; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between;">
+                        <span>📊 Quarterly Financial Statement</span>
+                        <span style="font-size: 0.65rem; background: #0284c7; color: white; padding: 1px 5px; border-radius: 4px; font-weight: 700;">BB</span>
+                    </a>
                     <a href="{{ url_for('cash_book_report') }}" class="dropdown-item" style="color: #34d399; font-weight: 600;">📖 Cash &amp; Bank Book</a>
                     <a href="{{ url_for('bank_statement_report') }}" class="dropdown-item" style="color: #60a5fa; font-weight: 600;">📑 Bank Statement Report</a>
                     <a href="{{ url_for('bank_reconciliation') }}" class="dropdown-item" style="color: #fbbf24; font-weight: 600;">⚖️ Bank Reconciliation</a>
                     <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 0.25rem 0;"></div>
+                    <a href="/reports/quarterly-statement" class="dropdown-item" style="color: #0284c7; font-weight: 600;">📁 Statement Archive</a>
                     <a href="{{ url_for('trial_balance') }}" class="dropdown-item">⚖ Trial Balance</a>
                     <a href="{{ url_for('receipts_payments') }}" class="dropdown-item">💵 Receipts &amp; Payments</a>
                     <a href="{{ url_for('income_expenditure') }}" class="dropdown-item">📊 Income &amp; Expenditure</a>
@@ -119,13 +165,14 @@
             </li>
 
             <li>
-                <a href="{{ url_for('configuration_hub') }}" class="nav-link {% if 'configuration' in request.endpoint %}active{% endif %}" style="color: #38bdf8; font-weight: 600;">
+                <a href="{{ url_for('configuration_hub') }}" class="nav-link {% if request.endpoint and 'configuration' in request.endpoint %}active{% endif %}" style="color: #38bdf8; font-weight: 600;">
                     ⚙️ Configuration
                 </a>
             </li>
 
             {% if current_user and current_user.role == 'Admin' %}
-            <li><a href="{{ url_for('user_settings') }}" class="nav-link {% if 'settings' in request.endpoint or 'user' in request.endpoint %}active{% endif %}">👤 Users</a></li>
+            <li><a href="{{ url_for('user_settings') }}" class="nav-link {% if request.endpoint and ('settings' in request.endpoint or 'user' in request.endpoint) %}active{% endif %}">👤 Users</a></li>
+            <li><a href="{{ url_for('audit_logs_dashboard') }}" class="nav-link {% if request.endpoint and 'audit' in request.endpoint %}active{% endif %}" style="color: #f87171; font-weight: 600;" title="Activity &amp; Security Audit Log Registry">🛡️ Audit Logs</a></li>
             {% endif %}
 
             <li style="margin-left: 0.35rem;">
@@ -155,10 +202,14 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="flash-messages no-print">
+                    {% set seen_msgs = [] %}
                     {% for category, message in messages %}
-                        <div class="alert alert-{{ category if category != 'message' else 'info' }}">
-                            {{ message }}
-                        </div>
+                        {% if message not in seen_msgs %}
+                            {% set _ = seen_msgs.append(message) %}
+                            <div class="alert alert-{{ category if category != 'message' else 'info' }}">
+                                {{ message }}
+                            </div>
+                        {% endif %}
                     {% endfor %}
                 </div>
             {% endif %}
@@ -230,6 +281,475 @@
         .btn-close:hover {
             color: var(--text-primary, #0f172a);
         }
+        .nav-link.active-budget {
+            color: #38bdf8 !important;
+        }
+        .nav-link.active-remittance {
+            color: #34d399 !important;
+        }
+        @keyframes qrSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+
+    <!-- Global Quarterly Financial Statement Generator Modal -->
+    <div id="quarterlyReportModal" class="modal-overlay" style="display: none;">
+        <div class="modal-box" style="max-width: 680px; border-radius: 12px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.45); border: 1px solid #cbd5e1;">
+            
+            <!-- Modal Header -->
+            <div class="modal-header" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff; padding: 1.15rem 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                    <span style="font-size: 1.4rem; background: rgba(2, 132, 199, 0.25); padding: 0.25rem 0.5rem; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.4);">📊</span>
+                    <div>
+                        <div style="font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; color: #f8fafc;">
+                            Next Quarter Financial Statements &amp; Form FI Generator
+                        </div>
+                        <div style="font-size: 0.76rem; color: #94a3b8;">
+                            Rolls forward Supporting_file models to produce <strong>Form FI_Sep-2026</strong> &amp; <strong>Financial Statements_Sep-2026</strong>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" onclick="closeModal('quarterlyReportModal')" style="color: #cbd5e1; font-size: 1.6rem; cursor: pointer; background: transparent; border: none; line-height: 1;" title="Close dialog">&times;</button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="modal-body" style="padding: 1.25rem 1.5rem; background: #ffffff; max-height: calc(88vh - 120px); overflow-y: auto;">
+                
+                <!-- Notice Banner -->
+                <div style="background: #f0f9ff; border-left: 4px solid #0284c7; padding: 0.65rem 0.85rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.82rem; color: #0369a1; line-height: 1.4;">
+                    Generates <strong>two separate next quarter workbooks</strong>: 
+                    <span style="background: #e0f2fe; padding: 0.1rem 0.35rem; border-radius: 4px; font-weight: 700;">TBN Financial Statements_Sep-2026.xlsx</span> and 
+                    <span style="background: #e0f2fe; padding: 0.1rem 0.35rem; border-radius: 4px; font-weight: 700;">Form FI_Sep-2026.xlsx</span> based on June-2026 roll-forward models.
+                </div>
+
+                <!-- Form Section -->
+                <div id="qr_form_section">
+                    <form id="qr_statement_form" onsubmit="event.preventDefault(); submitQuarterlyStatementForm();">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 0.85rem;">
+                            <!-- Target Quarter -->
+                            <div>
+                                <label for="qr_quarter_code" style="display: block; font-size: 0.8rem; font-weight: 700; color: #334155; margin-bottom: 0.25rem;">
+                                    Target Quarter: <span style="color: #ef4444;">*</span>
+                                </label>
+                                <select id="qr_quarter_code" class="form-control" onchange="autoFetchLedgerData()" style="width: 100%; padding: 0.5rem 0.65rem; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: 0.88rem; font-weight: 600; color: #0f172a; background: #ffffff;">
+                                    <option value="Sep-2026" selected>Sep-2026 (Q1: 01 Jul - 30 Sep 2026)</option>
+                                    <option value="Dec-2026">Dec-2026 (Q2: 01 Oct - 31 Dec 2026)</option>
+                                    <option value="Mar-2027">Mar-2027 (Q3: 01 Jan - 31 Mar 2027)</option>
+                                    <option value="Jun-2027">Jun-2027 (Q4: 01 Apr - 30 Jun 2027)</option>
+                                </select>
+                            </div>
+
+                            <!-- Enterprise Name -->
+                            <div>
+                                <label for="qr_company_name" style="display: block; font-size: 0.8rem; font-weight: 700; color: #334155; margin-bottom: 0.25rem;">
+                                    Enterprise Name:
+                                </label>
+                                <input type="text" id="qr_company_name" class="form-control" value="{{ active_company.name if active_company else 'TBN BD LTD.' }}" placeholder="TBN BD LTD." style="width: 100%; padding: 0.5rem 0.65rem; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: 0.88rem; color: #0f172a; background: #ffffff;">
+                            </div>
+                        </div>
+
+                        <!-- Query Data for Calculation Header -->
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
+                                <div style="font-size: 0.82rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #1e293b; display: flex; align-items: center; gap: 0.4rem;">
+                                    <span>⚙️</span> Query Data for Calculation
+                                </div>
+                                <button type="button" onclick="autoFetchLedgerData()" class="btn btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.76rem; font-weight: 700; border-color: #0284c7; color: #0284c7; background: #f0f9ff; border-radius: 5px;">
+                                    🔄 Auto-Fetch from Ledger
+                                </button>
+                            </div>
+
+                            <!-- P&L Calculation Inputs -->
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; margin-bottom: 0.65rem;">
+                                <div>
+                                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #475569; margin-bottom: 0.2rem;">
+                                        Revenue / Sales Inflow (BDT):
+                                    </label>
+                                    <input type="number" id="qr_revenue" class="form-control qr-calc-input" value="10643787" oninput="recalculatePreview()" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #475569; margin-bottom: 0.2rem;">
+                                        Other Income (BDT):
+                                    </label>
+                                    <input type="number" id="qr_other_income" class="form-control qr-calc-input" value="704900" oninput="recalculatePreview()" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #475569; margin-bottom: 0.2rem;">
+                                        Admin &amp; Operating Expenses (BDT):
+                                    </label>
+                                    <input type="number" id="qr_admin_expense" class="form-control qr-calc-input" value="10464362" oninput="recalculatePreview()" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #475569; margin-bottom: 0.2rem;">
+                                        Financial Expenses / Bank Charges (BDT):
+                                    </label>
+                                    <input type="number" id="qr_financial_expense" class="form-control qr-calc-input" value="15655" oninput="recalculatePreview()" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                                </div>
+                            </div>
+
+                            <!-- Liquidity Balances -->
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; margin-bottom: 0.65rem;">
+                                <div>
+                                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #475569; margin-bottom: 0.2rem;">
+                                        Cash in Hand Balance (BDT):
+                                    </label>
+                                    <input type="number" id="qr_cash_in_hand" class="form-control" value="2001523" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #475569; margin-bottom: 0.2rem;">
+                                        Premier Bank Balance (BDT):
+                                    </label>
+                                    <input type="number" id="qr_bank_balance" class="form-control" value="3719366" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                                </div>
+                            </div>
+
+                            <!-- Remittance Query Rows for Form FI -->
+                            <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed #cbd5e1;">
+                                <div style="font-size: 0.74rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 0.35rem;">
+                                    Inward Remittances for Form FI Sheet 4 (July, August, September):
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.4rem; font-size: 0.78rem;">
+                                    <div style="background: #ffffff; padding: 0.35rem 0.5rem; border-radius: 5px; border: 1px solid #e2e8f0;">
+                                        <strong style="color: #0369a1; font-size: 0.74rem;">Month 1 (July):</strong>
+                                        <input type="number" id="qr_remit_m1_bdt" value="5255525" placeholder="BDT" style="width: 100%; font-size: 0.75rem; margin-top: 2px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 3px;">
+                                        <input type="number" id="qr_remit_m1_usd" value="43796" placeholder="USD" style="width: 100%; font-size: 0.75rem; margin-top: 2px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 3px;">
+                                    </div>
+                                    <div style="background: #ffffff; padding: 0.35rem 0.5rem; border-radius: 5px; border: 1px solid #e2e8f0;">
+                                        <strong style="color: #0369a1; font-size: 0.74rem;">Month 2 (August):</strong>
+                                        <input type="number" id="qr_remit_m2_bdt" value="5388262" placeholder="BDT" style="width: 100%; font-size: 0.75rem; margin-top: 2px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 3px;">
+                                        <input type="number" id="qr_remit_m2_usd" value="44902" placeholder="USD" style="width: 100%; font-size: 0.75rem; margin-top: 2px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 3px;">
+                                    </div>
+                                    <div style="background: #ffffff; padding: 0.35rem 0.5rem; border-radius: 5px; border: 1px solid #e2e8f0;">
+                                        <strong style="color: #0369a1; font-size: 0.74rem;">Month 3 (September):</strong>
+                                        <input type="number" id="qr_remit_m3_bdt" value="4850000" placeholder="BDT" style="width: 100%; font-size: 0.75rem; margin-top: 2px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 3px;">
+                                        <input type="number" id="qr_remit_m3_usd" value="40416" placeholder="USD" style="width: 100%; font-size: 0.75rem; margin-top: 2px; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 3px;">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Live Calculation Summary Pill -->
+                            <div style="margin-top: 0.65rem; background: #ecfeff; border: 1px solid #a5f3fc; border-radius: 6px; padding: 0.45rem 0.75rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; font-size: 0.8rem;">
+                                <div>
+                                    <span style="color: #0891b2; font-weight: 600;">Net Profit Before Tax:</span>
+                                    <strong id="qr_prev_net" style="color: #0e7490; font-size: 0.9rem; margin-left: 4px;">৳ 868,670</strong>
+                                </div>
+                                <div style="font-size: 0.76rem; color: #0891b2;">
+                                    USA Share (99%): <strong id="qr_prev_usa" style="color: #155e75;">৳ 859,983</strong> &bull; BD (1%): <strong id="qr_prev_bd" style="color: #155e75;">৳ 8,687</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Modal Actions Footer -->
+                        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #f1f5f9;">
+                            <button type="button" class="btn btn-secondary" onclick="closeModal('quarterlyReportModal')" style="padding: 0.55rem 1rem; border-radius: 7px;">
+                                Cancel
+                            </button>
+                            <button type="submit" id="qr_generate_btn" class="btn btn-primary" style="background: linear-gradient(135deg, #0284c7, #0369a1); border: none; padding: 0.55rem 1.35rem; font-weight: 700; border-radius: 7px; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 6px -1px rgba(2, 132, 199, 0.3);">
+                                <span>⚡</span> Generate Next Quarter Reports
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Loading State -->
+                <div id="qr_loading_section" style="display: none; text-align: center; padding: 2.5rem 1rem;">
+                    <div style="display: inline-block; width: 44px; height: 44px; border: 4px solid #e2e8f0; border-top: 4px solid #0284c7; border-radius: 50%; animation: qrSpin 0.9s linear infinite; margin-bottom: 1rem;"></div>
+                    <h4 style="margin: 0 0 0.4rem 0; color: #0f172a; font-size: 1.05rem; font-weight: 700;">Compiling Next Quarter Reports...</h4>
+                    <p style="margin: 0; color: #64748b; font-size: 0.84rem;">
+                        Reading June-2026 templates, calculating roll-forwards, and writing dual workbooks. Please wait...
+                    </p>
+                </div>
+
+                <!-- Result MessageBox Section -->
+                <div id="qr_result_section" style="display: none;">
+                    <div style="background: #ecfdf5; border: 2px solid #10b981; border-radius: 9px; padding: 1rem 1.15rem; margin-bottom: 1rem; display: flex; align-items: flex-start; gap: 0.75rem;">
+                        <div style="font-size: 1.8rem; line-height: 1;">✅</div>
+                        <div style="flex: 1;">
+                            <h4 id="qr_success_title" style="margin: 0 0 0.2rem 0; color: #065f46; font-size: 1rem; font-weight: 800;">
+                                Statement generated successfully!
+                            </h4>
+                            <p id="qr_success_desc" style="margin: 0; font-size: 0.84rem; color: #047857;">
+                                Both next quarter reports have been generated and saved to the application storage.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Dual Reports Container -->
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1rem;">
+                        <!-- Report 1: Financial Statements -->
+                        <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 0.85rem 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <span style="font-size: 1.3rem;">📊</span>
+                                    <div>
+                                        <strong id="qr_res_fs_name" style="color: #0f172a; font-size: 0.9rem;">TBN Financial Statements_Sep-2026.xlsx</strong>
+                                        <div style="font-size: 0.72rem; color: #64748b;">Financial Position, P&amp;L, Cash Flows &amp; Notes</div>
+                                    </div>
+                                </div>
+                                <span id="qr_res_fs_size" class="badge" style="background: #e2e8f0; color: #334155;">72.6 KB</span>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                <button type="button" id="qr_fs_open_btn" onclick="openFileFromModal('fs')" class="btn btn-primary" style="flex: 1; padding: 0.4rem 0.75rem; font-size: 0.82rem; font-weight: 700; background: #0284c7; border-color: #0284c7; border-radius: 6px;">
+                                    📂 Open in Excel
+                                </button>
+                                <a id="qr_fs_download_btn" href="#" download class="btn btn-outline" style="flex: 1; text-align: center; text-decoration: none; padding: 0.4rem 0.75rem; font-size: 0.82rem; font-weight: 700; border-color: #0f172a; color: #0f172a; border-radius: 6px;">
+                                    ⬇️ Download File
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Report 2: Form FI -->
+                        <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 0.85rem 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <span style="font-size: 1.3rem;">🏛️</span>
+                                    <div>
+                                        <strong id="qr_res_fi_name" style="color: #0f172a; font-size: 0.9rem;">Form FI_Sep-2026.xlsx</strong>
+                                        <div style="font-size: 0.72rem; color: #64748b;">Bangladesh Bank Form FI Schedules (1A, 1B, 1C, 1D)</div>
+                                    </div>
+                                </div>
+                                <span id="qr_res_fi_size" class="badge" style="background: #e2e8f0; color: #334155;">14.4 KB</span>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                <button type="button" id="qr_fi_open_btn" onclick="openFileFromModal('fi')" class="btn btn-primary" style="flex: 1; padding: 0.4rem 0.75rem; font-size: 0.82rem; font-weight: 700; background: #059669; border-color: #059669; border-radius: 6px;">
+                                    📂 Open in Excel
+                                </button>
+                                <a id="qr_fi_download_btn" href="#" download class="btn btn-outline" style="flex: 1; text-align: center; text-decoration: none; padding: 0.4rem 0.75rem; font-size: 0.82rem; font-weight: 700; border-color: #0f172a; color: #0f172a; border-radius: 6px;">
+                                    ⬇️ Download File
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="qr_open_status" style="display: none; font-size: 0.8rem; text-align: center; padding: 0.35rem; border-radius: 5px; margin-bottom: 0.65rem;"></div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.65rem; border-top: 1px solid #f1f5f9;">
+                        <button type="button" onclick="resetQuarterlyReportForm()" class="btn btn-secondary" style="font-size: 0.82rem; padding: 0.4rem 0.75rem;">
+                            🔄 Run Another Quarter
+                        </button>
+                        <button type="button" onclick="closeModal('quarterlyReportModal'); window.location.reload();" class="btn btn-outline" style="font-size: 0.82rem; padding: 0.4rem 0.85rem;">
+                            Done &amp; Close
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Storage Optimization & Cloud Offload Modal (Admin Only) -->
+    {% if current_user and current_user.role == 'Admin' %}
+    <div id="storageOptimizeModal" class="modal-overlay" style="display: none;">
+        <div class="modal-box" style="max-width: 620px; border-radius: 14px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.55); border: 1px solid #cbd5e1; background: #ffffff;">
+            
+            <!-- Modal Header -->
+            <div class="modal-header" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff; padding: 1.15rem 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                    <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); width: 38px; height: 38px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.35rem;">
+                        ⚡
+                    </div>
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; font-family: 'Outfit', sans-serif; letter-spacing: -0.01em; color: #ffffff;">
+                            Optimize Hosting Storage
+                        </h3>
+                        <p style="margin: 0.15rem 0 0 0; font-size: 0.76rem; color: #94a3b8;">
+                            Offload Local Attachments to Google Drive &amp; Free Server Space
+                        </p>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" onclick="closeModal('storageOptimizeModal')" style="color: #cbd5e1; font-size: 1.6rem; cursor: pointer; background: transparent; border: none; line-height: 1; padding: 0 0.25rem;" title="Close dialog">&times;</button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="modal-body" style="padding: 1.35rem 1.5rem; background: #ffffff;">
+                
+                <!-- VIEW 1: CONFIRMATION VIEW -->
+                <div id="storageConfirmView">
+                    <!-- Storage Alert Strip -->
+                    <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 0.85rem 1.1rem; margin-bottom: 1.15rem; display: flex; align-items: flex-start; gap: 0.75rem;">
+                        <span style="font-size: 1.4rem; line-height: 1;">⚠️</span>
+                        <div>
+                            <div style="font-weight: 700; color: #92400e; font-size: 0.88rem;">
+                                Hosting Server Storage Status: Critical (93.55% Used)
+                            </div>
+                            <div style="font-size: 0.78rem; color: #b45309; margin-top: 0.2rem; line-height: 1.4;">
+                                cPanel hosting storage is at <strong>4.68 GB / 5.00 GB</strong>. Moving attachments to Google Drive will immediately release server disk space.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Question Prompt -->
+                    <div style="text-align: center; margin-bottom: 1.25rem; padding: 0.5rem 0;">
+                        <div style="font-size: 1.05rem; font-weight: 700; color: #0f172a; line-height: 1.45;">
+                            Are you sure you want to move all local attachments to Google Drive and free up server space?
+                        </div>
+                        <p style="font-size: 0.82rem; color: #64748b; margin: 0.45rem auto 0; max-width: 480px; line-height: 1.45;">
+                            Files will be permanently deleted from the hosting disk <strong>only after</strong> they are safely uploaded to Google Drive and database records are committed.
+                        </p>
+                    </div>
+
+                    <!-- Scan Summary Box -->
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem 1.15rem; margin-bottom: 1.25rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
+                            <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; color: #64748b;">MIGRATION SCAN SUMMARY</span>
+                            <span id="optSummaryBadge" class="badge" style="background: #e0f2fe; color: #0369a1; font-size: 0.72rem; font-weight: 700;">Scanning files...</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+                            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.85rem;">
+                                <div style="font-size: 0.72rem; color: #64748b; font-weight: 600;">Pending Attachments</div>
+                                <div id="optSummaryPendingCount" style="font-size: 1.15rem; font-weight: 800; color: #0f172a; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">
+                                    Scanning...
+                                </div>
+                            </div>
+                            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.85rem;">
+                                <div style="font-size: 0.72rem; color: #64748b; font-weight: 600;">Disk Space to Free</div>
+                                <div id="optSummaryPendingSize" style="font-size: 1.15rem; font-weight: 800; color: #059669; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">
+                                    Calculating...
+                                </div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 0.65rem; font-size: 0.75rem; color: #64748b; display: flex; align-items: center; gap: 0.4rem;">
+                            <span>☁️ Destination:</span>
+                            <strong style="color: #0284c7;">Google Drive / ERP_Attachments</strong>
+                            <span style="color: #94a3b8; font-family: monospace;">(1loD_iFCDnDKlWrj955GjP1ClA5BJMDnk)</span>
+                        </div>
+                    </div>
+
+                    <!-- Safety Points -->
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
+                        <div style="font-weight: 700; color: #166534; font-size: 0.78rem; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.35rem;">
+                            <span>🛡️</span> Zero-Risk Safety Guarantees:
+                        </div>
+                        <ul style="margin: 0; padding-left: 1.15rem; font-size: 0.75rem; color: #15803d; line-height: 1.45;">
+                            <li>Upload-First: File is uploaded to Google Drive using secure OAuth 2.0 token.</li>
+                            <li>DB-Verification: Database links (<code>drive_view_link</code>) are updated and committed.</li>
+                            <li>Post-Commit Removal: Local disk file is removed <strong>only</strong> after commit succeeds.</li>
+                            <li>Seamless Access: Users can click &amp; open all attachments from Drive without interruption.</li>
+                        </ul>
+                    </div>
+
+                    <!-- Modal Actions -->
+                    <div style="display: flex; gap: 0.65rem; justify-content: flex-end; align-items: center; margin-top: 1rem;">
+                        <button type="button" class="btn btn-outline" onclick="closeModal('storageOptimizeModal')" style="font-size: 0.85rem; padding: 0.55rem 1rem; font-weight: 600;">
+                            Cancel
+                        </button>
+                        <button type="button" id="startOptimizeBtn" onclick="startStorageOptimization()" class="btn btn-primary" style="font-size: 0.88rem; padding: 0.55rem 1.4rem; font-weight: 700; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border: none; color: #ffffff; box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3); display: inline-flex; align-items: center; gap: 0.45rem;">
+                            <span>🚀</span> Yes, Free Up Server Space
+                        </button>
+                    </div>
+                </div>
+
+                <!-- VIEW 2: PROGRESS TRACKER VIEW -->
+                <div id="storageProgressView" style="display: none; padding: 0.5rem 0;">
+                    <div style="text-align: center; margin-bottom: 1.25rem;">
+                        <div style="position: relative; width: 68px; height: 68px; margin: 0 auto 0.85rem;">
+                            <div style="width: 100%; height: 100%; border: 4px solid #fed7aa; border-top: 4px solid #f59e0b; border-radius: 50%; animation: spinProgress 0.85s linear infinite;"></div>
+                            <span style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.6rem;">☁️</span>
+                        </div>
+                        <h4 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">
+                            Optimizing Server Storage...
+                        </h4>
+                        <p id="optProgressStatusMsg" style="margin: 0.35rem auto 0; font-size: 0.80rem; color: #64748b; max-width: 440px;">
+                            Uploading to Google Drive... Freeing space...
+                        </p>
+                    </div>
+
+                    <!-- Animated Progress Bar -->
+                    <div style="margin-bottom: 1.25rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; font-size: 0.78rem;">
+                            <span style="font-weight: 700; color: #334155;">Progress:</span>
+                            <span id="optProgressPct" style="font-weight: 800; color: #0284c7; font-family: 'JetBrains Mono', monospace;">0.0%</span>
+                        </div>
+                        <div style="height: 12px; background: #e2e8f0; border-radius: 8px; overflow: hidden; position: relative;">
+                            <div id="optProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #3b82f6 0%, #10b981 100%); border-radius: 8px; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Real-Time Metrics Grid -->
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.65rem; margin-bottom: 1rem;">
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.75rem; text-align: center;">
+                            <div style="font-size: 0.70rem; color: #64748b; font-weight: 600;">Files Moved</div>
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #0f172a; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">
+                                <span id="optStatFilesMoved">0</span><span style="font-size: 0.8rem; color: #94a3b8; font-weight: 400;"> / </span><span id="optStatTotalFiles" style="font-size: 0.85rem; color: #64748b;">0</span>
+                            </div>
+                        </div>
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.75rem; text-align: center;">
+                            <div style="font-size: 0.70rem; color: #64748b; font-weight: 600;">Disk Space Freed</div>
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #059669; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">
+                                <span id="optStatFreedMB">0.00</span> <span style="font-size: 0.75rem; color: #10b981;">MB</span>
+                            </div>
+                        </div>
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.75rem; text-align: center;">
+                            <div style="font-size: 0.70rem; color: #64748b; font-weight: 600;">Time Elapsed</div>
+                            <div id="optStatElapsed" style="font-size: 1.15rem; font-weight: 800; color: #3b82f6; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">
+                                0s
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Current File Box -->
+                    <div style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.5rem 0.75rem; margin-bottom: 1.15rem; display: flex; align-items: center; gap: 0.5rem; overflow: hidden;">
+                        <span style="font-size: 0.9rem; flex-shrink: 0;">📄</span>
+                        <div style="font-size: 0.75rem; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
+                            <span style="color: #64748b;">Processing:</span> <strong id="optStatCurrentFile" style="color: #0284c7; font-family: 'JetBrains Mono', monospace;">Scanning attachments...</strong>
+                        </div>
+                    </div>
+
+                    <!-- Controls -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.5rem; border-top: 1px solid #f1f5f9;">
+                        <button type="button" onclick="stopStorageOptimization()" class="btn btn-outline btn-sm" style="border-color: #ef4444; color: #dc2626; font-size: 0.78rem;">
+                            🛑 Stop Optimization
+                        </button>
+                        <button type="button" onclick="closeModal('storageOptimizeModal')" class="btn btn-secondary btn-sm" style="font-size: 0.78rem;">
+                            Run in Background (Minimize)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- VIEW 3: COMPLETED VIEW -->
+                <div id="storageCompletedView" style="display: none; text-align: center; padding: 1rem 0;">
+                    <div id="optCompleteEmoji" style="font-size: 3.2rem; margin-bottom: 0.5rem; line-height: 1;">🎉</div>
+                    <h3 id="optCompleteTitle" style="margin: 0; font-size: 1.25rem; font-weight: 800; color: #15803d; font-family: 'Outfit', sans-serif;">
+                        Storage Optimization Complete!
+                    </h3>
+                    <p id="optCompleteDesc" style="margin: 0.45rem auto 1.25rem; font-size: 0.85rem; color: #475569; max-width: 460px; line-height: 1.45;">
+                        Attachments have been successfully uploaded to Google Drive folder <strong>ERP_Attachments</strong>, database view links have been preserved, and local copies deleted to immediately free hosting disk space.
+                    </p>
+
+                    <!-- Summary Result Grid -->
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.35rem; text-align: center;">
+                        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.75rem;">
+                            <div style="font-size: 0.72rem; color: #166534; font-weight: 600;">Files Moved</div>
+                            <div id="optCompleteFilesCount" style="font-size: 1.3rem; font-weight: 800; color: #15803d; font-family: 'JetBrains Mono', monospace; margin-top: 3px;">0</div>
+                        </div>
+                        <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 0.75rem;">
+                            <div style="font-size: 0.72rem; color: #065f46; font-weight: 600;">Server Space Freed</div>
+                            <div id="optCompleteFreedMB" style="font-size: 1.3rem; font-weight: 800; color: #047857; font-family: 'JetBrains Mono', monospace; margin-top: 3px;">0.00 MB</div>
+                        </div>
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem;">
+                            <div style="font-size: 0.72rem; color: #64748b; font-weight: 600;">Issues / Skipped</div>
+                            <div id="optCompleteErrors" style="font-size: 1.3rem; font-weight: 800; color: #64748b; font-family: 'JetBrains Mono', monospace; margin-top: 3px;">0</div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 0.65rem; justify-content: center;">
+                        <button type="button" onclick="closeModal('storageOptimizeModal'); window.location.reload();" class="btn btn-primary" style="font-size: 0.88rem; padding: 0.55rem 1.75rem; font-weight: 700; background: #0f172a; border-color: #0f172a;">
+                            ✓ Done &amp; Refresh Page
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <style>
+    @keyframes spinProgress {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
     </style>
 
     <script>
@@ -264,8 +784,500 @@
                 document.body.style.overflow = '';
             }
         });
+
+        // Dual Next Quarter Statement Controller
+        let generatedDualReports = {
+            fs: { filename: '', file_path: '', download_url: '' },
+            fi: { filename: '', file_path: '', download_url: '' }
+        };
+
+        function openQuarterlyReportModal() {
+            resetQuarterlyReportForm();
+            openModal('quarterlyReportModal');
+            recalculatePreview();
+        }
+
+        function resetQuarterlyReportForm() {
+            const formSec = document.getElementById('qr_form_section');
+            const loadSec = document.getElementById('qr_loading_section');
+            const resSec = document.getElementById('qr_result_section');
+            const statusDiv = document.getElementById('qr_open_status');
+            if (formSec) formSec.style.display = 'block';
+            if (loadSec) loadSec.style.display = 'none';
+            if (resSec) resSec.style.display = 'none';
+            if (statusDiv) {
+                statusDiv.style.display = 'none';
+                statusDiv.textContent = '';
+            }
+        }
+
+        function recalculatePreview() {
+            const rev = parseFloat(document.getElementById('qr_revenue')?.value || 0);
+            const oi = parseFloat(document.getElementById('qr_other_income')?.value || 0);
+            const admin = parseFloat(document.getElementById('qr_admin_expense')?.value || 0);
+            const fin = parseFloat(document.getElementById('qr_financial_expense')?.value || 0);
+            const gross = rev + oi;
+            const opex = admin + fin;
+            const net = gross - opex;
+            const usa = Math.round(net * 0.99);
+            const bd = Math.round(net * 0.01);
+
+            const netEl = document.getElementById('qr_prev_net');
+            const usaEl = document.getElementById('qr_prev_usa');
+            const bdEl = document.getElementById('qr_prev_bd');
+            if (netEl) netEl.textContent = '৳ ' + net.toLocaleString('en-IN');
+            if (usaEl) usaEl.textContent = '৳ ' + usa.toLocaleString('en-IN');
+            if (bdEl) bdEl.textContent = '৳ ' + bd.toLocaleString('en-IN');
+        }
+
+        async function autoFetchLedgerData() {
+            const qCode = document.getElementById('qr_quarter_code')?.value || 'Sep-2026';
+            try {
+                const res = await fetch('/api/quarterly-statement/fetch-ledger?quarter=' + encodeURIComponent(qCode));
+                const json = await res.json();
+                if (json.success && json.data) {
+                    const d = json.data;
+                    if (document.getElementById('qr_revenue')) document.getElementById('qr_revenue').value = d.revenue;
+                    if (document.getElementById('qr_other_income')) document.getElementById('qr_other_income').value = d.other_income;
+                    if (document.getElementById('qr_admin_expense')) document.getElementById('qr_admin_expense').value = d.admin_expense;
+                    if (document.getElementById('qr_financial_expense')) document.getElementById('qr_financial_expense').value = d.financial_expense;
+                    if (document.getElementById('qr_cash_in_hand')) document.getElementById('qr_cash_in_hand').value = d.cash_in_hand;
+                    if (document.getElementById('qr_bank_balance')) document.getElementById('qr_bank_balance').value = d.bank_balance;
+
+                    if (d.remittances && d.remittances.length >= 3) {
+                        if (document.getElementById('qr_remit_m1_bdt')) document.getElementById('qr_remit_m1_bdt').value = d.remittances[0].bdt;
+                        if (document.getElementById('qr_remit_m1_usd')) document.getElementById('qr_remit_m1_usd').value = d.remittances[0].usd;
+                        if (document.getElementById('qr_remit_m2_bdt')) document.getElementById('qr_remit_m2_bdt').value = d.remittances[1].bdt;
+                        if (document.getElementById('qr_remit_m2_usd')) document.getElementById('qr_remit_m2_usd').value = d.remittances[1].usd;
+                        if (document.getElementById('qr_remit_m3_bdt')) document.getElementById('qr_remit_m3_bdt').value = d.remittances[2].bdt;
+                        if (document.getElementById('qr_remit_m3_usd')) document.getElementById('qr_remit_m3_usd').value = d.remittances[2].usd;
+                    }
+                    recalculatePreview();
+                }
+            } catch (e) {
+                console.warn('Auto fetch error:', e);
+            }
+        }
+
+        async function submitQuarterlyStatementForm() {
+            const quarter = document.getElementById('qr_quarter_code').value;
+            const companyName = document.getElementById('qr_company_name').value;
+
+            const queryData = {
+                revenue: parseFloat(document.getElementById('qr_revenue').value || 0),
+                other_income: parseFloat(document.getElementById('qr_other_income').value || 0),
+                admin_expense: parseFloat(document.getElementById('qr_admin_expense').value || 0),
+                financial_expense: parseFloat(document.getElementById('qr_financial_expense').value || 0),
+                cash_in_hand: parseFloat(document.getElementById('qr_cash_in_hand').value || 0),
+                bank_balance: parseFloat(document.getElementById('qr_bank_balance').value || 0),
+                remittances: [
+                    { bdt: parseFloat(document.getElementById('qr_remit_m1_bdt')?.value || 0), usd: parseFloat(document.getElementById('qr_remit_m1_usd')?.value || 0) },
+                    { bdt: parseFloat(document.getElementById('qr_remit_m2_bdt')?.value || 0), usd: parseFloat(document.getElementById('qr_remit_m2_usd')?.value || 0) },
+                    { bdt: parseFloat(document.getElementById('qr_remit_m3_bdt')?.value || 0), usd: parseFloat(document.getElementById('qr_remit_m3_usd')?.value || 0) }
+                ]
+            };
+
+            const formSec = document.getElementById('qr_form_section');
+            const loadSec = document.getElementById('qr_loading_section');
+            const resSec = document.getElementById('qr_result_section');
+
+            formSec.style.display = 'none';
+            loadSec.style.display = 'block';
+
+            try {
+                const response = await fetch('/api/quarterly-statement/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        quarter: quarter,
+                        company_name: companyName,
+                        query_data: queryData
+                    })
+                });
+
+                const data = await response.json();
+                loadSec.style.display = 'none';
+
+                if (data.success && data.fs_report && data.fi_report) {
+                    generatedDualReports = {
+                        fs: data.fs_report,
+                        fi: data.fi_report
+                    };
+
+                    document.getElementById('qr_res_fs_name').textContent = data.fs_report.filename;
+                    document.getElementById('qr_res_fs_size').textContent = data.fs_report.file_size_kb + ' KB';
+                    document.getElementById('qr_fs_download_btn').href = data.fs_report.download_url;
+                    document.getElementById('qr_fs_download_btn').setAttribute('download', data.fs_report.filename);
+
+                    document.getElementById('qr_res_fi_name').textContent = data.fi_report.filename;
+                    document.getElementById('qr_res_fi_size').textContent = data.fi_report.file_size_kb + ' KB';
+                    document.getElementById('qr_fi_download_btn').href = data.fi_report.download_url;
+                    document.getElementById('qr_fi_download_btn').setAttribute('download', data.fi_report.filename);
+
+                    resSec.style.display = 'block';
+                } else {
+                    alert('Error generating statement: ' + (data.message || data.error || 'Unknown error'));
+                    formSec.style.display = 'block';
+                }
+            } catch (err) {
+                loadSec.style.display = 'none';
+                formSec.style.display = 'block';
+                alert('Request failed: ' + err.message);
+            }
+        }
+
+        async function openFileFromModal(type) {
+            const fileInfo = generatedDualReports[type];
+            if (!fileInfo || !fileInfo.filename) {
+                alert('No file available to open.');
+                return;
+            }
+            openStatementLocally(fileInfo.filename, fileInfo.file_path);
+        }
+
+        async function openStatementLocally(filename, filePath) {
+            const statusDiv = document.getElementById('qr_open_status');
+            if (statusDiv) {
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#e0f2fe';
+                statusDiv.style.color = '#0369a1';
+                statusDiv.textContent = 'Opening ' + filename + ' in Microsoft Excel...';
+            }
+
+            try {
+                const response = await fetch('/api/quarterly-statement/open-local', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        filename: filename,
+                        file_path: filePath
+                    })
+                });
+                const res = await response.json();
+                if (res.success) {
+                    if (statusDiv) {
+                        statusDiv.style.background = '#dcfce7';
+                        statusDiv.style.color = '#15803d';
+                        statusDiv.textContent = '✓ ' + filename + ' opened in Microsoft Excel.';
+                    }
+                } else {
+                    if (statusDiv) {
+                        statusDiv.style.background = '#fef2f2';
+                        statusDiv.style.color = '#b91c1c';
+                        statusDiv.textContent = res.message || 'Could not open file locally.';
+                    }
+                    if (filename) {
+                        window.open('/static/reports/quarterly/' + filename, '_blank');
+                    }
+                }
+            } catch (err) {
+                if (statusDiv) {
+                    statusDiv.style.background = '#fef2f2';
+                    statusDiv.style.color = '#b91c1c';
+                    statusDiv.textContent = 'Error: ' + err.message;
+                }
+            }
+        }
+
+        async function deleteArchiveFile(filename) {
+            if (!confirm('Are you sure you want to remove ' + filename + ' from archive?')) return;
+            try {
+                const res = await fetch('/api/quarterly-statement/delete-file', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: filename })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.message || 'Could not delete file.');
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        async function clearAllArchive() {
+            if (!confirm('Are you sure you want to delete all archived statements?')) return;
+            try {
+                const res = await fetch('/api/quarterly-statement/clear-archive', { method: 'POST' });
+                const data = await res.json();
+                window.location.reload();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+    </script>
+
+    <!-- PWA Registration & Mobile Nav Controller -->
+    <script>
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                    .then(function(reg) {
+                        console.log('ZR-ERP Service Worker registered successfully (scope: ' + reg.scope + ')');
+                    })
+                    .catch(function(err) {
+                        console.warn('ZR-ERP Service Worker registration error:', err);
+                    });
+            });
+        }
+
+        // Mobile Nav Toggle
+        (function() {
+            var toggleBtn = document.getElementById('mobileNavToggle');
+            var navMenu = document.getElementById('mainNavMenu');
+            if (toggleBtn && navMenu) {
+                toggleBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var isOpen = navMenu.classList.toggle('mobile-open');
+                    toggleBtn.innerHTML = isOpen ? '<span>✕</span>' : '<span>☰</span>';
+                });
+
+                document.addEventListener('click', function(e) {
+                    if (!navMenu.contains(e.target) && !toggleBtn.contains(e.target) && navMenu.classList.contains('mobile-open')) {
+                        navMenu.classList.remove('mobile-open');
+                        toggleBtn.innerHTML = '<span>☰</span>';
+                    }
+                });
+            }
+        })();
+
+        // PWA Installation Prompt Handler
+        var deferredPrompt = null;
+        var pwaInstallBtn = document.getElementById('pwaInstallBtn');
+
+        window.addEventListener('beforeinstallprompt', function(e) {
+            e.preventDefault();
+            deferredPrompt = e;
+            if (pwaInstallBtn) {
+                pwaInstallBtn.style.display = 'inline-flex';
+            }
+        });
+
+        if (pwaInstallBtn) {
+            pwaInstallBtn.addEventListener('click', async function() {
+                if (!deferredPrompt) return;
+                deferredPrompt.prompt();
+                var choiceResult = await deferredPrompt.userChoice;
+                console.log('User PWA install response:', choiceResult.outcome);
+                deferredPrompt = null;
+                pwaInstallBtn.style.display = 'none';
+            });
+        }
+
+        window.addEventListener('appinstalled', function() {
+            console.log('ZR-ERP PWA has been installed on device.');
+            if (pwaInstallBtn) {
+                pwaInstallBtn.style.display = 'none';
+            }
+        });
+
+        // ==============================================================================
+        // STORAGE OPTIMIZER & DRIVE OFFLOAD CONTROLLER (Admin)
+        // ==============================================================================
+        let optPollingInterval = null;
+        let optStartTime = null;
+
+        async function openStorageOptimizeModal() {
+            const modal = document.getElementById('storageOptimizeModal');
+            if (!modal) {
+                console.warn('Storage optimize modal not present for this user.');
+                return;
+            }
+
+            document.getElementById('storageConfirmView').style.display = 'block';
+            document.getElementById('storageProgressView').style.display = 'none';
+            document.getElementById('storageCompletedView').style.display = 'none';
+            openModal('storageOptimizeModal');
+
+            // Reset summary fields to loading state
+            const badge = document.getElementById('optSummaryBadge');
+            if (badge) badge.textContent = 'Scanning files...';
+            const cnt = document.getElementById('optSummaryPendingCount');
+            if (cnt) cnt.textContent = 'Scanning...';
+            const sz = document.getElementById('optSummaryPendingSize');
+            if (sz) sz.textContent = 'Calculating...';
+
+            // Fetch live scan summary from server
+            try {
+                const resp = await fetch('/api/optimize-storage/summary');
+                const data = await resp.json();
+                if (data) {
+                    if (badge) badge.textContent = `${data.total_pending_files || 0} Files Pending`;
+                    if (cnt) cnt.textContent = `${data.total_pending_files || 0} files`;
+                    if (sz) sz.textContent = `${data.formatted_size || '0 B'}`;
+                }
+            } catch (e) {
+                console.error('Error fetching storage summary:', e);
+            }
+
+            // Check if process is already running or paused in background
+            try {
+                const stResp = await fetch('/api/optimize-storage/status');
+                if (stResp.ok) {
+                    const stData = await stResp.json();
+                    if (stData && stData.is_running) {
+                        switchToStorageProgressView();
+                        startPollingStorageStatus();
+                    } else if (stData && (stData.status === 'stopped' || stData.phase === 'stopped') && (stData.files_moved > 0 || stData.processed_files > 0)) {
+                        const startBtn = document.getElementById('startOptimizeBtn');
+                        if (startBtn) {
+                            startBtn.innerHTML = `<span>▶️</span> Resume Optimization (${stData.files_moved || 0} moved)`;
+                        }
+                    }
+                }
+            } catch (e) {}
+        }
+
+        async function startStorageOptimization() {
+            switchToStorageProgressView();
+            optStartTime = Date.now();
+
+            try {
+                const resp = await fetch('/api/optimize-storage', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'start' })
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    console.log('Optimization started:', data);
+                }
+                startPollingStorageStatus();
+            } catch (err) {
+                console.error('Failed to start storage optimization:', err);
+                alert('Failed to start storage optimization: ' + err.message);
+            }
+        }
+
+        function switchToStorageProgressView() {
+            const cv = document.getElementById('storageConfirmView');
+            const pv = document.getElementById('storageProgressView');
+            const comv = document.getElementById('storageCompletedView');
+            if (cv) cv.style.display = 'none';
+            if (pv) pv.style.display = 'block';
+            if (comv) comv.style.display = 'none';
+        }
+
+        function startPollingStorageStatus() {
+            if (optPollingInterval) clearInterval(optPollingInterval);
+            optPollingInterval = setInterval(pollStorageStatus, 2500);
+            pollStorageStatus();
+        }
+
+        async function pollStorageStatus() {
+            try {
+                const resp = await fetch('/api/optimize-storage/status');
+                if (!resp.ok) {
+                    console.warn('Status response status:', resp.status);
+                    return;
+                }
+                const data = await resp.json();
+                if (!data) return;
+
+                // Progress Bar
+                const pct = data.progress_pct || 0;
+                const bar = document.getElementById('optProgressBar');
+                if (bar) bar.style.width = pct + '%';
+                const pctLabel = document.getElementById('optProgressPct');
+                if (pctLabel) pctLabel.textContent = pct.toFixed(1) + '%';
+
+                // Counters
+                const fm = document.getElementById('optStatFilesMoved');
+                if (fm) fm.textContent = data.files_moved || 0;
+                const tf = document.getElementById('optStatTotalFiles');
+                if (tf) tf.textContent = data.total_files || 0;
+                const freed = document.getElementById('optStatFreedMB');
+                if (freed) freed.textContent = (data.space_freed_mb || 0).toFixed(2);
+
+                // Elapsed
+                const dur = (data.duration_seconds !== undefined && data.duration_seconds !== null && data.duration_seconds > 0)
+                    ? Math.round(data.duration_seconds)
+                    : (optStartTime ? Math.round((Date.now() - optStartTime) / 1000) : 0);
+                const elap = document.getElementById('optStatElapsed');
+                if (elap) elap.textContent = dur + 's';
+
+                // Current file & status
+                const cur = document.getElementById('optStatCurrentFile');
+                if (cur) {
+                    if (data.current_file) {
+                        cur.textContent = data.current_file;
+                    } else if (data.is_running) {
+                        cur.textContent = 'Uploading attachments to Google Drive in parallel...';
+                    } else {
+                        cur.textContent = 'Ready';
+                    }
+                }
+                const msg = document.getElementById('optProgressStatusMsg');
+                if (msg) msg.textContent = data.message || 'Uploading to Google Drive... Freeing space...';
+
+                // Completion or Stop check
+                if (!data.is_running && (data.phase === 'completed' || data.status === 'success' || data.status === 'partial_success' || data.status === 'stopped' || data.phase === 'stopped')) {
+                    clearInterval(optPollingInterval);
+                    optPollingInterval = null;
+                    showStorageCompletionView(data);
+                }
+            } catch (e) {
+                console.warn('Storage polling error:', e);
+            }
+        }
+
+        function showStorageCompletionView(data) {
+            const cv = document.getElementById('storageConfirmView');
+            const pv = document.getElementById('storageProgressView');
+            const comv = document.getElementById('storageCompletedView');
+            if (cv) cv.style.display = 'none';
+            if (pv) pv.style.display = 'none';
+            if (comv) comv.style.display = 'block';
+
+            const isStopped = (data.status === 'stopped' || data.phase === 'stopped');
+            const title = document.getElementById('optCompleteTitle');
+            const desc = document.getElementById('optCompleteDesc');
+            const emoji = document.getElementById('optCompleteEmoji');
+
+            if (isStopped) {
+                if (emoji) emoji.textContent = '⏸️';
+                if (title) {
+                    title.textContent = 'Optimization Paused / Stopped';
+                    title.style.color = '#b45309';
+                }
+                if (desc) desc.textContent = data.message || 'Optimization was paused. Uploaded files remain safely in Google Drive. You can resume at any time.';
+            } else {
+                if (emoji) emoji.textContent = '🎉';
+                if (title) {
+                    title.textContent = 'Storage Optimization Complete!';
+                    title.style.color = '#15803d';
+                }
+                if (desc) desc.textContent = 'Attachments have been successfully uploaded to Google Drive folder ERP_Attachments, database view links have been preserved, and local copies deleted to immediately free hosting disk space.';
+            }
+
+            const cf = document.getElementById('optCompleteFilesCount');
+            if (cf) cf.textContent = data.files_moved || 0;
+            const cm = document.getElementById('optCompleteFreedMB');
+            if (cm) cm.textContent = (data.space_freed_mb || 0).toFixed(2) + ' MB';
+            const ce = document.getElementById('optCompleteErrors');
+            if (ce) {
+                const issues = (data.errors || 0);
+                const skipped = (data.skipped_files || 0);
+                ce.textContent = issues + (skipped > 0 ? ` (${skipped} skipped)` : '');
+            }
+        }
+
+        async function stopStorageOptimization() {
+            if (confirm('Are you sure you want to stop/pause optimization? Files already uploaded remain safely on Google Drive.')) {
+                try {
+                    await fetch('/api/optimize-storage/stop', { method: 'POST' });
+                } catch (e) {
+                    console.error('Error stopping optimization:', e);
+                }
+            }
+        }
     </script>
 
     {% block extra_scripts %}{% endblock %}
+    {% block scripts %}{% endblock %}
 </body>
 </html>
