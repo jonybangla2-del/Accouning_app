@@ -210,7 +210,7 @@
                     <th class="num-col" style="width: 115px;">Total Joma (৳)</th>
                     <th class="num-col" style="color: #7e22ce; width: 110px;">Withdrawn (৳) ✏️</th>
                     <th class="num-col" style="color: #b91c1c; width: 110px;">Forfeited (৳) ✏️</th>
-                    <th class="num-col" style="color: #047857; background: #ecfdf5; font-size: 0.95rem; font-weight: 800; border-left: 1.5px solid #a7f3d0; border-right: 1.5px solid #a7f3d0; width: 135px;">
+                    <th class="num-col" style="color: #047857; background: #ecfdf5; font-size: 0.82rem; font-weight: 800; border-left: 1.5px solid #a7f3d0; border-right: 1.5px solid #a7f3d0; min-width: 140px; white-space: nowrap;">
                         ⭐ Net Balance (৳)
                     </th>
                     <th style="text-align: center; width: 145px;">Withdrawal Status ✏️</th>
@@ -329,7 +329,7 @@
                         </td>
 
                         <!-- Net Balance (Auto Computed Live) -->
-                        <td class="num-col font-mono" style="font-weight: 900; color: #047857; font-size: 1.05rem; background: #ecfdf5; border-left: 1.5px solid #a7f3d0; border-right: 1.5px solid #a7f3d0;" id="cell_bal_{{ item.employee.employee_id }}">
+                        <td class="num-col font-mono" style="font-weight: 800; color: #047857; font-size: 0.84rem; background: #ecfdf5; border-left: 1.5px solid #a7f3d0; border-right: 1.5px solid #a7f3d0; white-space: nowrap; min-width: 140px;" id="cell_bal_{{ item.employee.employee_id }}">
                             ৳{{ "{:,.2f}".format(item.balance) }}
                         </td>
 
@@ -390,7 +390,7 @@
                     <td class="num-col font-mono" style="font-weight: 800;" id="foot_total_joma">৳{{ "{:,.2f}".format(total_emp_share + total_comp_share + total_welfare_share + total_profit_accrued) }}</td>
                     <td class="num-col font-mono" style="font-weight: 800; color: #7e22ce;" id="foot_withdrawn">৳{{ "{:,.2f}".format(total_withdrawn_all) }}</td>
                     <td class="num-col font-mono" style="font-weight: 800; color: #b91c1c;" id="foot_forfeited">৳{{ "{:,.2f}".format(total_forfeited_comp) }}</td>
-                    <td class="num-col font-mono" style="font-weight: 900; color: #047857; font-size: 1.15rem; background: #d1fae5; border-left: 2px solid #10b981; border-right: 2px solid #10b981;" id="foot_total_balance">
+                    <td class="num-col font-mono" style="font-weight: 800; color: #047857; font-size: 0.90rem; background: #d1fae5; border-left: 2px solid #10b981; border-right: 2px solid #10b981; white-space: nowrap; min-width: 140px;" id="foot_total_balance">
                         ৳{{ "{:,.2f}".format(total_fund_accumulated) }}
                     </td>
                     <td style="text-align: center; font-size: 0.8rem; font-weight: 700; color: #475569;">
