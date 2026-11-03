@@ -1,0 +1,1576 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Document Management - ZR-ERP{% endblock %}
+
+{% block content %}
+<style>
+@keyframes spinProgress {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+#uploadProgressSection {
+    backdrop-filter: blur(8px);
+}
+</style>
+<div class="page-header no-print">
+    <div>
+        <h1 class="page-title">
+            <span>📁</span> Employee Document Management &amp; Central Storage
+        </h1>
+        <p class="page-description">
+            Scan and auto-attach employee documents from folders by Employee ID with pre-upload confirmation, central storage, and bulk management.
+        </p>
+    </div>
+    <div class="header-actions">
+        <button type="button" onclick="openDirectScannerModal()" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 700; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35);">
+            <span>🖨️</span> Direct Scan from Scanner
+        </button>
+        <button type="button" onclick="triggerFilesSelect()" class="btn btn-primary" style="background: linear-gradient(135deg, #059669, #047857); border: none; font-weight: 700; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 10px rgba(5, 150, 105, 0.3);">
+            <span>📑</span> Select Files &amp; Scan
+        </button>
+        <button type="button" onclick="triggerFolderSelect()" class="btn btn-primary" style="background: linear-gradient(135deg, #0284c7, #0369a1); border: none; font-weight: 700; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.3);">
+            <span>📂</span> Browse Folder &amp; Scan
+        </button>
+        <button type="button" onclick="openBulkDeleteModal()" class="btn btn-outline" style="border-color: #fca5a5; color: #dc2626; background: #fff1f2; font-weight: 700; display: inline-flex; align-items: center; gap: 0.4rem;" title="Permanently delete all attached documents">
+            <span>🗑️</span> Delete All Attached Documents
+        </button>
+        <a href="{{ url_for('employee_list') }}" class="btn btn-outline">
+            <span>👥</span> Employee Directory
+        </a>
+    </div>
+</div>
+
+<!-- Hidden Webkit Directory & Multiple Files Inputs -->
+<input type="file" id="browserFolderInput" webkitdirectory directory multiple style="display: none;" onchange="handleBrowserFolderSelected(event)">
+<input type="file" id="browserFilesInput" multiple style="display: none;" onchange="handleBrowserFilesSelected(event)">
+
+<!-- KPI Stat Cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+    <!-- Stat 1: Total Documents -->
+    <div class="card" style="margin: 0; padding: 1.15rem; background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%); border: 1px solid #bbf7d0;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div style="font-size: 0.78rem; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.04em;">
+                    Total Attached Files
+                </div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #15803d; margin-top: 0.2rem;">
+                    {{ stats.total_docs }}
+                </div>
+            </div>
+            <div style="font-size: 2.2rem; background: #dcfce7; padding: 0.4rem 0.6rem; border-radius: 10px;">
+                📑
+            </div>
+        </div>
+        <div style="font-size: 0.75rem; color: #16a34a; margin-top: 0.4rem;">
+            Saved in <code>app_storage/employee_docs/{emp_id}/</code>
+        </div>
+    </div>
+
+    <!-- Stat 2: Employees with Docs -->
+    <div class="card" style="margin: 0; padding: 1.15rem; background: linear-gradient(135deg, #f0f9ff 0%, #ffffff 100%); border: 1px solid #bae6fd;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div style="font-size: 0.78rem; font-weight: 700; color: #075985; text-transform: uppercase; letter-spacing: 0.04em;">
+                    Employees with Docs
+                </div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #0284c7; margin-top: 0.2rem;">
+                    {{ stats.total_employees_with_docs }}
+                </div>
+            </div>
+            <div style="font-size: 2.2rem; background: #e0f2fe; padding: 0.4rem 0.6rem; border-radius: 10px;">
+                👥
+            </div>
+        </div>
+        <div style="font-size: 0.75rem; color: #0284c7; margin-top: 0.4rem;">
+            Linked to employee profiles
+        </div>
+    </div>
+
+    <!-- Stat 3: Storage Size & Optimization Savings -->
+    <div class="card" style="margin: 0; padding: 1.15rem; background: linear-gradient(135deg, #faf5ff 0%, #ffffff 100%); border: 1px solid #e9d5ff;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div style="font-size: 0.78rem; font-weight: 700; color: #6b21a8; text-transform: uppercase; letter-spacing: 0.04em;">
+                    Disk Storage Used
+                </div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #7e22ce; margin-top: 0.2rem;">
+                    {{ stats.total_size_mb }} <span style="font-size: 1rem; font-weight: 600;">MB</span>
+                </div>
+            </div>
+            <div style="font-size: 2.2rem; background: #f3e8ff; padding: 0.4rem 0.6rem; border-radius: 10px;">
+                💾
+            </div>
+        </div>
+        <div style="font-size: 0.75rem; color: #9333ea; margin-top: 0.4rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px;">
+            <span>{{ stats.total_size_kb }} KB on disk</span>
+            {% if stats.total_saved_mb and stats.total_saved_mb > 0 %}
+            <span class="badge" style="background: #dcfce7; color: #15803d; font-weight: 700; font-size: 0.72rem;">
+                ⚡ Saved {{ stats.total_saved_mb }} MB ({{ stats.saved_pct }}%)
+            </span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Stat 4: Supported Formats -->
+    <div class="card" style="margin: 0; padding: 1.15rem; background: linear-gradient(135deg, #fffbeb 0%, #ffffff 100%); border: 1px solid #fef3c7;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div style="font-size: 0.78rem; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.04em;">
+                    Format Breakdown
+                </div>
+                <div style="font-size: 0.85rem; font-weight: 700; color: #b45309; margin-top: 0.35rem; display: flex; flex-wrap: wrap; gap: 0.35rem;">
+                    <span class="badge" style="background: #fee2e2; color: #b91c1c;">PDF: {{ stats.type_breakdown.PDF }}</span>
+                    <span class="badge" style="background: #dbeafe; color: #1e40af;">DOC: {{ stats.type_breakdown.DOCX }}</span>
+                    <span class="badge" style="background: #dcfce7; color: #15803d;">XLS: {{ stats.type_breakdown.EXCEL }}</span>
+                    <span class="badge" style="background: #fef3c7; color: #92400e;">IMG: {{ stats.type_breakdown.IMAGE }}</span>
+                </div>
+            </div>
+            <div style="font-size: 2.2rem; background: #fef3c7; padding: 0.4rem 0.6rem; border-radius: 10px;">
+                📊
+            </div>
+        </div>
+        <div style="font-size: 0.74rem; color: #b45309; margin-top: 0.4rem;">
+            .pdf, .jpg, .jpeg, .png, .docx, .doc, .xlsx, .xls
+        </div>
+    </div>
+</div>
+
+<!-- Local Path Scanner & Fast Action Banner -->
+<div class="card" style="margin-bottom: 1.5rem; background: #f8fafc; border: 1px solid #e2e8f0;">
+    <div class="card-body" style="padding: 1.15rem 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div style="flex: 1; min-width: 320px;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem;">
+                    <span style="font-size: 1.2rem;">🖥️</span>
+                    <strong style="color: #0f172a; font-size: 0.95rem;">Alternative: Scan Local Windows Folder Path Directly</strong>
+                </div>
+                <p style="margin: 0; font-size: 0.82rem; color: #64748b;">
+                    Enter an absolute directory path on your PC (e.g. <code>C:\Employee_Records\Docs</code>) to scan its sub-folders.
+                </p>
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.65rem;">
+                    <input type="text" id="local_folder_input" class="form-control" placeholder="C:\Path\To\Employee_Folder" style="flex: 1; font-family: monospace; font-size: 0.85rem; padding: 0.45rem 0.75rem;">
+                    <button type="button" onclick="scanLocalDirectory()" class="btn btn-outline" style="border-color: #0284c7; color: #0284c7; background: #f0f9ff; font-weight: 700; font-size: 0.85rem; white-space: nowrap;">
+                        🔍 Scan Path
+                    </button>
+                </div>
+            </div>
+            <div style="border-left: 1px dashed #cbd5e1; padding-left: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                <div style="font-size: 0.78rem; font-weight: 700; color: #475569; text-transform: uppercase;">
+                    Browser Document Upload:
+                </div>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button type="button" onclick="openDirectScannerModal()" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 600; font-size: 0.88rem; padding: 0.55rem 1rem; display: inline-flex; align-items: center; gap: 0.4rem; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);">
+                        <span>🖨️</span> Direct Scan
+                    </button>
+                    <button type="button" onclick="triggerFilesSelect()" class="btn btn-primary" style="background: #059669; border: none; font-weight: 600; font-size: 0.88rem; padding: 0.55rem 1rem;">
+                        📑 Select Files
+                    </button>
+                    <button type="button" onclick="triggerFolderSelect()" class="btn btn-primary" style="background: #0284c7; border: none; font-weight: 600; font-size: 0.88rem; padding: 0.55rem 1rem;">
+                        📂 Select Folder
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Attached Documents Table Card -->
+<div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; padding: 1rem 1.5rem; background: #f8fafc; border-bottom: 1px solid var(--border);">
+        <div>
+            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                <span>📑</span> Attached Employee Documents Archive
+            </h3>
+            <p style="margin: 0.2rem 0 0 0; font-size: 0.8rem; color: var(--text-muted);">
+                View, download, or manage all files currently stored in <code>app_storage/employee_docs/</code>.
+            </p>
+        </div>
+
+        <!-- Filter and Search Controls -->
+        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <!-- Category Filter -->
+            <select id="typeFilter" onchange="filterDocumentsTable()" class="form-control" style="font-size: 0.82rem; padding: 0.4rem 0.65rem; border: 1px solid #cbd5e1; border-radius: 6px; width: auto;">
+                <option value="ALL">All Categories</option>
+                <option value="PDF">📕 PDF Documents</option>
+                <option value="DOCX">📘 Word Documents</option>
+                <option value="EXCEL">📗 Excel Sheets</option>
+                <option value="IMAGE">🖼️ Images</option>
+            </select>
+
+            <!-- Search Input -->
+            <input type="text" id="docSearchInput" onkeyup="filterDocumentsTable()" placeholder="Search ID, Name, File..." class="form-control" style="font-size: 0.82rem; padding: 0.4rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; width: 220px;">
+        </div>
+    </div>
+
+    <div class="card-body" style="padding: 0;">
+        {% if documents %}
+        <div class="table-responsive">
+            <table class="table" id="docsTable" style="margin-bottom: 0; width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #f1f5f9; text-align: left; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: #475569;">
+                        <th style="padding: 0.75rem 1.25rem;">Employee</th>
+                        <th style="padding: 0.75rem 1rem;">Document File</th>
+                        <th style="padding: 0.75rem 1rem;">Category</th>
+                        <th style="padding: 0.75rem 1rem;">File Size</th>
+                        <th style="padding: 0.75rem 1rem;">Upload Date</th>
+                        <th style="padding: 0.75rem 1.25rem; text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for doc in documents %}
+                    <tr class="doc-row" data-type="{{ doc.file_type or 'OTHER' }}" data-search="{{ (doc.emp_code or '') ~ ' ' ~ (doc.employee.name if doc.employee else '') ~ ' ' ~ (doc.original_filename or doc.filename) }}" style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s ease;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                        <!-- Employee Info -->
+                        <td style="padding: 0.85rem 1.25rem;">
+                            <div style="display: flex; align-items: center; gap: 0.65rem;">
+                                <div style="width: 36px; height: 36px; border-radius: 50%; background: #e0f2fe; color: #0369a1; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; border: 1px solid #bae6fd;">
+                                    {{ doc.emp_code[:3] if doc.emp_code else 'EMP' }}
+                                </div>
+                                <div>
+                                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                        <span class="badge" style="background: #0f172a; color: #ffffff; font-weight: 700; font-size: 0.75rem; padding: 0.2rem 0.45rem;">
+                                            ID: {{ doc.emp_code or (doc.employee.employee_id if doc.employee else '—') }}
+                                        </span>
+                                        {% if doc.employee %}
+                                        <a href="{{ url_for('employee_profile', emp_id=doc.employee.id) }}" style="font-weight: 700; color: #0284c7; text-decoration: none; font-size: 0.88rem;">
+                                            {{ doc.employee.name }}
+                                        </a>
+                                        {% else %}
+                                        <span style="font-weight: 600; color: #475569; font-size: 0.88rem;">
+                                            Employee {{ doc.emp_code }}
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                    <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">
+                                        {{ doc.employee.designation if doc.employee else '—' }} &bull; {{ doc.employee.department if doc.employee else '—' }}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- Document Details -->
+                        <td style="padding: 0.85rem 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.65rem;">
+                                {% if doc.file_ext in ['.jpg', '.jpeg', '.png', '.webp', '.pdf'] %}
+                                <a href="{{ url_for('view_employee_document', doc_id=doc.id) }}" target="_blank" style="flex-shrink: 0; width: 42px; height: 42px; border-radius: 6px; overflow: hidden; border: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: center; background: #f8fafc;" title="Click to view full preview">
+                                    <img src="{{ url_for('employee_document_thumbnail', doc_id=doc.id) }}" alt="Preview" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none';">
+                                </a>
+                                {% else %}
+                                <span style="font-size: 1.5rem; flex-shrink: 0;">
+                                    {% if doc.file_type == 'DOCX' %}📘
+                                    {% elif doc.file_type == 'EXCEL' %}📗
+                                    {% else %}📄{% endif %}
+                                </span>
+                                {% endif %}
+                                <div>
+                                    <strong style="color: #0f172a; font-size: 0.9rem; word-break: break-all;">
+                                        {{ doc.original_filename or doc.filename }}
+                                    </strong>
+                                    <div style="font-size: 0.72rem; color: #64748b; font-family: monospace;">
+                                        {{ doc.file_path or ('app_storage/employee_docs/' ~ (doc.emp_code or 'UNKNOWN') ~ '/' ~ doc.filename) }}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- Category Badge -->
+                        <td style="padding: 0.85rem 1rem; white-space: nowrap;">
+                            {% if doc.file_type == 'PDF' %}
+                            <span class="badge" style="background: #fee2e2; color: #b91c1c; font-weight: 700; font-size: 0.76rem;">PDF</span>
+                            {% elif doc.file_type == 'IMAGE' %}
+                            <span class="badge" style="background: #fef3c7; color: #92400e; font-weight: 700; font-size: 0.76rem;">IMAGE</span>
+                            {% elif doc.file_type == 'DOCX' %}
+                            <span class="badge" style="background: #dbeafe; color: #1e40af; font-weight: 700; font-size: 0.76rem;">DOCX</span>
+                            {% elif doc.file_type == 'EXCEL' %}
+                            <span class="badge" style="background: #dcfce7; color: #15803d; font-weight: 700; font-size: 0.76rem;">EXCEL</span>
+                            {% else %}
+                            <span class="badge" style="background: #f1f5f9; color: #475569; font-weight: 700; font-size: 0.76rem;">{{ doc.document_type or 'General' }}</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- File Size & Optimization Status -->
+                        <td style="padding: 0.85rem 1rem; color: #475569; font-size: 0.85rem; white-space: nowrap;">
+                            <div style="display: flex; flex-direction: column; gap: 3px;">
+                                <span class="badge" style="background: #f1f5f9; color: #0f172a; font-weight: 700; width: fit-content; font-size: 0.82rem;">
+                                    {% if (doc.file_size or 0) >= 1048576 %}
+                                        {{ "%.2f"|format((doc.file_size or 0) / 1048576) }} MB
+                                    {% else %}
+                                        {{ "%.1f"|format((doc.file_size or 0) / 1024) }} KB
+                                    {% endif %}
+                                </span>
+                                {% if doc.original_size and doc.original_size > (doc.file_size or 0) %}
+                                <div style="font-size: 0.72rem; color: #059669; font-weight: 700; display: flex; align-items: center; gap: 4px;" title="{{ doc.compression_status or '' }}">
+                                    <span>⚡ Saved {{ (((doc.original_size - doc.file_size) / doc.original_size) * 100)|round(0)|int }}%</span>
+                                    <span style="color: #94a3b8; text-decoration: line-through; font-weight: 500;">
+                                        {% if doc.original_size >= 1048576 %}
+                                            {{ "%.1f"|format(doc.original_size / 1048576) }}MB
+                                        {% else %}
+                                            {{ "%.0f"|format(doc.original_size / 1024) }}KB
+                                        {% endif %}
+                                    </span>
+                                </div>
+                                {% elif doc.file_type in ['DOCX', 'EXCEL'] %}
+                                <div style="font-size: 0.70rem; color: #64748b; font-weight: 500;">
+                                    Original file
+                                </div>
+                                {% endif %}
+                            </div>
+                        </td>
+
+                        <!-- Upload Date -->
+                        <td style="padding: 0.85rem 1rem; color: #475569; font-size: 0.82rem; white-space: nowrap;">
+                            {{ (doc.upload_date or doc.created_at).strftime('%Y-%m-%d %H:%M') if (doc.upload_date or doc.created_at) else '—' }}
+                        </td>
+
+                        <!-- Action Buttons -->
+                        <td style="padding: 0.85rem 1.25rem; text-align: right; white-space: nowrap;">
+                            <div style="display: inline-flex; gap: 0.4rem; align-items: center;">
+                                <a href="{{ url_for('view_employee_document', doc_id=doc.id) }}" target="_blank" class="btn btn-outline" style="padding: 0.35rem 0.65rem; font-size: 0.8rem; border-color: #0284c7; color: #0284c7; background: #f0f9ff;" title="Open / Preview in Browser">
+                                    👁️ View
+                                </a>
+                                <a href="{{ url_for('download_employee_document', doc_id=doc.id) }}" class="btn btn-primary" style="padding: 0.35rem 0.65rem; font-size: 0.8rem; background: #0f172a; border-color: #0f172a;" title="Download with original filename">
+                                    ⬇️ Download
+                                </a>
+                                <button type="button" data-doc-id="{{ doc.id }}" data-doc-name="{{ doc.original_filename or doc.filename }}" onclick="deleteSingleDoc(this)" class="btn btn-outline" style="padding: 0.35rem 0.55rem; font-size: 0.8rem; border-color: #fca5a5; color: #dc2626; background: #fff1f2;" title="Permanently delete this document">
+                                    🗑️
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 3.5rem 1.5rem; color: #64748b;">
+            <div style="font-size: 3.2rem; margin-bottom: 0.75rem;">📂</div>
+            <h4 style="margin: 0 0 0.5rem 0; color: #334155;">No Employee Documents Attached Yet</h4>
+            <p style="margin: 0 0 1.25rem 0; font-size: 0.9rem;">
+                Select a folder on your computer to scan and automatically attach documents to employee profiles.
+            </p>
+            <button type="button" onclick="triggerFolderSelect()" class="btn btn-primary" style="background: #0284c7; border: none; font-weight: 700; padding: 0.6rem 1.5rem;">
+                <span>📂</span> Browse Folder &amp; Scan Now
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ======================================================================= -->
+<!-- PRE-UPLOAD CONFIRMATION MODAL                                            -->
+<!-- ======================================================================= -->
+<div id="preUploadModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 820px; border-radius: 12px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.45); border: 1px solid #cbd5e1;">
+        
+        <!-- Modal Header -->
+        <div class="modal-header" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff; padding: 1.15rem 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.65rem;">
+                <span style="font-size: 1.4rem; background: rgba(2, 132, 199, 0.25); padding: 0.25rem 0.5rem; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.4);">🔍</span>
+                <div>
+                    <div style="font-size: 1.1rem; font-weight: 700; color: #f8fafc;">
+                        Pre-upload Confirmation: Employee Folder Scan
+                    </div>
+                    <div id="preUploadSubHeader" style="font-size: 0.76rem; color: #94a3b8;">
+                        Select which Employee IDs to attach to the system.
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="btn-close" onclick="closePreUploadModal()" style="color: #cbd5e1; font-size: 1.6rem; cursor: pointer; background: transparent; border: none; line-height: 1;">&times;</button>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="modal-body" style="padding: 1.25rem 1.5rem; background: #ffffff; max-height: calc(82vh - 120px); overflow-y: auto;">
+            
+            <!-- Upload Progress Indicator (Sticky Top-Level Dashboard) -->
+            <div id="uploadProgressSection" style="display: none; margin-bottom: 1.25rem; background: linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%); border: 2px solid #38bdf8; border-radius: 10px; padding: 1.25rem; box-shadow: 0 8px 25px -4px rgba(2, 132, 199, 0.25); position: sticky; top: 0; z-index: 30;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
+                    <div style="display: flex; align-items: center; gap: 0.65rem;">
+                        <span id="progressSpinner" style="display: inline-block; width: 24px; height: 24px; border: 3px solid #bae6fd; border-top: 3px solid #0284c7; border-radius: 50%; animation: spinProgress 0.8s linear infinite;"></span>
+                        <div>
+                            <div style="font-size: 0.98rem; font-weight: 800; color: #0f172a;" id="progressLabel">
+                                Attaching documents to central storage...
+                            </div>
+                            <div id="progressSubLabel" style="font-size: 0.78rem; color: #0369a1; margin-top: 2px;">
+                                Preparing batch queue...
+                            </div>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div id="progressPercent" style="font-size: 2rem; font-weight: 900; color: #0284c7; line-height: 1;">
+                            0.0%
+                        </div>
+                        <div id="progressCountText" style="font-size: 0.76rem; font-weight: 700; color: #64748b; margin-top: 2px;">
+                            0 / 0 files
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Animated Progress Bar -->
+                <div style="width: 100%; height: 14px; background: #e2e8f0; border-radius: 7px; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);">
+                    <div id="progressBarFill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #0284c7 0%, #059669 100%); transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 7px;"></div>
+                </div>
+
+                <!-- Current Batch Details & Stats Bar -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.65rem; font-size: 0.76rem; color: #475569;">
+                    <span id="progressCurrentFile" style="font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 75%;">
+                        Current: Ready
+                    </span>
+                    <span id="progressBatchCounter" class="badge" style="background: #ffffff; color: #0284c7; border: 1px solid #bae6fd; font-weight: 700;">
+                        Batch 0 / 0
+                    </span>
+                </div>
+            </div>
+
+            <!-- Summary Banner -->
+            <div id="preUploadSummaryBanner" style="background: #f0fdf4; border: 1px solid #86efac; padding: 0.85rem 1rem; border-radius: 8px; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                <!-- Populated via JS -->
+            </div>
+
+            <!-- Compression & Target Size Preset Selector Card -->
+            <div id="compressionPresetCard" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 1rem 1.15rem; margin-bottom: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem; flex-wrap: wrap; gap: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="font-size: 1.15rem;">⚙️</span>
+                        <div>
+                            <strong style="color: #0f172a; font-size: 0.88rem;">Compression / Max Size Preset:</strong>
+                            <span style="font-size: 0.74rem; color: #64748b; margin-left: 0.35rem;">Choose quality &amp; target limit before attaching files</span>
+                        </div>
+                    </div>
+                    <div id="activePresetBadge" class="badge" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-weight: 700; font-size: 0.75rem;">
+                        Standard 1080p (&lt; 1 MB)
+                    </div>
+                </div>
+
+                <!-- Radio / Card Preset Grid -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.6rem;">
+                    
+                    <!-- Preset 1: Balanced (Default) -->
+                    <label class="preset-option-card active" id="presetCard_balanced" onclick="selectCompressionPreset('balanced')" style="cursor: pointer; display: flex; flex-direction: column; padding: 0.6rem 0.75rem; border: 2px solid #0284c7; background: #f0f9ff; border-radius: 8px; transition: all 0.15s ease; user-select: none;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span style="font-weight: 700; font-size: 0.80rem; color: #0284c7;">⚖️ Balanced</span>
+                            <input type="radio" name="compPresetRadio" value="balanced" checked style="accent-color: #0284c7; pointer-events: none;">
+                        </div>
+                        <div style="font-size: 0.71rem; color: #475569; margin-top: 4px; line-height: 1.35;">
+                            Image: <strong>Max 1080p (75%)</strong><br>
+                            PDF: <strong>Target &lt; 1 MB</strong>
+                        </div>
+                    </label>
+
+                    <!-- Preset 2: High Quality -->
+                    <label class="preset-option-card" id="presetCard_high" onclick="selectCompressionPreset('high')" style="cursor: pointer; display: flex; flex-direction: column; padding: 0.6rem 0.75rem; border: 1px solid #cbd5e1; background: #ffffff; border-radius: 8px; transition: all 0.15s ease; user-select: none;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span style="font-weight: 700; font-size: 0.80rem; color: #334155;">✨ High Quality</span>
+                            <input type="radio" name="compPresetRadio" value="high" style="accent-color: #0284c7; pointer-events: none;">
+                        </div>
+                        <div style="font-size: 0.71rem; color: #475569; margin-top: 4px; line-height: 1.35;">
+                            Image: <strong>Max 1920p (85%)</strong><br>
+                            PDF: <strong>Target &lt; 2 MB</strong>
+                        </div>
+                    </label>
+
+                    <!-- Preset 3: Small Size -->
+                    <label class="preset-option-card" id="presetCard_small" onclick="selectCompressionPreset('small')" style="cursor: pointer; display: flex; flex-direction: column; padding: 0.6rem 0.75rem; border: 1px solid #cbd5e1; background: #ffffff; border-radius: 8px; transition: all 0.15s ease; user-select: none;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span style="font-weight: 700; font-size: 0.80rem; color: #334155;">📦 Small Size</span>
+                            <input type="radio" name="compPresetRadio" value="small" style="accent-color: #0284c7; pointer-events: none;">
+                        </div>
+                        <div style="font-size: 0.71rem; color: #475569; margin-top: 4px; line-height: 1.35;">
+                            Image: <strong>Max 720p (60%)</strong><br>
+                            PDF: <strong>Target &lt; 500 KB</strong>
+                        </div>
+                    </label>
+
+                    <!-- Preset 4: Original -->
+                    <label class="preset-option-card" id="presetCard_original" onclick="selectCompressionPreset('original')" style="cursor: pointer; display: flex; flex-direction: column; padding: 0.6rem 0.75rem; border: 1px solid #cbd5e1; background: #ffffff; border-radius: 8px; transition: all 0.15s ease; user-select: none;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span style="font-weight: 700; font-size: 0.80rem; color: #334155;">📁 Original</span>
+                            <input type="radio" name="compPresetRadio" value="original" style="accent-color: #0284c7; pointer-events: none;">
+                        </div>
+                        <div style="font-size: 0.71rem; color: #475569; margin-top: 4px; line-height: 1.35;">
+                            <strong>No resize/compression</strong><br>
+                            Store original byte file
+                        </div>
+                    </label>
+
+                    <!-- Preset 5: Custom -->
+                    <label class="preset-option-card" id="presetCard_custom" onclick="selectCompressionPreset('custom')" style="cursor: pointer; display: flex; flex-direction: column; padding: 0.6rem 0.75rem; border: 1px solid #cbd5e1; background: #ffffff; border-radius: 8px; transition: all 0.15s ease; user-select: none;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span style="font-weight: 700; font-size: 0.80rem; color: #334155;">🛠️ Custom Limit</span>
+                            <input type="radio" name="compPresetRadio" value="custom" style="accent-color: #0284c7; pointer-events: none;">
+                        </div>
+                        <div style="font-size: 0.71rem; color: #475569; margin-top: 4px; line-height: 1.35;">
+                            User-defined width,<br>
+                            quality &amp; target KB
+                        </div>
+                    </label>
+
+                </div>
+
+                <!-- Collapsible Custom Inputs Panel -->
+                <div id="customPresetInputs" style="display: none; margin-top: 0.75rem; padding: 0.75rem 1rem; background: #ffffff; border: 1px dashed #0284c7; border-radius: 8px; align-items: center; gap: 1.25rem; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <label style="font-size: 0.78rem; font-weight: 700; color: #334155; margin: 0;">Max Width (px):</label>
+                        <input type="number" id="customMaxWidthInput" value="1280" min="300" max="4000" step="50" class="form-control" style="width: 90px; padding: 0.3rem 0.5rem; font-size: 0.82rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <label style="font-size: 0.78rem; font-weight: 700; color: #334155; margin: 0;">Quality (%):</label>
+                        <input type="number" id="customQualityInput" value="70" min="20" max="100" step="5" class="form-control" style="width: 75px; padding: 0.3rem 0.5rem; font-size: 0.82rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <label style="font-size: 0.78rem; font-weight: 700; color: #334155; margin: 0;">PDF Target Max (KB):</label>
+                        <input type="number" id="customPdfTargetInput" value="800" min="100" max="5000" step="50" class="form-control" style="width: 90px; padding: 0.3rem 0.5rem; font-size: 0.82rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                    </div>
+                    <span style="font-size: 0.72rem; color: #0284c7; font-weight: 600;">Custom limits will be applied during file attachment.</span>
+                </div>
+            </div>
+
+            <!-- Select All Bar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 0.85rem;">
+                <label style="display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 700; color: #1e293b; cursor: pointer; margin: 0;">
+                    <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)" checked style="width: 17px; height: 17px; accent-color: #0284c7; cursor: pointer;">
+                    <span>Select All Employee Folders</span>
+                </label>
+                <div id="selectionCounter" style="font-size: 0.8rem; font-weight: 700; color: #0284c7;">
+                    <!-- JS fills count -->
+                </div>
+            </div>
+
+            <!-- Employee Scan List Container -->
+            <div id="scanEmployeesList" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <!-- Filled dynamically by JS -->
+            </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="modal-footer" style="padding: 1rem 1.5rem; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+            <button type="button" class="btn btn-secondary" onclick="closePreUploadModal()" style="padding: 0.5rem 1rem; border-radius: 6px;">
+                Cancel
+            </button>
+            <button type="button" id="confirmAttachBtn" onclick="confirmAndAttachSelected()" class="btn btn-primary" style="background: linear-gradient(135deg, #059669, #047857); border: none; padding: 0.6rem 1.6rem; font-weight: 700; border-radius: 7px; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 6px -1px rgba(5, 150, 105, 0.3);">
+                <span>✅</span> Confirm &amp; Attach Selected
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ======================================================================= -->
+<!-- BULK DELETE CONFIRMATION MODAL                                          -->
+<!-- ======================================================================= -->
+<div id="bulkDeleteModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 520px; border-radius: 12px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(220, 38, 38, 0.45); border: 2px solid #ef4444;">
+        
+        <div class="modal-header" style="background: #991b1b; color: #ffffff; padding: 1.15rem 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.65rem;">
+                <span style="font-size: 1.5rem;">⚠️</span>
+                <div style="font-size: 1.1rem; font-weight: 800; color: #ffffff;">
+                    Delete All Attached Documents
+                </div>
+            </div>
+            <button type="button" class="btn-close" onclick="closeModal('bulkDeleteModal')" style="color: #ffffff; font-size: 1.6rem; cursor: pointer; background: transparent; border: none; line-height: 1;">&times;</button>
+        </div>
+
+        <div class="modal-body" style="padding: 1.5rem; background: #ffffff;">
+            <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 1rem; color: #991b1b; font-size: 0.88rem; line-height: 1.5; margin-bottom: 1.25rem;">
+                <strong>CAUTION: Permanent Action!</strong><br>
+                This will permanently delete <strong>all {{ stats.total_docs }} attached employee document records</strong> from the database and remove all physical files inside <code>app_storage/employee_docs/</code>.
+                <br><br>
+                This action <strong>CANNOT</strong> be undone.
+            </div>
+
+            <p style="font-size: 0.85rem; color: #475569; margin-bottom: 0.5rem;">
+                Type <strong>DELETE ALL</strong> below to confirm:
+            </p>
+            <input type="text" id="bulkDeleteConfirmInput" class="form-control" placeholder="DELETE ALL" style="font-weight: 700; font-size: 0.95rem; border: 1.5px solid #cbd5e1;">
+        </div>
+
+        <div class="modal-footer" style="padding: 1rem 1.5rem; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 0.75rem;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('bulkDeleteModal')">
+                Cancel
+            </button>
+            <button type="button" id="executeBulkDeleteBtn" onclick="executeBulkDelete()" class="btn btn-primary" style="background: #dc2626; border-color: #dc2626; font-weight: 700;">
+                🗑️ Confirm Permanent Deletion
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script id="knownEmployeesData" type="application/json">
+[
+    {% for e in employees %}
+    {
+        "id": {{ e.id }},
+        "code": {{ (e.employee_id or '')|tojson }},
+        "name": {{ (e.name or '')|tojson }},
+        "designation": {{ (e.designation or '')|tojson }},
+        "department": {{ (e.department or '')|tojson }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+]
+</script>
+<script>
+    // State storage for scanned items
+    let currentScanMode = null; // 'browser' or 'local'
+    let scannedEmployeeList = [];
+    let browserFilesMap = {}; // token/rel_path -> File object
+    let localSourceRoot = '';
+    let currentCompressionPreset = 'balanced';
+
+    const PRESET_DISPLAY_NAMES = {
+        'balanced': 'Standard 1080p (< 1 MB)',
+        'high': 'High Quality 1920p (< 2 MB)',
+        'small': 'Small Size 720p (< 500 KB)',
+        'original': 'Original (No Compression)',
+        'custom': 'Custom Limit'
+    };
+
+    function selectCompressionPreset(preset) {
+        currentCompressionPreset = preset;
+        ['balanced', 'high', 'small', 'original', 'custom'].forEach(p => {
+            const card = document.getElementById('presetCard_' + p);
+            if (card) {
+                if (p === preset) {
+                    card.style.borderColor = '#0284c7';
+                    card.style.backgroundColor = '#f0f9ff';
+                    const radio = card.querySelector('input[type="radio"]');
+                    if (radio) radio.checked = true;
+                    const span = card.querySelector('span');
+                    if (span) span.style.color = '#0284c7';
+                } else {
+                    card.style.borderColor = '#cbd5e1';
+                    card.style.backgroundColor = '#ffffff';
+                    const radio = card.querySelector('input[type="radio"]');
+                    if (radio) radio.checked = false;
+                    const span = card.querySelector('span');
+                    if (span) span.style.color = '#334155';
+                }
+            }
+        });
+
+        const badge = document.getElementById('activePresetBadge');
+        if (badge) {
+            badge.textContent = PRESET_DISPLAY_NAMES[preset] || preset;
+        }
+
+        const customInputs = document.getElementById('customPresetInputs');
+        if (customInputs) {
+            customInputs.style.display = (preset === 'custom') ? 'flex' : 'none';
+        }
+
+        try {
+            localStorage.setItem('zr_emp_doc_preset', preset);
+        } catch(e) {}
+    }
+
+    // Pre-loaded known employees directory for instant manual linking
+    const KNOWN_EMPLOYEES_LIST = (() => {
+        try {
+            const raw = document.getElementById('knownEmployeesData');
+            return raw ? JSON.parse(raw.textContent || '[]') : [];
+        } catch (e) {
+            console.error('Failed to parse known employees:', e);
+            return [];
+        }
+    })();
+
+    function triggerFolderSelect() {
+        const input = document.getElementById('browserFolderInput');
+        if (input) {
+            input.value = '';
+            input.click();
+        }
+    }
+
+    function triggerFilesSelect() {
+        const input = document.getElementById('browserFilesInput');
+        if (input) {
+            input.value = '';
+            input.click();
+        }
+    }
+
+    async function handleBrowserFolderSelected(event) {
+        const files = event.target.files;
+        if (!files || files.length === 0) return;
+        await processFileList(files);
+    }
+
+    async function handleBrowserFilesSelected(event) {
+        const files = event.target.files;
+        if (!files || files.length === 0) return;
+        await processFileList(files);
+    }
+
+    async function processFileList(files) {
+        currentScanMode = 'browser';
+        browserFilesMap = {};
+
+        // Extract metadata for server scanning
+        const metadataList = [];
+        for (let i = 0; i < files.length; i++) {
+            const f = files[i];
+            const relPath = f.webkitRelativePath || f.name;
+            browserFilesMap[relPath] = f;
+            metadataList.push({
+                rel_path: relPath,
+                filename: f.name,
+                size: f.size
+            });
+        }
+
+        // Call server to structure into preview
+        try {
+            const res = await fetch('/api/employee-docs/preview-structure', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ files: metadataList })
+            });
+            const data = await res.json();
+            if (data.success) {
+                renderPreUploadModal(data);
+            } else {
+                alert('Scan failed: ' + (data.message || 'Unknown error'));
+            }
+        } catch (e) {
+            alert('Error scanning files: ' + e.message);
+        }
+    }
+
+    // Drag and drop zone support
+    window.addEventListener('dragover', (e) => { e.preventDefault(); });
+    window.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            processFileList(e.dataTransfer.files);
+        }
+    });
+
+    async function scanLocalDirectory() {
+        const path = document.getElementById('local_folder_input').value.trim();
+        if (!path) {
+            alert('Please enter an absolute folder path on your PC.');
+            return;
+        }
+
+        currentScanMode = 'local';
+        localSourceRoot = path;
+
+        try {
+            const res = await fetch('/api/employee-docs/scan-local-folder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folder_path: path })
+            });
+            const data = await res.json();
+            if (data.success) {
+                renderPreUploadModal(data);
+            } else {
+                alert('Scan failed: ' + (data.message || 'Folder not found'));
+            }
+        } catch (e) {
+            alert('Error scanning local path: ' + e.message);
+        }
+    }
+
+    function renderPreUploadModal(data) {
+        scannedEmployeeList = data.employees || [];
+
+        // Summary Banner
+        const banner = document.getElementById('preUploadSummaryBanner');
+        banner.innerHTML = `
+            <div>
+                <strong style="color: #15803d; font-size: 0.95rem;">
+                    ✓ Found ${data.employee_count} Employee IDs with ${data.valid_files_count} Valid Files
+                </strong>
+                <div style="font-size: 0.76rem; color: #166534;">
+                    Supported formats: PDF, DOCX, EXCEL, Images. ${data.unsupported_count > 0 ? `(${data.unsupported_count} unsupported files skipped)` : ''}
+                </div>
+            </div>
+            <div>
+                <span class="badge" style="background: #bbf7d0; color: #166534; font-weight: 700; font-size: 0.8rem;">
+                    Pre-upload Scan Verified
+                </span>
+            </div>
+        `;
+
+        // Render Employee List with Checkboxes
+        const listContainer = document.getElementById('scanEmployeesList');
+        listContainer.innerHTML = '';
+
+        if (scannedEmployeeList.length === 0) {
+            listContainer.innerHTML = `
+                <div style="text-align: center; padding: 2rem; color: #64748b;">
+                    No valid documents found for any Employee ID in this folder.
+                </div>
+            `;
+            document.getElementById('confirmAttachBtn').disabled = true;
+        } else {
+            document.getElementById('confirmAttachBtn').disabled = false;
+
+            scannedEmployeeList.forEach((emp, empIdx) => {
+                const empCard = document.createElement('div');
+                empCard.style = "background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 0.85rem 1rem; transition: border 0.2s ease;";
+                empCard.id = `emp_card_${empIdx}`;
+
+                const filesHtml = emp.files.map(f => `
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0.5rem; background: #ffffff; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.78rem;">
+                        <div style="display: flex; align-items: center; gap: 0.4rem; overflow: hidden;">
+                            <span>${f.icon}</span>
+                            <span style="font-weight: 600; color: #0f172a; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="${f.filename}">
+                                ${f.filename}
+                            </span>
+                            <span class="badge" style="background: #f1f5f9; color: #64748b; font-size: 0.7rem;">${f.category}</span>
+                        </div>
+                        <span style="color: #64748b; font-size: 0.74rem; white-space: nowrap;">${f.file_size_kb} KB</span>
+                    </div>
+                `).join('');
+
+                const isAuto = !emp.matched;
+                const linkSelectHtml = isAuto ? `
+                    <div style="margin-top: 0.5rem; padding: 0.5rem 0.75rem; background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.35rem;">
+                            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                <span style="font-size: 0.8rem; font-weight: 700; color: #15803d;">✨ New Profile (Auto-Create):</span>
+                                <span style="font-size: 0.78rem; color: #166534; font-weight: 600;">
+                                    "${emp.emp_name}" will be automatically created in database (ID: ${emp.emp_code}) with zero duplicates.
+                                </span>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                            <span style="font-size: 0.72rem; color: #64748b;">(Or link to an existing profile if you wish to override):</span>
+                            <select onchange="reassignEmployee(${empIdx}, this.value)" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px; flex: 1; min-width: 200px; background: #ffffff;">
+                                <option value="">-- Choose existing employee to link instead --</option>
+                                ${KNOWN_EMPLOYEES_LIST.map(e => `<option value="${e.code}" ${e.code === emp.emp_code ? 'selected' : ''}>[ID: ${e.code}] ${e.name} (${e.department})</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                ` : '';
+
+                empCard.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                        <label style="display: inline-flex; align-items: center; gap: 0.6rem; cursor: pointer; margin: 0;">
+                            <input type="checkbox" class="emp-select-checkbox" data-emp-idx="${empIdx}" checked onchange="updateSelectedCount()" style="width: 17px; height: 17px; accent-color: #0284c7; cursor: pointer;">
+                            <span class="badge" style="background: #0f172a; color: #ffffff; font-weight: 800; font-size: 0.82rem; padding: 0.25rem 0.55rem;">
+                                ID: ${emp.emp_code}
+                            </span>
+                            <div>
+                                <strong style="color: #0f172a; font-size: 0.92rem;">${emp.emp_name}</strong>
+                                <span style="font-size: 0.76rem; color: #64748b; margin-left: 0.35rem;">(${emp.designation} &bull; ${emp.department})</span>
+                            </div>
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            ${emp.matched ? 
+                                '<span class="badge" style="background: #dcfce7; color: #15803d; font-size: 0.75rem; font-weight: 700;">✓ Matched Profile</span>' : 
+                                '<span class="badge" style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; font-size: 0.75rem; font-weight: 700;">✨ Auto-Create New Employee</span>'
+                            }
+                            <span class="badge" style="background: #e0f2fe; color: #0369a1; font-weight: 700; font-size: 0.75rem;">
+                                ${emp.file_count} Files (${emp.total_size_kb} KB)
+                            </span>
+                        </div>
+                    </div>
+                    ${linkSelectHtml}
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.4rem; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed #e2e8f0;">
+                        ${filesHtml}
+                    </div>
+                `;
+                listContainer.appendChild(empCard);
+            });
+        }
+
+        updateSelectedCount();
+        openModal('preUploadModal');
+    }
+
+    function reassignEmployee(empIdx, newCode) {
+        if (!newCode) return;
+        const emp = scannedEmployeeList[empIdx];
+        const target = KNOWN_EMPLOYEES_LIST.find(e => e.code === newCode);
+        if (emp && target) {
+            emp.emp_code = target.code;
+            emp.emp_name = target.name;
+            emp.designation = target.designation;
+            emp.department = target.department;
+            emp.matched = true;
+            emp.db_employee_id = target.id;
+            emp.is_auto_create = false;
+            renderPreUploadModal({ employees: scannedEmployeeList });
+        }
+    }
+            emp.emp_code = target.code;
+            emp.emp_name = target.name;
+            emp.designation = target.designation;
+            emp.department = target.department;
+            emp.matched = true;
+            emp.db_employee_id = target.id;
+            renderPreUploadModal({
+                employees: scannedEmployeeList,
+                employee_count: scannedEmployeeList.length,
+                valid_files_count: scannedEmployeeList.reduce((acc, curr) => acc + curr.files.length, 0),
+                unsupported_count: 0
+            });
+        }
+    }
+
+    function toggleSelectAll(checked) {
+        document.querySelectorAll('.emp-select-checkbox').forEach(cb => {
+            cb.checked = checked;
+        });
+        updateSelectedCount();
+    }
+
+    function updateSelectedCount() {
+        const checkboxes = document.querySelectorAll('.emp-select-checkbox');
+        let selectedCount = 0;
+        let selectedFiles = 0;
+
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                selectedCount++;
+                const idx = parseInt(cb.getAttribute('data-emp-idx'));
+                if (scannedEmployeeList[idx]) {
+                    selectedFiles += scannedEmployeeList[idx].files.length;
+                }
+            }
+        });
+
+        const allCb = document.getElementById('selectAllCheckbox');
+        if (allCb) {
+            allCb.checked = (selectedCount === checkboxes.length && checkboxes.length > 0);
+        }
+
+        const counter = document.getElementById('selectionCounter');
+        if (counter) {
+            counter.textContent = `${selectedCount} of ${scannedEmployeeList.length} Employee IDs selected (${selectedFiles} files)`;
+        }
+
+        const confirmBtn = document.getElementById('confirmAttachBtn');
+        if (confirmBtn) {
+            confirmBtn.disabled = (selectedCount === 0);
+            confirmBtn.innerHTML = `<span>✅</span> Confirm &amp; Attach Selected (${selectedCount} IDs, ${selectedFiles} Files)`;
+        }
+    }
+
+    async function confirmAndAttachSelected() {
+        const checkboxes = document.querySelectorAll('.emp-select-checkbox:checked');
+        if (checkboxes.length === 0) {
+            alert('Please select at least one Employee ID to attach.');
+            return;
+        }
+
+        const selectedIndices = Array.from(checkboxes).map(cb => parseInt(cb.getAttribute('data-emp-idx')));
+        const selectedEmps = selectedIndices.map(idx => scannedEmployeeList[idx]);
+
+        const progressSection = document.getElementById('uploadProgressSection');
+        const progressBarFill = document.getElementById('progressBarFill');
+        const progressPercent = document.getElementById('progressPercent');
+        const progressLabel = document.getElementById('progressLabel');
+        const progressSubLabel = document.getElementById('progressSubLabel');
+        const progressCountText = document.getElementById('progressCountText');
+        const progressCurrentFile = document.getElementById('progressCurrentFile');
+        const progressBatchCounter = document.getElementById('progressBatchCounter');
+        const progressSpinner = document.getElementById('progressSpinner');
+        const confirmBtn = document.getElementById('confirmAttachBtn');
+
+        // Show sticky progress dashboard and scroll to top of modal
+        progressSection.style.display = 'block';
+        if (progressSpinner) progressSpinner.style.display = 'inline-block';
+        const modalBody = document.querySelector('#preUploadModal .modal-body');
+        if (modalBody) modalBody.scrollTo({ top: 0, behavior: 'smooth' });
+
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<span>⏳</span> Processing Uploads...';
+
+        if (currentScanMode === 'browser') {
+            // Flatten all selected files into a queue
+            const fileQueue = [];
+            selectedEmps.forEach(emp => {
+                emp.files.forEach(f => {
+                    const fileObj = browserFilesMap[f.rel_path];
+                    if (fileObj) {
+                        fileQueue.push({
+                            fileObj: fileObj,
+                            emp_code: emp.emp_code,
+                            emp_name: emp.emp_name,
+                            rel_path: f.rel_path,
+                            filename: f.filename,
+                            size: f.file_size
+                        });
+                    }
+                });
+            });
+
+            const totalFiles = fileQueue.length;
+            if (totalFiles === 0) {
+                alert('No valid files found for the selected Employee IDs.');
+                progressSection.style.display = 'none';
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<span>✅</span> Confirm &amp; Attach Selected';
+                return;
+            }
+
+            // Construct dynamic batches bounded by BOTH file count (max 8) AND size (max 12MB)
+            // This guarantees zero HTTP 413 payload errors and smooth live progress
+            const MAX_BATCH_FILES = 8;
+            const MAX_BATCH_BYTES = 12 * 1024 * 1024; // 12 MB max
+
+            const batches = [];
+            let curBatch = [];
+            let curBatchBytes = 0;
+
+            for (const item of fileQueue) {
+                const itemSize = item.size || 0;
+                if (curBatch.length > 0 && (curBatch.length >= MAX_BATCH_FILES || (curBatchBytes + itemSize > MAX_BATCH_BYTES))) {
+                    batches.push(curBatch);
+                    curBatch = [];
+                    curBatchBytes = 0;
+                }
+                curBatch.push(item);
+                curBatchBytes += itemSize;
+            }
+            if (curBatch.length > 0) {
+                batches.push(curBatch);
+            }
+
+            const totalBatches = batches.length;
+            let processedFiles = 0;
+            let totalAttachedSuccess = 0;
+            let errorBatches = 0;
+
+            for (let b = 0; b < totalBatches; b++) {
+                const chunk = batches[b];
+                const currentBatchNum = b + 1;
+
+                // Live UI feedback
+                const firstItem = chunk[0];
+                progressSubLabel.textContent = `Uploading files for ID ${firstItem.emp_code} (${firstItem.emp_name})...`;
+                progressCurrentFile.textContent = `Batch ${currentBatchNum}/${totalBatches}: ${firstItem.filename}${chunk.length > 1 ? ` (+${chunk.length - 1} more in batch)` : ''}`;
+                progressBatchCounter.textContent = `Batch ${currentBatchNum} of ${totalBatches}`;
+
+                // Build lightweight FormData for this batch
+                const formData = new FormData();
+                formData.append('preset', currentCompressionPreset);
+                if (currentCompressionPreset === 'custom') {
+                    formData.append('custom_max_width', document.getElementById('customMaxWidthInput')?.value || '1280');
+                    formData.append('custom_quality', document.getElementById('customQualityInput')?.value || '70');
+                    formData.append('custom_pdf_target', document.getElementById('customPdfTargetInput')?.value || '800');
+                }
+                chunk.forEach(item => {
+                    formData.append('files[]', item.fileObj);
+                    formData.append('emp_codes[]', item.emp_code);
+                    formData.append('rel_paths[]', item.rel_path);
+                });
+
+                // Send request with retry capability and AJAX header
+                let success = false;
+                let lastError = '';
+                let batchStatusMsg = '';
+                for (let attempt = 0; attempt < 2; attempt++) {
+                    try {
+                        const res = await fetch('/api/employee-docs/upload-batch', {
+                            method: 'POST',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            body: formData
+                        });
+                        if (!res.ok) {
+                            const errJson = await res.json().catch(() => null);
+                            throw new Error(errJson?.message || `Server responded with HTTP ${res.status}`);
+                        }
+                        const data = await res.json();
+                        if (data.success) {
+                            success = true;
+                            totalAttachedSuccess += (data.attached_count || chunk.length);
+                            if (data.recent_status) {
+                                batchStatusMsg = data.recent_status;
+                            }
+                            break;
+                        } else {
+                            lastError = data.message || 'Server returned error';
+                        }
+                    } catch (netErr) {
+                        lastError = netErr.message;
+                        await new Promise(r => setTimeout(r, 600));
+                    }
+                }
+
+                if (!success) {
+                    errorBatches++;
+                    console.warn(`Batch ${currentBatchNum} warning: ${lastError}`);
+                } else if (batchStatusMsg) {
+                    progressSubLabel.innerHTML = `<span style="color: #059669; font-weight: 700;">⚡ ${batchStatusMsg}</span>`;
+                }
+
+                // Update real progress metrics
+                processedFiles += chunk.length;
+                const pct = Math.min(100, (processedFiles / totalFiles) * 100).toFixed(1);
+
+                progressBarFill.style.width = pct + '%';
+                progressPercent.textContent = pct + '%';
+                progressCountText.textContent = `${processedFiles.toLocaleString()} / ${totalFiles.toLocaleString()} files`;
+                progressLabel.textContent = `Optimizing & attaching... ${processedFiles.toLocaleString()} of ${totalFiles.toLocaleString()} (${pct}%)`;
+
+                // Brief yield to keep UI silky smooth
+                await new Promise(r => setTimeout(r, 10));
+            }
+
+            // Completed!
+            progressBarFill.style.width = '100%';
+            progressPercent.textContent = '100%';
+            if (progressSpinner) progressSpinner.style.display = 'none';
+            const presetLabel = PRESET_DISPLAY_NAMES[currentCompressionPreset] || currentCompressionPreset;
+            progressLabel.textContent = `✅ Successfully attached ${totalAttachedSuccess.toLocaleString()} documents [${presetLabel}]!`;
+            progressSubLabel.textContent = errorBatches > 0 
+                ? `Completed with ${errorBatches} batch warnings. Reloading archive...` 
+                : `All documents optimized with [${presetLabel}] & safely stored in app_storage/employee_docs/`;
+            progressCurrentFile.textContent = 'Optimization & upload complete.';
+
+            setTimeout(() => {
+                window.location.reload();
+            }, 1300);
+
+        } else if (currentScanMode === 'local') {
+            // Local path batch copy (split by 10 employees per request)
+            const EMP_BATCH_SIZE = 10;
+            const totalEmps = selectedEmps.length;
+            const totalBatches = Math.ceil(totalEmps / EMP_BATCH_SIZE);
+            let processedEmps = 0;
+            let totalAttachedSuccess = 0;
+
+            for (let b = 0; b < totalBatches; b++) {
+                const empChunk = selectedEmps.slice(b * EMP_BATCH_SIZE, (b + 1) * EMP_BATCH_SIZE);
+                const currentBatchNum = b + 1;
+
+                progressSubLabel.textContent = `Optimizing & copying local files for ${empChunk.length} employees...`;
+                progressBatchCounter.textContent = `Batch ${currentBatchNum} of ${totalBatches}`;
+
+                try {
+                    const res = await fetch('/api/employee-docs/attach-local-batch', {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: JSON.stringify({
+                            selected_employees: empChunk.map(e => e.emp_code),
+                            source_root: localSourceRoot,
+                            employees_data: empChunk,
+                            preset: currentCompressionPreset,
+                            custom_max_width: document.getElementById('customMaxWidthInput')?.value || '1280',
+                            custom_quality: document.getElementById('customQualityInput')?.value || '70',
+                            custom_pdf_target: document.getElementById('customPdfTargetInput')?.value || '800'
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        totalAttachedSuccess += (data.attached_count || 0);
+                        if (data.recent_status) {
+                            progressSubLabel.innerHTML = `<span style="color: #059669; font-weight: 700;">⚡ ${data.recent_status}</span>`;
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`Local batch ${currentBatchNum} error:`, e);
+                }
+
+                processedEmps += empChunk.length;
+                const pct = Math.min(100, (processedEmps / totalEmps) * 100).toFixed(1);
+
+                progressBarFill.style.width = pct + '%';
+                progressPercent.textContent = pct + '%';
+                progressCountText.textContent = `${processedEmps} / ${totalEmps} employee IDs`;
+                progressLabel.textContent = `Optimizing documents... ${pct}%`;
+                await new Promise(r => setTimeout(r, 10));
+            }
+
+            progressBarFill.style.width = '100%';
+            progressPercent.textContent = '100%';
+            if (progressSpinner) progressSpinner.style.display = 'none';
+            const presetLabelLocal = PRESET_DISPLAY_NAMES[currentCompressionPreset] || currentCompressionPreset;
+            progressLabel.textContent = `✅ Successfully attached ${totalAttachedSuccess.toLocaleString()} files [${presetLabelLocal}]!`;
+            setTimeout(() => {
+                window.location.reload();
+            }, 1300);
+        }
+    }
+
+    function closePreUploadModal() {
+        closeModal('preUploadModal');
+        document.getElementById('uploadProgressSection').style.display = 'none';
+    }
+
+    // Filter Documents Table live
+    function filterDocumentsTable() {
+        const type = document.getElementById('typeFilter').value;
+        const search = document.getElementById('docSearchInput').value.toLowerCase().trim();
+        const rows = document.querySelectorAll('.doc-row');
+
+        rows.forEach(row => {
+            const rowType = row.getAttribute('data-type');
+            const rowSearch = row.getAttribute('data-search').toLowerCase();
+
+            const matchType = (type === 'ALL' || rowType === type);
+            const matchSearch = (!search || rowSearch.includes(search));
+
+            if (matchType && matchSearch) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
+    // Single Document Delete
+    async function deleteSingleDoc(docIdOrBtn, filename) {
+        let docId = docIdOrBtn;
+        if (docIdOrBtn && typeof docIdOrBtn === 'object' && docIdOrBtn.getAttribute) {
+            docId = docIdOrBtn.getAttribute('data-doc-id');
+            filename = docIdOrBtn.getAttribute('data-doc-name') || 'this file';
+        }
+
+        if (!confirm(`Are you sure you want to permanently delete document "${filename}"?`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`/payroll/employee-documents/${docId}/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await res.json();
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert(data.message || 'Could not delete file.');
+            }
+        } catch (e) {
+            alert('Error deleting document: ' + e.message);
+        }
+    }
+
+    // Bulk Delete All Documents
+    function openBulkDeleteModal() {
+        document.getElementById('bulkDeleteConfirmInput').value = '';
+        openModal('bulkDeleteModal');
+    }
+
+    async function executeBulkDelete() {
+        const input = document.getElementById('bulkDeleteConfirmInput').value.trim();
+        if (input !== 'DELETE ALL') {
+            alert('Please type DELETE ALL exactly to confirm.');
+            return;
+        }
+
+        const btn = document.getElementById('executeBulkDeleteBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳</span> Deleting all records & files...';
+
+        try {
+            const res = await fetch('/api/employee-docs/delete-all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(data.message || 'All attached documents have been permanently deleted.');
+                window.location.reload();
+            } else {
+                alert('Bulk delete failed: ' + (data.message || 'Unknown error'));
+                btn.disabled = false;
+                btn.innerHTML = '🗑️ Confirm Permanent Deletion';
+            }
+        } catch (e) {
+        }
+    }
+
+    // =========================================================================
+    // DIRECT SCANNER CLIENT LOGIC (GLOBAL)
+    // =========================================================================
+    let isGlobalScanningActive = false;
+
+    function openDirectScannerModal() {
+        const modal = document.getElementById('directScannerModal');
+        if (!modal) return;
+        document.getElementById('directScannerFormSection').style.display = 'block';
+        document.getElementById('directScannerInProgressSection').style.display = 'none';
+        document.getElementById('directScannerSuccessSection').style.display = 'none';
+        document.getElementById('directScanAlertBox').style.display = 'none';
+        modal.style.display = 'flex';
+        detectGlobalScanners();
+    }
+
+    function closeDirectScannerModal() {
+        if (isGlobalScanningActive) {
+            if (!confirm('Scanner acquisition is currently running. Close window?')) return;
+        }
+        const modal = document.getElementById('directScannerModal');
+        if (modal) modal.style.display = 'none';
+        isGlobalScanningActive = false;
+    }
+
+    function selectGlobalScanFormat(fmt) {
+        const radio = document.querySelector(`input[name="globalScanFormat"][value="${fmt}"]`);
+        if (radio) radio.checked = true;
+        const cardPdf = document.getElementById('globalFormatCardPdf');
+        const cardJpg = document.getElementById('globalFormatCardJpg');
+        if (fmt === 'pdf') {
+            if (cardPdf) { cardPdf.style.borderColor = '#059669'; cardPdf.style.background = '#f0fdf4'; }
+            if (cardJpg) { cardJpg.style.borderColor = '#cbd5e1'; cardJpg.style.background = '#ffffff'; }
+        } else {
+            if (cardJpg) { cardJpg.style.borderColor = '#059669'; cardJpg.style.background = '#f0fdf4'; }
+            if (cardPdf) { cardPdf.style.borderColor = '#cbd5e1'; cardPdf.style.background = '#ffffff'; }
+        }
+    }
+
+    async function detectGlobalScanners() {
+        const banner = document.getElementById('globalScannerBanner');
+        const titleEl = document.getElementById('globalScannerTitle');
+        const subEl = document.getElementById('globalScannerSub');
+        const iconEl = document.getElementById('globalScannerIcon');
+
+        if (titleEl) titleEl.textContent = 'Checking connected scanners...';
+        if (subEl) subEl.textContent = 'Querying Windows Image Acquisition (WIA)...';
+        if (banner) { banner.style.background = '#f8fafc'; banner.style.borderColor = '#e2e8f0'; }
+
+        try {
+            const resp = await fetch('/api/employees/scanners');
+            const data = await resp.json();
+            if (data.success && data.count > 0) {
+                const scannerNames = data.scanners.map(s => s.name).join(', ');
+                if (titleEl) titleEl.innerHTML = `<span style="color: #166534;">Ready: ${scannerNames}</span>`;
+                if (subEl) subEl.textContent = `${data.count} USB scanner(s) detected and ready to scan.`;
+                if (banner) { banner.style.background = '#f0fdf4'; banner.style.borderColor = '#86efac'; }
+                if (iconEl) iconEl.textContent = '🟢';
+            } else {
+                if (titleEl) titleEl.innerHTML = `<span style="color: #b45309;">No USB Scanner Detected</span>`;
+                if (subEl) subEl.textContent = 'Please connect your USB scanner, ensure it is powered on, and click Refresh.';
+                if (banner) { banner.style.background = '#fffbeb'; banner.style.borderColor = '#fde68a'; }
+                if (iconEl) iconEl.textContent = '🟠';
+            }
+        } catch (err) {
+            if (titleEl) titleEl.innerHTML = `<span style="color: #dc2626;">Scanner Check Error</span>`;
+            if (subEl) subEl.textContent = err.message || 'Could not communicate with WIA service.';
+            if (banner) { banner.style.background = '#fef2f2'; banner.style.borderColor = '#fca5a5'; }
+            if (iconEl) iconEl.textContent = '🔴';
+        }
+    }
+
+    async function triggerGlobalDirectScan() {
+        const empSelect = document.getElementById('globalScanEmpSelect');
+        const empId = empSelect ? empSelect.value : '';
+        if (!empId) {
+            alert('Please select an employee to attach the scanned document to.');
+            return;
+        }
+
+        const docTypeSelect = document.getElementById('globalScanDocType');
+        const docType = docTypeSelect ? docTypeSelect.value : 'Document';
+        const formatInput = document.querySelector('input[name="globalScanFormat"]:checked');
+        const format = formatInput ? formatInput.value : 'pdf';
+        const alertBox = document.getElementById('directScanAlertBox');
+        if (alertBox) alertBox.style.display = 'none';
+
+        isGlobalScanningActive = true;
+        document.getElementById('directScannerFormSection').style.display = 'none';
+        document.getElementById('directScannerInProgressSection').style.display = 'block';
+
+        try {
+            const resp = await fetch(`/api/employees/${empId}/scan-document`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ doc_type: docType, format: format })
+            });
+            const data = await resp.json();
+
+            isGlobalScanningActive = false;
+            document.getElementById('directScannerInProgressSection').style.display = 'none';
+
+            if (data.success) {
+                document.getElementById('directScannerSuccessSection').style.display = 'block';
+                const detailsEl = document.getElementById('directScanSuccessDetails');
+                if (detailsEl) {
+                    detailsEl.innerHTML = `
+                        File: <strong>${data.filename}</strong> &bull; Size: <strong>${(data.file_size / 1024).toFixed(1)} KB</strong> &bull; Format: <strong>${data.format.toUpperCase()}</strong>
+                    `;
+                }
+                const previewBtn = document.getElementById('directScanPreviewBtn');
+                if (previewBtn) {
+                    previewBtn.href = data.url;
+                }
+            } else {
+                document.getElementById('directScannerFormSection').style.display = 'block';
+                if (alertBox) {
+                    alertBox.style.display = 'block';
+                    if (data.cancelled) {
+                        alertBox.style.background = '#fffbeb';
+                        alertBox.style.border = '1px solid #fde68a';
+                        alertBox.style.color = '#b45309';
+                        alertBox.innerHTML = `⚠️ <strong>Scan Cancelled:</strong> ${data.error}`;
+                    } else {
+                        alertBox.style.background = '#fef2f2';
+                        alertBox.style.border = '1px solid #fca5a5';
+                        alertBox.style.color = '#b91c1c';
+                        alertBox.innerHTML = `❌ <strong>Scanner Error:</strong> ${data.error}`;
+                    }
+                }
+            }
+        } catch (err) {
+            isGlobalScanningActive = false;
+            document.getElementById('directScannerInProgressSection').style.display = 'none';
+            document.getElementById('directScannerFormSection').style.display = 'block';
+            if (alertBox) {
+                alertBox.style.display = 'block';
+                alertBox.style.background = '#fef2f2';
+                alertBox.style.border = '1px solid #fca5a5';
+                alertBox.style.color = '#b91c1c';
+                alertBox.innerHTML = `❌ <strong>Request Error:</strong> ${err.message || 'Server error during scan.'}`;
+            }
+        }
+    }
+
+    function resetGlobalScannerModal() {
+        document.getElementById('directScannerSuccessSection').style.display = 'none';
+        document.getElementById('directScannerFormSection').style.display = 'block';
+        const alertBox = document.getElementById('directScanAlertBox');
+        if (alertBox) alertBox.style.display = 'none';
+    }
+
+    window.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && !isGlobalScanningActive) {
+            closeDirectScannerModal();
+        }
+    });
+</script>
+
+<!-- Direct USB Scanner Global Modal -->
+<div id="directScannerModal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.78); backdrop-filter: blur(6px); z-index: 99999; align-items: center; justify-content: center; padding: 1.25rem;" onclick="if(event.target === this && !isGlobalScanningActive) closeDirectScannerModal();">
+    <div style="background: #ffffff; border-radius: 14px; width: 100%; max-width: 580px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); border: 1px solid #cbd5e1;">
+        
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff;">
+            <div style="display: flex; align-items: center; gap: 0.65rem;">
+                <span style="font-size: 1.4rem; background: rgba(16, 185, 129, 0.25); border: 1px solid rgba(52, 211, 153, 0.4); padding: 0.3rem 0.55rem; border-radius: 8px;">🖨️</span>
+                <div>
+                    <div style="font-weight: 700; font-size: 1.05rem; color: #f8fafc;">Direct Document Scanner</div>
+                    <div style="font-size: 0.75rem; color: #94a3b8;">Windows Image Acquisition &bull; Connected USB Scanner</div>
+                </div>
+            </div>
+            <button type="button" onclick="closeDirectScannerModal()" style="background: transparent; border: none; color: #cbd5e1; font-size: 1.6rem; cursor: pointer; line-height: 1; padding: 0 0.25rem;">&times;</button>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 1.25rem 1.5rem; background: #ffffff;">
+
+            <!-- Scanner Detection Banner -->
+            <div id="globalScannerBanner" style="padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.15rem; display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span id="globalScannerIcon" style="font-size: 1.1rem;">🔍</span>
+                    <div>
+                        <div id="globalScannerTitle" style="font-weight: 700; font-size: 0.85rem; color: #334155;">Checking connected scanners...</div>
+                        <div id="globalScannerSub" style="font-size: 0.72rem; color: #64748b;">Querying Windows Image Acquisition driver...</div>
+                    </div>
+                </div>
+                <button type="button" onclick="detectGlobalScanners()" class="btn btn-sm btn-outline" style="font-size: 0.72rem; padding: 0.25rem 0.6rem; border-color: #cbd5e1; color: #475569; background: #ffffff;">
+                    🔄 Refresh
+                </button>
+            </div>
+
+            <!-- Form -->
+            <div id="directScannerFormSection">
+                <div style="margin-bottom: 1rem;">
+                    <label for="globalScanEmpSelect" style="display: block; font-weight: 700; font-size: 0.82rem; color: #334155; margin-bottom: 0.35rem;">Select Target Employee *</label>
+                    <select id="globalScanEmpSelect" class="form-select" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.88rem;">
+                        <option value="">-- Choose Employee --</option>
+                        {% for emp in employees %}
+                        <option value="{{ emp.id }}">{{ emp.employee_id }} - {{ emp.name }} ({{ emp.designation }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 1rem;">
+                    <label for="globalScanDocType" style="display: block; font-weight: 700; font-size: 0.82rem; color: #334155; margin-bottom: 0.35rem;">Document Classification *</label>
+                    <select id="globalScanDocType" class="form-select" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.88rem;">
+                        <option value="NID" selected>🪪 National ID / Passport</option>
+                        <option value="Joining Letter">📋 Joining Letter / Contract</option>
+                        <option value="Academic Certificate">🎓 Academic Certificate</option>
+                        <option value="Resume">📄 Resume / CV</option>
+                        <option value="Experience Certificate">📜 Experience Certificate</option>
+                        <option value="Driving License">🚗 Driving License</option>
+                        <option value="General Document">📁 General Document</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; font-weight: 700; font-size: 0.82rem; color: #334155; margin-bottom: 0.35rem;">Scan Output Format *</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                        <label id="globalFormatCardPdf" onclick="selectGlobalScanFormat('pdf')" style="cursor: pointer; display: flex; align-items: center; gap: 0.6rem; padding: 0.75rem; border: 2px solid #059669; background: #f0fdf4; border-radius: 8px; transition: all 0.2s;">
+                            <input type="radio" name="globalScanFormat" value="pdf" checked style="accent-color: #059669;">
+                            <div>
+                                <div style="font-weight: 700; font-size: 0.85rem; color: #166534;">📕 High-Res PDF</div>
+                                <div style="font-size: 0.72rem; color: #15803d;">Multi-page &amp; official archival</div>
+                            </div>
+                        </label>
+                        <label id="globalFormatCardJpg" onclick="selectGlobalScanFormat('jpg')" style="cursor: pointer; display: flex; align-items: center; gap: 0.6rem; padding: 0.75rem; border: 1px solid #cbd5e1; background: #ffffff; border-radius: 8px; transition: all 0.2s;">
+                            <input type="radio" name="globalScanFormat" value="jpg" style="accent-color: #059669;">
+                            <div>
+                                <div style="font-weight: 700; font-size: 0.85rem; color: #334155;">🖼️ High-Res JPG</div>
+                                <div style="font-size: 0.72rem; color: #64748b;">300 DPI high-res image</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="directScanAlertBox" style="display: none; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.82rem;"></div>
+
+                <div style="display: flex; gap: 0.65rem; justify-content: flex-end;">
+                    <button type="button" onclick="closeDirectScannerModal()" class="btn btn-outline" style="font-size: 0.88rem; padding: 0.55rem 1rem;">
+                        Cancel
+                    </button>
+                    <button type="button" onclick="triggerGlobalDirectScan()" class="btn btn-success" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 700; font-size: 0.9rem; padding: 0.6rem 1.4rem; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); cursor: pointer;">
+                        <span>🖨️</span> Start Direct Scan
+                    </button>
+                </div>
+            </div>
+
+            <!-- In Progress -->
+            <div id="directScannerInProgressSection" style="display: none; text-align: center; padding: 2rem 1rem;">
+                <div style="position: relative; width: 80px; height: 80px; margin: 0 auto 1.25rem;">
+                    <div style="width: 100%; height: 100%; border: 4px solid #bbf7d0; border-top: 4px solid #059669; border-radius: 50%; animation: spinProgress 0.9s linear infinite;"></div>
+                    <span style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">🖨️</span>
+                </div>
+                <h4 style="margin: 0 0 0.4rem 0; color: #0f172a; font-size: 1.05rem; font-weight: 800;">Acquiring Scan from Device...</h4>
+                <p style="margin: 0 auto; max-width: 380px; color: #64748b; font-size: 0.82rem; line-height: 1.45;">
+                    Please keep the document on the scanner bed. Windows Image Acquisition scanner prompt may appear on your screen.
+                </p>
+                <div style="margin-top: 1.25rem; display: inline-flex; align-items: center; gap: 0.4rem; background: #f0fdf4; border: 1px solid #86efac; padding: 0.4rem 0.85rem; border-radius: 20px; font-size: 0.78rem; font-weight: 600; color: #166534;">
+                    <span style="display: inline-block; width: 8px; height: 8px; background: #16a34a; border-radius: 50%;"></span>
+                    Scanner Communicating &bull; Do not disconnect
+                </div>
+            </div>
+
+            <!-- Success -->
+            <div id="directScannerSuccessSection" style="display: none; text-align: center; padding: 1.5rem 1rem;">
+                <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎉</div>
+                <h4 style="margin: 0 0 0.35rem 0; color: #15803d; font-size: 1.1rem; font-weight: 800;">Document Successfully Scanned!</h4>
+                <p id="directScanSuccessDetails" style="margin: 0 0 1.25rem 0; color: #475569; font-size: 0.82rem;">
+                    File saved and automatically attached to employee archive.
+                </p>
+                <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+                    <a id="directScanPreviewBtn" href="#" target="_blank" class="btn btn-outline" style="border-color: #0284c7; color: #0284c7; font-weight: 600; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+                        👁️ Preview Document ↗
+                    </a>
+                    <button type="button" onclick="resetGlobalScannerModal()" class="btn btn-outline" style="border-color: #059669; color: #059669; font-weight: 600; font-size: 0.85rem;">
+                        🔄 Scan Another
+                    </button>
+                    <button type="button" onclick="window.location.reload()" class="btn btn-primary" style="background: #0f172a; border: none; font-weight: 700; font-size: 0.85rem;">
+                        Done (Refresh Table)
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

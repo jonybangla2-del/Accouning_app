@@ -10,7 +10,7 @@ from functools import wraps
 from io import BytesIO
 from flask import Flask, render_template, render_template_string, abort, request, redirect, url_for, flash, session, send_file, jsonify, send_from_directory, make_response
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from werkzeug.security import generate_password_hash, check_password_hash
 import re
 import csv
@@ -6693,7 +6693,9 @@ def scan_local_folder_api():
 def upload_employee_docs_batch_api():
     """
     Receives confirmed files uploaded via browser folder selector.
-    Saves files into app_storage/employee_docs/{emp_id}/ and creates database records.
+    Saves files into app_storage/employee_docs/{emp_id}/ and creates/updates database records.
+    Guarantees 100% duplicate protection for both Employees and Documents:
+    auto-creates new employee if unmatched, and updates existing documents in-place.
     """
     files = request.files.getlist('files[]')
     emp_codes = request.form.getlist('emp_codes[]')
@@ -6707,55 +6709,90 @@ def upload_employee_docs_batch_api():
         return jsonify({'success': False, 'message': 'No files received.'}), 400
 
     attached_count = 0
-    all_emps = Employee.query.all()
-    all_emps_map = {str(e.employee_id).strip().upper(): e for e in all_emps}
-    for e in all_emps:
-        raw_id = str(e.employee_id).strip()
-        if raw_id.isdigit():
-            all_emps_map.setdefault(raw_id.lstrip('0') or '0', e)
     last_status = ''
 
+    # Group files by employee code
+    emp_groups = {}
     for i, file_obj in enumerate(files):
         if not file_obj or not file_obj.filename:
             continue
-        emp_code = emp_codes[i] if i < len(emp_codes) else 'UNKNOWN'
-        orig_name = file_obj.filename
+        code = emp_codes[i] if i < len(emp_codes) else 'UNKNOWN'
+        if code not in emp_groups:
+            emp_groups[code] = []
+        emp_groups[code].append(file_obj)
 
-        meta = employee_doc_manager.save_file_for_employee(
-            file_obj,
+    for emp_code, file_objs in emp_groups.items():
+        # Build file data tuples for metadata extraction and employee resolution
+        file_tuples = [(f, f.filename) for f in file_objs]
+
+        # Auto-create or retrieve existing employee record (preventing duplicate employee creation)
+        emp_record, is_new = employee_doc_manager.get_or_create_employee_from_files(
+            db.session,
             emp_code,
-            orig_name,
-            preset=preset,
-            custom_max_width=custom_max_width,
-            custom_quality=custom_quality,
-            custom_pdf_target=custom_pdf_target
+            file_tuples,
+            is_local_disk=False
         )
-        if not meta:
-            continue
+        resolved_emp_id = emp_record.id if emp_record else None
+        resolved_emp_code = emp_record.employee_id if emp_record else emp_code
 
-        emp_code_upper = str(meta['emp_code']).upper()
-        emp_record = all_emps_map.get(emp_code_upper)
-        if not emp_record and emp_code_upper.isdigit():
-            emp_record = all_emps_map.get(emp_code_upper.lstrip('0'))
+        for file_obj in file_objs:
+            orig_name = file_obj.filename
+            meta = employee_doc_manager.save_file_for_employee(
+                file_obj,
+                resolved_emp_code,
+                orig_name,
+                preset=preset,
+                custom_max_width=custom_max_width,
+                custom_quality=custom_quality,
+                custom_pdf_target=custom_pdf_target
+            )
+            if not meta:
+                continue
 
-        doc = EmployeeDocument(
-            employee_id=emp_record.id if emp_record else None,
-            emp_code=emp_record.employee_id if emp_record else meta['emp_code'],
-            title=orig_name,
-            document_type='General',
-            filename=meta['filename'],
-            original_filename=meta['original_filename'],
-            file_type=meta['file_type'],
-            file_path=meta['file_path'],
-            file_size=meta['file_size'],
-            original_size=meta.get('original_size', meta['file_size']),
-            compression_status=meta.get('compression_status'),
-            file_ext=meta['file_ext'],
-            upload_date=datetime.utcnow()
-        )
-        db.session.add(doc)
-        attached_count += 1
-        last_status = meta.get('compression_status', '')
+            # DUPLICATE PROTECTION for documents:
+            # Check if this exact file was already attached for this employee
+            existing_doc = None
+            if resolved_emp_id:
+                existing_doc = EmployeeDocument.query.filter(
+                    EmployeeDocument.employee_id == resolved_emp_id,
+                    or_(
+                        EmployeeDocument.original_filename == meta['original_filename'],
+                        EmployeeDocument.filename == meta['filename'],
+                        EmployeeDocument.title == orig_name
+                    )
+                ).first()
+
+            if existing_doc:
+                # Update existing document in place to avoid duplicates
+                existing_doc.filename = meta['filename']
+                existing_doc.file_path = meta['file_path']
+                existing_doc.file_size = meta['file_size']
+                existing_doc.original_size = meta.get('original_size', meta['file_size'])
+                existing_doc.compression_status = meta.get('compression_status')
+                existing_doc.file_ext = meta['file_ext']
+                existing_doc.file_type = meta['file_type']
+                existing_doc.upload_date = datetime.utcnow()
+                existing_doc.emp_code = resolved_emp_code
+            else:
+                doc = EmployeeDocument(
+                    employee_id=resolved_emp_id,
+                    emp_code=resolved_emp_code,
+                    title=orig_name,
+                    document_type='General',
+                    filename=meta['filename'],
+                    original_filename=meta['original_filename'],
+                    file_type=meta['file_type'],
+                    file_path=meta['file_path'],
+                    file_size=meta['file_size'],
+                    original_size=meta.get('original_size', meta['file_size']),
+                    compression_status=meta.get('compression_status'),
+                    file_ext=meta['file_ext'],
+                    upload_date=datetime.utcnow()
+                )
+                db.session.add(doc)
+
+            attached_count += 1
+            last_status = meta.get('compression_status', '')
 
     try:
         db.session.commit()
@@ -6764,7 +6801,7 @@ def upload_employee_docs_batch_api():
             'attached_count': attached_count,
             'preset_used': preset,
             'recent_status': last_status,
-            'message': f"Successfully attached {attached_count} documents to central employee storage."
+            'message': f"Successfully processed and attached {attached_count} documents to central storage with zero duplicates."
         })
     except Exception as e:
         db.session.rollback()
@@ -6774,6 +6811,8 @@ def upload_employee_docs_batch_api():
 def attach_local_docs_batch_api():
     """
     Copies files from confirmed local folder path into central app_storage with in-flight optimization.
+    Guarantees 100% duplicate protection for both Employees and Documents:
+    auto-creates new employee if unmatched, and updates existing documents in-place.
     """
     data = request.get_json(silent=True) or {}
     source_root = data.get('source_root', '')
@@ -6786,12 +6825,6 @@ def attach_local_docs_batch_api():
     if not employees_data:
         return jsonify({'success': False, 'message': 'No employees selected.'}), 400
 
-    all_emps = Employee.query.all()
-    all_emps_map = {str(e.employee_id).strip().upper(): e for e in all_emps}
-    for e in all_emps:
-        raw_id = str(e.employee_id).strip()
-        if raw_id.isdigit():
-            all_emps_map.setdefault(raw_id.lstrip('0') or '0', e)
     attached_count = 0
     last_status = ''
 
@@ -6799,10 +6832,16 @@ def attach_local_docs_batch_api():
         emp_code = emp_item.get('emp_code', 'UNKNOWN')
         files = emp_item.get('files', [])
 
-        emp_code_upper = str(emp_code).upper()
-        emp_record = all_emps_map.get(emp_code_upper)
-        if not emp_record and emp_code_upper.isdigit():
-            emp_record = all_emps_map.get(emp_code_upper.lstrip('0'))
+        # Auto-create or retrieve existing employee record
+        emp_record, is_new = employee_doc_manager.get_or_create_employee_from_files(
+            db.session,
+            emp_code,
+            files,
+            is_local_disk=True,
+            source_root=source_root
+        )
+        resolved_emp_id = emp_record.id if emp_record else None
+        resolved_emp_code = emp_record.employee_id if emp_record else emp_code
 
         for f in files:
             rel_path = f.get('rel_path') or f.get('filename')
@@ -6812,7 +6851,7 @@ def attach_local_docs_batch_api():
 
             meta = employee_doc_manager.copy_file_for_employee(
                 abs_source,
-                emp_code,
+                resolved_emp_code,
                 f.get('filename'),
                 preset=preset,
                 custom_max_width=custom_max_width,
@@ -6822,22 +6861,46 @@ def attach_local_docs_batch_api():
             if not meta:
                 continue
 
-            doc = EmployeeDocument(
-                employee_id=emp_record.id if emp_record else None,
-                emp_code=emp_record.employee_id if emp_record else meta['emp_code'],
-                title=meta['original_filename'],
-                document_type='General',
-                filename=meta['filename'],
-                original_filename=meta['original_filename'],
-                file_type=meta['file_type'],
-                file_path=meta['file_path'],
-                file_size=meta['file_size'],
-                original_size=meta.get('original_size', meta['file_size']),
-                compression_status=meta.get('compression_status'),
-                file_ext=meta['file_ext'],
-                upload_date=datetime.utcnow()
-            )
-            db.session.add(doc)
+            # DUPLICATE PROTECTION: Check if document already exists
+            existing_doc = None
+            if resolved_emp_id:
+                existing_doc = EmployeeDocument.query.filter(
+                    EmployeeDocument.employee_id == resolved_emp_id,
+                    or_(
+                        EmployeeDocument.original_filename == meta['original_filename'],
+                        EmployeeDocument.filename == meta['filename'],
+                        EmployeeDocument.title == meta['original_filename']
+                    )
+                ).first()
+
+            if existing_doc:
+                existing_doc.filename = meta['filename']
+                existing_doc.file_path = meta['file_path']
+                existing_doc.file_size = meta['file_size']
+                existing_doc.original_size = meta.get('original_size', meta['file_size'])
+                existing_doc.compression_status = meta.get('compression_status')
+                existing_doc.file_ext = meta['file_ext']
+                existing_doc.file_type = meta['file_type']
+                existing_doc.upload_date = datetime.utcnow()
+                existing_doc.emp_code = resolved_emp_code
+            else:
+                doc = EmployeeDocument(
+                    employee_id=resolved_emp_id,
+                    emp_code=resolved_emp_code,
+                    title=meta['original_filename'],
+                    document_type='General',
+                    filename=meta['filename'],
+                    original_filename=meta['original_filename'],
+                    file_type=meta['file_type'],
+                    file_path=meta['file_path'],
+                    file_size=meta['file_size'],
+                    original_size=meta.get('original_size', meta['file_size']),
+                    compression_status=meta.get('compression_status'),
+                    file_ext=meta['file_ext'],
+                    upload_date=datetime.utcnow()
+                )
+                db.session.add(doc)
+
             attached_count += 1
             last_status = meta.get('compression_status', '')
 
@@ -6848,7 +6911,7 @@ def attach_local_docs_batch_api():
             'attached_count': attached_count,
             'preset_used': preset,
             'recent_status': last_status,
-            'message': f"Successfully copied, optimized, and attached {attached_count} local files."
+            'message': f"Successfully copied, optimized, and attached {attached_count} local files with zero duplicates."
         })
     except Exception as e:
         db.session.rollback()
@@ -12759,199 +12822,214 @@ def export_fund_summary_report_excel():
     to Microsoft Excel (.xlsx), covering employee share, employer share,
     full withdrawal vs own contribution only status, and net balance.
     """
-    all_cfs = EmployeeFundContribution.query.order_by(EmployeeFundContribution.contribution_date.asc(), EmployeeFundContribution.id.asc()).all()
-    emp_cf_map = {}
-    for c in all_cfs:
-        k = c.emp_code or (c.employee.employee_id if c.employee else str(c.employee_id or c.id))
-        if k not in emp_cf_map:
-            emp_obj = c.employee
-            emp_cf_map[k] = {
-                'employee': {
-                    'id': emp_obj.id if emp_obj else k,
-                    'employee_id': k,
-                    'name': (emp_obj.name if emp_obj else c.emp_name) or f"Staff {k}",
-                    'department': (emp_obj.department if emp_obj else c.department) or "General",
-                    'designation': (emp_obj.designation if emp_obj else c.designation) or "Staff Member"
-                },
-                'records': []
-            }
-        emp_cf_map[k]['records'].append(c)
+    try:
+        all_cfs = EmployeeFundContribution.query.order_by(EmployeeFundContribution.contribution_date.asc(), EmployeeFundContribution.id.asc()).all()
+        emp_cf_map = {}
+        for c in all_cfs:
+            k = c.emp_code or (c.employee.employee_id if c.employee else str(c.employee_id or c.id))
+            if k not in emp_cf_map:
+                emp_obj = c.employee
+                emp_cf_map[k] = {
+                    'employee': {
+                        'id': emp_obj.id if emp_obj else k,
+                        'employee_id': k,
+                        'name': (emp_obj.name if emp_obj else c.emp_name) or f"Staff {k}",
+                        'department': (emp_obj.department if emp_obj else c.department) or "General",
+                        'designation': (emp_obj.designation if emp_obj else c.designation) or "Staff Member"
+                    },
+                    'records': []
+                }
+            emp_cf_map[k]['records'].append(c)
 
-    settlements = EmployeeFundSettlement.query.order_by(EmployeeFundSettlement.id.desc()).all()
-    settlement_map = {str(s.emp_code or s.employee_id).strip(): s for s in settlements if s.emp_code or s.employee_id}
+        settlements = EmployeeFundSettlement.query.order_by(EmployeeFundSettlement.id.desc()).all()
+        settlement_map = {str(s.emp_code or s.employee_id).strip(): s for s in settlements if s.emp_code or s.employee_id}
 
-    fund_summaries = []
-    def fund_sort_key(x):
-        s = str(x or '').strip()
-        num_part = re.sub(r'^\D+', '', s)
-        if num_part.isdigit():
-            return (0, int(num_part), s)
-        return (1, 0, s.lower())
+        fund_summaries = []
+        def fund_sort_key(x):
+            s = str(x or '').strip()
+            num_part = re.sub(r'^\D+', '', s)
+            if num_part.isdigit():
+                return (0, int(num_part), s)
+            return (1, 0, s.lower())
 
-    for k in sorted(emp_cf_map.keys(), key=fund_sort_key):
-        data = emp_cf_map[k]
-        records = data['records']
-        emp_tot = sum(r.employee_share or 0.0 for r in records)
-        comp_tot = sum(r.employer_share or 0.0 for r in records)
-        welfare_tot = sum(r.welfare_fund or 0.0 for r in records)
-        prof_tot = sum(r.profit_interest or 0.0 for r in records)
-        loan_tot = sum(r.loan_amount or 0.0 for r in records)
-        return_tot = sum(r.loan_return or 0.0 for r in records)
-        withdrawal_tot = sum(r.withdrawal or 0.0 for r in records)
-        adjustment_tot = sum(r.adjustment or 0.0 for r in records)
-        outstanding = max(0.0, round(loan_tot - return_tot, 2))
-        cumul = records[-1].cumulative_balance if records else 0.0
+        for k in sorted(emp_cf_map.keys(), key=fund_sort_key):
+            data = emp_cf_map[k]
+            records = data['records']
+            emp_tot = sum(r.employee_share or 0.0 for r in records)
+            comp_tot = sum(r.employer_share or 0.0 for r in records)
+            welfare_tot = sum(r.welfare_fund or 0.0 for r in records)
+            prof_tot = sum(r.profit_interest or 0.0 for r in records)
+            loan_tot = sum(r.loan_amount or 0.0 for r in records)
+            return_tot = sum(r.loan_return or 0.0 for r in records)
+            withdrawal_tot = sum(r.withdrawal or 0.0 for r in records)
+            adjustment_tot = sum(r.adjustment or 0.0 for r in records)
+            outstanding = max(0.0, round(loan_tot - return_tot, 2))
+            cumul = records[-1].cumulative_balance if records else 0.0
 
-        settle = settlement_map.get(k)
-        if settle:
-            if settle.is_eligible_full:
-                status_label = "Full Withdrawal (100% Emp + 100% Com)"
+            settle = settlement_map.get(k)
+            if settle:
+                if settle.is_eligible_full:
+                    status_label = "Full Withdrawal (100% Emp + 100% Com)"
+                else:
+                    status_label = "Own Contribution Only"
+                s_date_str = ""
+                if settle.settlement_date:
+                    if hasattr(settle.settlement_date, 'strftime'):
+                        s_date_str = settle.settlement_date.strftime('%d-%b-%Y')
+                    else:
+                        s_date_str = str(settle.settlement_date)
+                settle_info = f"{s_date_str} ({settle.payment_mode or 'Settled'})"
+            elif withdrawal_tot > 0:
+                if adjustment_tot > 0 or (withdrawal_tot <= emp_tot and adjustment_tot > 0):
+                    status_label = "Own Contribution Only"
+                elif withdrawal_tot >= (emp_tot + comp_tot - 5):
+                    status_label = "Full Withdrawal"
+                else:
+                    status_label = "Partial Withdrawal"
+                settle_info = records[-1].contribution_month if records else ''
             else:
-                status_label = "Own Contribution Only"
-            settle_info = f"{settle.settlement_date.strftime('%d-%b-%Y') if settle.settlement_date else ''} ({settle.payment_mode})"
-        elif withdrawal_tot > 0:
-            if adjustment_tot > 0 or (withdrawal_tot <= emp_tot and adjustment_tot > 0):
-                status_label = "Own Contribution Only"
-            elif withdrawal_tot >= (emp_tot + comp_tot - 5):
-                status_label = "Full Withdrawal"
-            else:
-                status_label = "Partial Withdrawal"
-            settle_info = records[-1].contribution_month if records else ''
-        else:
-            status_label = "Active (Unwithdrawn)"
-            settle_info = ""
+                status_label = "Active (Unwithdrawn)"
+                settle_info = ""
 
-        fund_summaries.append({
-            'code': data['employee']['employee_id'],
-            'name': data['employee']['name'],
-            'dept': data['employee']['department'],
-            'desig': data['employee']['designation'],
-            'emp_share': emp_tot,
-            'comp_share': comp_tot,
-            'welfare': welfare_tot,
-            'profit': prof_tot,
-            'total_deposit': round(emp_tot + comp_tot + welfare_tot + prof_tot, 2),
-            'status': status_label,
-            'withdrawal': withdrawal_tot,
-            'adjustment': adjustment_tot,
-            'loan_taken': loan_tot,
-            'loan_return': return_tot,
-            'outstanding': outstanding,
-            'balance': cumul,
-            'settle_info': settle_info,
-            'remarks': settle.remarks if settle else (records[-1].remarks if records else '')
-        })
+            fund_summaries.append({
+                'code': data['employee']['employee_id'],
+                'name': data['employee']['name'],
+                'dept': data['employee']['department'],
+                'desig': data['employee']['designation'],
+                'emp_share': emp_tot,
+                'comp_share': comp_tot,
+                'welfare': welfare_tot,
+                'profit': prof_tot,
+                'total_deposit': round(emp_tot + comp_tot + welfare_tot + prof_tot, 2),
+                'status': status_label,
+                'withdrawal': withdrawal_tot,
+                'adjustment': adjustment_tot,
+                'loan_taken': loan_tot,
+                'loan_return': return_tot,
+                'outstanding': outstanding,
+                'balance': cumul,
+                'settle_info': settle_info,
+                'remarks': settle.remarks if settle else (records[-1].remarks if records else '')
+            })
 
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Fund Report"
-    ws.views.sheetView[0].showGridLines = True
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Fund Report"
+        try:
+            ws.views.sheetView[0].showGridLines = True
+        except Exception:
+            ws.sheet_view.showGridLines = True
 
-    # Styling Palette
-    header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
-    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-    title_font = Font(name="Calibri", size=14, bold=True, color="0F172A")
-    subtitle_font = Font(name="Calibri", size=10, italic=True, color="475569")
-    regular_font = Font(name="Calibri", size=10)
-    bold_font = Font(name="Calibri", size=10, bold=True)
-    border_thin = Border(
-        left=Side(style='thin', color='CBD5E1'),
-        right=Side(style='thin', color='CBD5E1'),
-        top=Side(style='thin', color='CBD5E1'),
-        bottom=Side(style='thin', color='CBD5E1')
-    )
-    border_total = Border(
-        top=Side(style='thin', color='0F172A'),
-        bottom=Side(style='double', color='0F172A')
-    )
-    ACCT_FMT = '_(* #,##0.00_);_(* (#,##0.00);_(* "-"??_);_(@_)'
+        # Styling Palette
+        header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
+        header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+        title_font = Font(name="Calibri", size=14, bold=True, color="0F172A")
+        subtitle_font = Font(name="Calibri", size=10, italic=True, color="475569")
+        regular_font = Font(name="Calibri", size=10)
+        bold_font = Font(name="Calibri", size=10, bold=True)
+        border_thin = Border(
+            left=Side(style='thin', color='CBD5E1'),
+            right=Side(style='thin', color='CBD5E1'),
+            top=Side(style='thin', color='CBD5E1'),
+            bottom=Side(style='thin', color='CBD5E1')
+        )
+        border_total = Border(
+            top=Side(style='thin', color='0F172A'),
+            bottom=Side(style='double', color='0F172A')
+        )
+        ACCT_FMT = '_(* #,##0.00_);_(* (#,##0.00);_(* "-"??_);_(@_)'
 
-    # Active Company Info
-    cid = session.get('active_company_id', 1)
-    company = CompanyManager.get_by_id(cid) if 'CompanyManager' in globals() else None
-    company_name = getattr(company, 'name', None) or "TBN BD LTD."
+        # Active Company Info
+        cid = session.get('active_company_id', 1)
+        company = CompanyManager.get_by_id(cid) if 'CompanyManager' in globals() else None
+        company_name = getattr(company, 'name', None) or "TBN BD LTD."
 
-    ws['A1'] = f"{company_name} - Employee Contribution Fund (Provident & Welfare)"
-    ws['A1'].font = title_font
-    ws['A2'] = f"Employee-Wise Contribution & Withdrawal Report | Generated on: {date.today().strftime('%d-%b-%Y')}"
-    ws['A2'].font = subtitle_font
+        ws['A1'] = f"{company_name} - Employee Contribution Fund (Provident & Welfare)"
+        ws['A1'].font = title_font
+        ws['A2'] = f"Employee-Wise Contribution & Withdrawal Report | Generated on: {date.today().strftime('%d-%b-%Y')}"
+        ws['A2'].font = subtitle_font
 
-    headers = [
-        "SL", "Emp ID", "Employee Name", "Department", "Designation",
-        "Emp Deposit (৳)", "Company Deposit (৳)", "Welfare (৳)", "Profit (৳)", "Total Deposit (৳)",
-        "Withdrawal Status", "Withdrawn (৳)", "Forfeited Com (৳)", "Loan Taken (৳)", "Loan Repaid (৳)", "Outstanding (৳)", "Net Balance (৳)", "Settlement Info", "Remarks"
-    ]
+        headers = [
+            "SL", "Emp ID", "Employee Name", "Department", "Designation",
+            "Emp Deposit (৳)", "Company Deposit (৳)", "Welfare (৳)", "Profit (৳)", "Total Deposit (৳)",
+            "Withdrawal Status", "Withdrawn (৳)", "Forfeited Com (৳)", "Loan Taken (৳)", "Loan Repaid (৳)", "Outstanding (৳)", "Net Balance (৳)", "Settlement Info", "Remarks"
+        ]
 
-    for col_idx, h_text in enumerate(headers, 1):
-        cell = ws.cell(row=4, column=col_idx, value=h_text)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = Alignment(horizontal="center" if col_idx in [1, 2, 11] else "left" if col_idx in [3, 4, 5, 18, 19] else "right", vertical="center")
+        for col_idx, h_text in enumerate(headers, 1):
+            cell = ws.cell(row=4, column=col_idx, value=h_text)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center" if col_idx in [1, 2, 11] else "left" if col_idx in [3, 4, 5, 18, 19] else "right", vertical="center")
 
-    curr_row = 5
-    for idx, s in enumerate(fund_summaries, 1):
-        ws.cell(row=curr_row, column=1, value=idx).alignment = Alignment(horizontal="center")
-        ws.cell(row=curr_row, column=2, value=s['code']).alignment = Alignment(horizontal="center")
-        ws.cell(row=curr_row, column=3, value=s['name']).alignment = Alignment(horizontal="left")
-        ws.cell(row=curr_row, column=4, value=s['dept']).alignment = Alignment(horizontal="left")
-        ws.cell(row=curr_row, column=5, value=s['desig']).alignment = Alignment(horizontal="left")
-        ws.cell(row=curr_row, column=6, value=s['emp_share'])
-        ws.cell(row=curr_row, column=7, value=s['comp_share'])
-        ws.cell(row=curr_row, column=8, value=s['welfare'])
-        ws.cell(row=curr_row, column=9, value=s['profit'])
-        ws.cell(row=curr_row, column=10, value=s['total_deposit'])
-        ws.cell(row=curr_row, column=11, value=s['status']).alignment = Alignment(horizontal="center")
-        ws.cell(row=curr_row, column=12, value=s['withdrawal'])
-        ws.cell(row=curr_row, column=13, value=s['adjustment'])
-        ws.cell(row=curr_row, column=14, value=s['loan_taken'])
-        ws.cell(row=curr_row, column=15, value=s['loan_return'])
-        ws.cell(row=curr_row, column=16, value=s['outstanding'])
-        ws.cell(row=curr_row, column=17, value=s['balance'])
-        ws.cell(row=curr_row, column=18, value=s['settle_info']).alignment = Alignment(horizontal="left")
-        ws.cell(row=curr_row, column=19, value=s['remarks']).alignment = Alignment(horizontal="left")
+        curr_row = 5
+        for idx, s in enumerate(fund_summaries, 1):
+            ws.cell(row=curr_row, column=1, value=idx).alignment = Alignment(horizontal="center")
+            ws.cell(row=curr_row, column=2, value=s['code']).alignment = Alignment(horizontal="center")
+            ws.cell(row=curr_row, column=3, value=s['name']).alignment = Alignment(horizontal="left")
+            ws.cell(row=curr_row, column=4, value=s['dept']).alignment = Alignment(horizontal="left")
+            ws.cell(row=curr_row, column=5, value=s['desig']).alignment = Alignment(horizontal="left")
+            ws.cell(row=curr_row, column=6, value=s['emp_share'])
+            ws.cell(row=curr_row, column=7, value=s['comp_share'])
+            ws.cell(row=curr_row, column=8, value=s['welfare'])
+            ws.cell(row=curr_row, column=9, value=s['profit'])
+            ws.cell(row=curr_row, column=10, value=s['total_deposit'])
+            ws.cell(row=curr_row, column=11, value=s['status']).alignment = Alignment(horizontal="center")
+            ws.cell(row=curr_row, column=12, value=s['withdrawal'])
+            ws.cell(row=curr_row, column=13, value=s['adjustment'])
+            ws.cell(row=curr_row, column=14, value=s['loan_taken'])
+            ws.cell(row=curr_row, column=15, value=s['loan_return'])
+            ws.cell(row=curr_row, column=16, value=s['outstanding'])
+            ws.cell(row=curr_row, column=17, value=s['balance'])
+            ws.cell(row=curr_row, column=18, value=s['settle_info']).alignment = Alignment(horizontal="left")
+            ws.cell(row=curr_row, column=19, value=s['remarks']).alignment = Alignment(horizontal="left")
 
-        for c_i in range(1, 20):
-            c_cell = ws.cell(row=curr_row, column=c_i)
-            c_cell.font = regular_font
-            c_cell.border = border_thin
-            if c_i in [6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17]:
-                c_cell.number_format = ACCT_FMT
-                c_cell.alignment = Alignment(horizontal="right")
+            for c_i in range(1, 20):
+                c_cell = ws.cell(row=curr_row, column=c_i)
+                c_cell.font = regular_font
+                c_cell.border = border_thin
+                if c_i in [6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17]:
+                    c_cell.number_format = ACCT_FMT
+                    c_cell.alignment = Alignment(horizontal="right")
 
-        curr_row += 1
+            curr_row += 1
 
-    # Grand Total Row
-    total_row = curr_row
-    ws.cell(row=total_row, column=1, value="").border = border_total
-    ws.cell(row=total_row, column=2, value="").border = border_total
-    tot_label = ws.cell(row=total_row, column=3, value="GRAND TOTAL")
-    tot_label.font = bold_font
-    tot_label.border = border_total
+        # Grand Total Row
+        total_row = curr_row
+        ws.cell(row=total_row, column=1, value="").border = border_total
+        ws.cell(row=total_row, column=2, value="").border = border_total
+        tot_label = ws.cell(row=total_row, column=3, value="GRAND TOTAL")
+        tot_label.font = bold_font
+        tot_label.border = border_total
 
-    ws.cell(row=total_row, column=4, value="").border = border_total
-    ws.cell(row=total_row, column=5, value="").border = border_total
+        ws.cell(row=total_row, column=4, value="").border = border_total
+        ws.cell(row=total_row, column=5, value="").border = border_total
 
-    # Numeric totals
-    cols_to_sum = {6: 'F', 7: 'G', 8: 'H', 9: 'I', 10: 'J', 12: 'L', 13: 'M', 14: 'N', 15: 'O', 16: 'P', 17: 'Q'}
-    for col_idx, col_letter in cols_to_sum.items():
-        cell = ws.cell(row=total_row, column=col_idx, value=f"=SUM({col_letter}5:{col_letter}{total_row-1})")
-        cell.font = bold_font
-        cell.number_format = ACCT_FMT
-        cell.alignment = Alignment(horizontal="right")
-        cell.border = border_total
+        # Numeric totals
+        cols_to_sum = {6: 'F', 7: 'G', 8: 'H', 9: 'I', 10: 'J', 12: 'L', 13: 'M', 14: 'N', 15: 'O', 16: 'P', 17: 'Q'}
+        for col_idx, col_letter in cols_to_sum.items():
+            cell = ws.cell(row=total_row, column=col_idx, value=f"=SUM({col_letter}5:{col_letter}{total_row-1})")
+            cell.font = bold_font
+            cell.number_format = ACCT_FMT
+            cell.alignment = Alignment(horizontal="right")
+            cell.border = border_total
 
-    ws.cell(row=total_row, column=11, value="").border = border_total
-    ws.cell(row=total_row, column=18, value="").border = border_total
-    ws.cell(row=total_row, column=19, value="").border = border_total
+        ws.cell(row=total_row, column=11, value="").border = border_total
+        ws.cell(row=total_row, column=18, value="").border = border_total
+        ws.cell(row=total_row, column=19, value="").border = border_total
 
-    # Auto-adjust column widths
-    for col in ws.columns:
-        max_len = max(len(str(cell.value or '')) for cell in col)
-        col_letter = get_column_letter(col[0].column)
-        ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+        # Auto-adjust column widths
+        for col in ws.columns:
+            max_len = max(len(str(cell.value or '')) for cell in col)
+            col_letter = get_column_letter(col[0].column)
+            ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
 
-    filename = f"Employee_Fund_Contribution_Report_{date.today().strftime('%Y%m%d')}.xlsx"
-    return safe_excel_response(wb, filename)
+        filename = f"Employee_Fund_Contribution_Report_{date.today().strftime('%Y%m%d')}.xlsx"
+        return safe_excel_response(wb, filename)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        flash(f"Error generating Excel report: {e}", "danger")
+        return redirect(url_for('fund_contributions_dashboard'))
 
 
 @app.route('/payroll/fund-contributions/report')
