@@ -291,6 +291,7 @@ import backup_restore_manager as brm
 import auto_backup_manager as abm
 from quarterly_report_generator import QuarterlyReportGenerator, quarterly_report_generator
 from employee_doc_manager import employee_doc_manager
+from monthly_income_expenditure_manager import monthly_statement_manager
 try:
     from storage_optimizer import storage_optimizer
     from drive_service import DEFAULT_FOLDER_ID
@@ -8896,11 +8897,23 @@ def receipts_payments():
         total_closing=total_closing
     )
 
-# 3. INCOME & EXPENDITURE STATEMENT (P&L)
+# 3. INCOME & EXPENDITURE STATEMENT (P&L & MONTHLY COMPARATIVE MATRIX AS PER CLIENT IMAGE 2)
 @app.route('/reports/income-expenditure')
 def income_expenditure():
-    default_from = date(date.today().year, 1, 1).strftime('%Y-%m-%d')
-    default_to = date.today().strftime('%Y-%m-%d')
+    view_mode = request.args.get('view', 'monthly')
+    year_param = request.args.get('year', type=int)
+
+    active_cid = session.get('active_company_id', 1)
+    company = CompanyManager.get_by_id(active_cid) if 'CompanyManager' in globals() else None
+    company_name = getattr(company, 'name', None) or "TBN BD LTD."
+
+    # Generate monthly comparative statement data (Image 2 format)
+    monthly_data = monthly_statement_manager.get_statement_data(year=year_param, company_name=company_name)
+    selected_year = monthly_data['year']
+
+    # Also compute traditional summary P&L data for the summary tab
+    default_from = date(selected_year, 1, 1).strftime('%Y-%m-%d')
+    default_to = date.today().strftime('%Y-%m-%d') if date.today().year == selected_year else date(selected_year, 12, 31).strftime('%Y-%m-%d')
 
     from_str = request.args.get('from_date', default_from)
     to_str = request.args.get('to_date', default_to)
@@ -8908,7 +8921,7 @@ def income_expenditure():
     try:
         from_date = datetime.strptime(from_str, '%Y-%m-%d').date()
     except (ValueError, TypeError):
-        from_date = date(date.today().year, 1, 1)
+        from_date = date(selected_year, 1, 1)
 
     try:
         to_date = datetime.strptime(to_str, '%Y-%m-%d').date()
@@ -8966,6 +8979,11 @@ def income_expenditure():
 
     return render_template(
         'reports/income_expenditure.html',
+        view_mode=view_mode,
+        monthly_data=monthly_data,
+        company_name=company_name,
+        selected_year=selected_year,
+        available_years=monthly_data['available_years'],
         from_date=from_date.strftime('%Y-%m-%d'),
         to_date=to_date.strftime('%Y-%m-%d'),
         income_operating=income_operating,
@@ -8977,6 +8995,22 @@ def income_expenditure():
         total_expenditure=total_expenditure,
         net_surplus=net_surplus
     )
+
+@app.route('/reports/income-expenditure/export-excel')
+def export_income_expenditure_excel():
+    """
+    Exports the formatted Monthly Income & Expenditure / Receipts & Payments Statement
+    to Excel as per client Image 2.
+    """
+    year_param = request.args.get('year', type=int)
+    active_cid = session.get('active_company_id', 1)
+    company = CompanyManager.get_by_id(active_cid) if 'CompanyManager' in globals() else None
+    company_name = getattr(company, 'name', None) or "TBN BD LTD."
+
+    statement_data = monthly_statement_manager.get_statement_data(year=year_param, company_name=company_name)
+    wb = monthly_statement_manager.export_excel_workbook(statement_data)
+    filename = f"Income_Expenditure_Monthly_Statement_{statement_data['year']}_{date.today().strftime('%Y%m%d')}.xlsx"
+    return safe_excel_response(wb, filename)
 
 # 4. BALANCE SHEET
 @app.route('/reports/balance-sheet')

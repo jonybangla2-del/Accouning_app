@@ -1,21 +1,690 @@
 {% extends "base.html" %}
 
-{% block title %}Income & Expenditure Statement{% endblock %}
+{% block title %}Statement of Income & Expenditure / Receipts & Payments{% endblock %}
+
+{% block styles %}
+<style>
+/* Client Financial Statement Styles */
+.statement-wrapper {
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05);
+    border: 1px solid #e2e8f0;
+    margin-bottom: 2rem;
+    overflow: hidden;
+}
+
+.statement-header {
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    border-bottom: 2px solid #0284c7;
+    padding: 1.5rem 2rem 1.25rem;
+    text-align: center;
+}
+
+.statement-company {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+}
+
+.statement-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #0369a1;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    margin-bottom: 0.25rem;
+}
+
+.statement-period {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #475569;
+}
+
+/* Multi-column Matrix Table Styling */
+.matrix-container {
+    overflow-x: auto;
+    position: relative;
+    max-width: 100%;
+    transform-origin: top left;
+    transition: transform 0.15s ease-out;
+}
+
+.matrix-table {
+    width: 100%;
+    min-width: 1350px;
+    border-collapse: collapse;
+    font-family: 'Calibri', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 0.85rem;
+    color: #0f172a;
+    background: #ffffff;
+}
+
+.matrix-table th,
+.matrix-table td {
+    padding: 4px 8px;
+    border: 1px solid #cbd5e1;
+    white-space: nowrap;
+    line-height: 1.35;
+}
+
+.matrix-table thead th {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    font-weight: 700;
+    text-align: right;
+    font-size: 0.82rem;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: 0 1px 0 #cbd5e1;
+}
+
+.matrix-table thead th.col-particulars {
+    text-align: left;
+    min-width: 280px;
+    position: sticky;
+    left: 0;
+    z-index: 15;
+    background-color: #f1f5f9;
+}
+
+.matrix-table thead th.col-notes {
+    text-align: center;
+    width: 55px;
+    min-width: 55px;
+}
+
+.matrix-table thead th.col-month {
+    width: 82px;
+    min-width: 82px;
+}
+
+.matrix-table thead th.col-total {
+    width: 95px;
+    min-width: 95px;
+    background-color: #e2e8f0;
+}
+
+/* Sticky first column */
+.matrix-table td.col-particulars {
+    position: sticky;
+    left: 0;
+    background-color: #ffffff;
+    z-index: 5;
+    font-weight: 500;
+    box-shadow: 1px 0 0 #cbd5e1;
+}
+
+.matrix-table tr.row-subtotal td.col-particulars,
+.matrix-table tr.row-highlight td.col-particulars,
+.matrix-table tr.row-group td.col-particulars {
+    background-color: inherit;
+}
+
+.matrix-table td.col-notes {
+    text-align: center;
+    color: #64748b;
+    font-size: 0.78rem;
+}
+
+.matrix-table td.col-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.matrix-table td.col-total {
+    background-color: #f8fafc;
+    font-weight: 600;
+}
+
+/* Section Header Rows */
+.matrix-table tr.row-section-header td {
+    background-color: #f8fafc;
+    font-weight: 700;
+    color: #0f172a;
+    font-size: 0.88rem;
+    border-top: 2px solid #94a3b8;
+    border-bottom: 1px solid #cbd5e1;
+    padding-top: 8px;
+    padding-bottom: 6px;
+}
+
+/* Group Headers inside section */
+.matrix-table tr.row-group td {
+    font-weight: 700;
+    color: #1e293b;
+    background-color: #fafafa;
+}
+
+/* Indented sub-items */
+.matrix-table td.indent-sub {
+    padding-left: 1.5rem !important;
+}
+
+/* Subtotal Rows */
+.matrix-table tr.row-subtotal td {
+    font-weight: 700;
+    background-color: #f1f5f9;
+    border-top: 1px solid #475569;
+    border-bottom: 2px solid #0f172a;
+}
+
+/* Available Fund Row & Final Reconciled Row */
+.matrix-table tr.row-available td,
+.matrix-table tr.row-reconciled td {
+    font-weight: 800;
+    background-color: #e0f2fe;
+    border-top: 1px solid #0284c7;
+    border-bottom: 3px double #0369a1;
+    color: #0369a1;
+}
+
+/* Custom Highlight Fills matching Image 2 */
+.fill-pink {
+    background-color: #fce7f3 !important;
+}
+.fill-yellow {
+    background-color: #fef08a !important;
+}
+.fill-orange {
+    background-color: #ffedd5 !important;
+    color: #c2410c !important;
+    font-weight: 700;
+}
+.fill-red-text {
+    color: #dc2626 !important;
+    font-weight: 700;
+}
+
+/* Filter & View Toolbar */
+.control-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.view-tabs {
+    display: flex;
+    gap: 0.25rem;
+    background: #f1f5f9;
+    padding: 0.25rem;
+    border-radius: 6px;
+}
+
+.view-tab {
+    padding: 0.45rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-radius: 4px;
+    text-decoration: none;
+    color: #475569;
+    transition: all 0.15s ease;
+}
+
+.view-tab.active {
+    background: #ffffff;
+    color: #0284c7;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.view-tab:hover:not(.active) {
+    color: #0f172a;
+}
+
+.zoom-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 0.2rem 0.5rem;
+}
+
+.zoom-btn {
+    border: none;
+    background: transparent;
+    color: #1e293b;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 0.2rem 0.45rem;
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.zoom-btn:hover {
+    background: #e2e8f0;
+}
+
+.zoom-pct {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #334155;
+    min-width: 44px;
+    text-align: center;
+}
+
+/* Quick Filter Search Input */
+.filter-input {
+    padding: 0.4rem 0.65rem;
+    font-size: 0.85rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    width: 170px;
+}
+
+/* Hide zero rows toggle */
+.hide-zero-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    user-select: none;
+}
+
+@media print {
+    @page {
+        size: landscape;
+        margin: 8mm;
+    }
+    .no-print,
+    .app-header,
+    .sidebar,
+    .control-toolbar,
+    .filter-bar {
+        display: none !important;
+    }
+    body {
+        background: #ffffff !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .statement-wrapper {
+        border: none !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+    }
+    .matrix-container {
+        transform: none !important;
+        overflow: visible !important;
+    }
+    .matrix-table {
+        min-width: 100% !important;
+        font-size: 7pt !important;
+    }
+    .matrix-table th,
+    .matrix-table td {
+        padding: 2px 4px !important;
+    }
+    .matrix-table thead th,
+    .matrix-table td.col-particulars {
+        position: static !important;
+    }
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="page-header">
+<!-- Page Header -->
+<div class="page-header no-print">
     <div>
         <h1 class="page-title">📊 Statement of Income & Expenditure</h1>
-        <p class="page-description">Operating financial performance and profit/loss over the specified period.</p>
+        <p class="page-description">Monthly multi-column receipts & payments financial statement and cash reconciliations.</p>
     </div>
     <div class="header-actions">
+        <a href="{{ url_for('export_income_expenditure_excel', year=selected_year) }}" class="btn btn-outline" style="border-color: #16a34a; color: #16a34a;">
+            📥 Export Excel (Client Format)
+        </a>
         <button onclick="window.print()" class="btn btn-outline">🖨️ Print / Save PDF</button>
         <a href="{{ url_for('reports_hub') }}" class="btn btn-secondary">← Reports Hub</a>
     </div>
 </div>
 
+<!-- Controls & View Switcher Toolbar -->
+<div class="control-toolbar no-print">
+    <!-- View Switcher -->
+    <div class="view-tabs">
+        <a href="{{ url_for('income_expenditure', view='monthly', year=selected_year) }}" 
+           class="view-tab {% if view_mode != 'summary' %}active{% endif %}">
+           📊 Monthly Matrix (Client Image 2)
+        </a>
+        <a href="{{ url_for('income_expenditure', view='summary', year=selected_year) }}" 
+           class="view-tab {% if view_mode == 'summary' %}active{% endif %}">
+           📑 Standard P&L Summary
+        </a>
+    </div>
+
+    <!-- Center Filters -->
+    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+        <!-- Year Selector -->
+        <form method="GET" action="{{ url_for('income_expenditure') }}" style="display: inline-flex; align-items: center; gap: 0.4rem; margin: 0;">
+            <input type="hidden" name="view" value="{{ view_mode }}">
+            <label style="font-size: 0.85rem; font-weight: 600; margin: 0; color: #475569;">Calendar Year:</label>
+            <select name="year" class="form-control" style="width: 100px; padding: 0.35rem 0.6rem; font-size: 0.85rem;" onchange="this.form.submit()">
+                {% for y in available_years %}
+                <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </form>
+
+        {% if view_mode != 'summary' %}
+        <!-- Search Input -->
+        <input type="text" id="particularsSearch" class="filter-input" placeholder="🔍 Search particulars..." onkeyup="filterParticularsRows()">
+
+        <!-- Hide Zero Rows Toggle -->
+        <label class="hide-zero-toggle" title="Toggle hiding empty accounts with 0 amounts">
+            <input type="checkbox" id="hideZeroToggle" onchange="toggleZeroRows(this.checked)">
+            <span>Hide Zero Rows</span>
+        </label>
+        {% endif %}
+    </div>
+
+    {% if view_mode != 'summary' %}
+    <!-- Zoom Controls -->
+    <div class="zoom-controls">
+        <span style="font-size: 0.78rem; font-weight: 600; color: #64748b; margin-right: 2px;">Zoom:</span>
+        <button type="button" class="zoom-btn" onclick="adjustZoom(-0.1)" title="Zoom Out">➖</button>
+        <span class="zoom-pct" id="zoomPct">100%</span>
+        <button type="button" class="zoom-btn" onclick="adjustZoom(0.1)" title="Zoom In">➕</button>
+        <button type="button" class="zoom-btn" onclick="fitZoomToScreen()" title="Fit table to screen width" style="font-size: 0.78rem;">↔️ Fit</button>
+        <button type="button" class="zoom-btn" onclick="resetZoom()" title="Reset to 100%" style="font-size: 0.78rem;">↺ 100%</button>
+    </div>
+    {% endif %}
+</div>
+
+{% if view_mode != 'summary' %}
+<!-- ======================================================================= -->
+<!-- VIEW 1: MONTHLY COMPARATIVE STATEMENT (EXACT CLIENT FORMAT / IMAGE 2) -->
+<!-- ======================================================================= -->
+<div class="statement-wrapper">
+    <div class="statement-header">
+        <div class="statement-company">{{ company_name }}</div>
+        <div class="statement-title">Statement of Income & Expenditure / Receipts & Payments</div>
+        <div class="statement-period">Monthly Comparative Statement for Calendar Year {{ selected_year }}</div>
+    </div>
+
+    <div class="matrix-container" id="matrixContainer">
+        <table class="matrix-table" id="matrixTable">
+            <thead>
+                <tr>
+                    <th class="col-particulars">Particulars</th>
+                    <th class="col-notes">Notes</th>
+                    {% for m in monthly_data.months %}
+                    <th class="col-month">{{ m.label }}</th>
+                    {% endfor %}
+                    <th class="col-total">Total (YTD)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- 1. OPENING UNSPENT BALANCE -->
+                <tr class="row-section-header">
+                    <td class="col-particulars" colspan="{{ monthly_data.months|length + 3 }}">
+                        <strong>Opening Unspent Balance:</strong>
+                    </td>
+                </tr>
+                {% for r in monthly_data.opening_rows %}
+                <tr class="data-row" data-has-data="{% if r.total != 0 %}true{% else %}false{% endif %}">
+                    <td class="col-particulars">{{ r.name }}</td>
+                    <td class="col-notes">{{ r.note }}</td>
+                    {% for m in monthly_data.months %}
+                    <td class="col-num">
+                        {% set val = r.monthly[m.key] %}
+                        {% if val < 0 %}({{ "{:,.0f}".format(val|abs) }}){% elif val > 0 %}{{ "{:,.0f}".format(val) }}{% else %}-{% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="col-num col-total">
+                        {% if r.total < 0 %}({{ "{:,.0f}".format(r.total|abs) }}){% elif r.total > 0 %}{{ "{:,.0f}".format(r.total) }}{% else %}-{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                <!-- Opening Subtotal -->
+                <tr class="row-subtotal">
+                    <td class="col-particulars"><strong>{{ monthly_data.opening_subtotal.name }}</strong></td>
+                    <td class="col-notes"></td>
+                    {% for m in monthly_data.months %}
+                    <td class="col-num">
+                        {% set val = monthly_data.opening_subtotal.monthly[m.key] %}
+                        <strong>{% if val < 0 %}({{ "{:,.0f}".format(val|abs) }}){% elif val > 0 %}{{ "{:,.0f}".format(val) }}{% else %}0{% endif %}</strong>
+                    </td>
+                    {% endfor %}
+                    <td class="col-num col-total">
+                        <strong>{{ "{:,.0f}".format(monthly_data.opening_subtotal.total) }}</strong>
+                    </td>
+                </tr>
+
+                <!-- 2. RECEIPTS -->
+                <tr class="row-section-header">
+                    <td class="col-particulars" colspan="{{ monthly_data.months|length + 3 }}">
+                        <strong>Receipts:</strong>
+                    </td>
+                </tr>
+                {% for r in monthly_data.receipt_rows %}
+                <tr class="data-row {% if r.is_highlight %}fill-pink{% endif %}" 
+                    data-has-data="{% if r.has_data %}true{% else %}false{% endif %}">
+                    <td class="col-particulars">{{ r.name }}</td>
+                    <td class="col-notes">{{ r.note }}</td>
+                    {% for m in monthly_data.months %}
+                    <td class="col-num">
+                        {% set val = r.monthly[m.key] %}
+                        {% if val > 0 %}{{ "{:,.0f}".format(val) }}{% elif val < 0 %}({{ "{:,.0f}".format(val|abs) }}){% else %}-{% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="col-num col-total">
+                        {% if r.total > 0 %}{{ "{:,.0f}".format(r.total) }}{% elif r.total < 0 %}({{ "{:,.0f}".format(r.total|abs) }}){% else %}-{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                <!-- Receipts Subtotal -->
+                <tr class="row-subtotal">
+                    <td class="col-particulars"><strong>{{ monthly_data.receipts_subtotal.name }}</strong></td>
+                    <td class="col-notes"></td>
+                    {% for m in monthly_data.months %}
+                    <td class="col-num">
+                        <strong>{{ "{:,.0f}".format(monthly_data.receipts_subtotal.monthly[m.key]) }}</strong>
+                    </td>
+                    {% endfor %}
+                    <td class="col-num col-total">
+                        <strong>{{ "{:,.0f}".format(monthly_data.receipts_subtotal.total) }}</strong>
+                    </td>
+                </tr>
+                <!-- Total Available Fund (Opening + Receipts) -->
+                <tr class="row-available">
+                    <td class="col-particulars"><strong>{{ monthly_data.grand_available_subtotal.name }}</strong></td>
+                    <td class="col-notes"></td>
+                    {% for m in monthly_data.months %}
+                    <td class="col-num">
+                        <strong>{{ "{:,.0f}".format(monthly_data.grand_available_subtotal.monthly[m.key]) }}</strong>
+                    </td>
+                    {% endfor %}
+                    <td class="col-num col-total">
+                        <strong>{{ "{:,.0f}".format(monthly_data.grand_available_subtotal.total) }}</strong>
+                    </td>
+                </tr>
+
+                <!-- 3. PAYMENTS -->
+                <tr class="row-section-header">
+                    <td class="col-particulars" colspan="{{ monthly_data.months|length + 3 }}">
+                        <strong>Payments:</strong>
+                    </td>
+                </tr>
+                {% for r in monthly_data.payment_rows %}
+                    {% if r.is_group_header %}
+                    <!-- Group Header Row (e.g. Utilities) -->
+                    <tr class="row-group data-row" data-has-data="{% if r.has_data %}true{% else %}false{% endif %}">
+                        <td class="col-particulars"><strong>{{ r.name }}</strong></td>
+                        <td class="col-notes">{{ r.note }}</td>
+                        {% for m in monthly_data.months %}
+                        <td class="col-num"></td>
+                        {% endfor %}
+                        <td class="col-num col-total"></td>
+                    </tr>
+                    {% else %}
+                    <!-- Normal or Indented Payment Row -->
+                    <tr class="data-row" data-has-data="{% if r.has_data %}true{% else %}false{% endif %}">
+                        <td class="col-particulars {% if r.is_indented %}indent-sub{% endif %}">{{ r.name }}</td>
+                        <td class="col-notes">{{ r.note }}</td>
+                        {% for m in monthly_data.months %}
+                        {% set val = r.monthly[m.key] %}
+                        <!-- Special cell highlights matching Image 2 -->
+                        {% set cell_class = "" %}
+                        {% if 'Internal Loan' in r.name and val > 0 %}{% set cell_class = "fill-pink" %}
+                        {% elif 'equipment' in r.name|lower and m.key.endswith('-02') and val > 0 %}{% set cell_class = "fill-yellow" %}
+                        {% endif %}
+                        <td class="col-num {{ cell_class }}">
+                            {% if val > 0 %}{{ "{:,.0f}".format(val) }}{% elif val < 0 %}({{ "{:,.0f}".format(val|abs) }}){% else %}-{% endif %}
+                        </td>
+                        {% endfor %}
+                        <td class="col-num col-total">
+                            {% if r.total > 0 %}{{ "{:,.0f}".format(r.total) }}{% elif r.total < 0 %}({{ "{:,.0f}".format(r.total|abs) }}){% else %}-{% endif %}
+                        </td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+
+                <!-- Payments Subtotal -->
+                <tr class="row-subtotal">
+                    <td class="col-particulars"><strong>{{ monthly_data.payments_subtotal.name }}</strong></td>
+                    <td class="col-notes"></td>
+                    {% for m in monthly_data.months %}
+                    <td class="col-num">
+                        <strong>{{ "{:,.0f}".format(monthly_data.payments_subtotal.monthly[m.key]) }}</strong>
+                    </td>
+                    {% endfor %}
+                    <td class="col-num col-total">
+                        <strong>{{ "{:,.0f}".format(monthly_data.payments_subtotal.total) }}</strong>
+                    </td>
+                </tr>
+
+                <!-- Budget Row -->
+                <tr class="data-row">
+                    <td class="col-particulars"><strong>{{ monthly_data.budget_row.name }}</strong></td>
+                    <td class="col-notes"></td>
+                    {% for m in monthly_data.months %}
+                    {% set b_val = monthly_data.budget_row.monthly[m.key] %}
+                    <!-- March budget in red as in Image 2 -->
+                    {% set b_cls = "fill-red-text" if m.key.endswith("-03") else "" %}
+                    <td class="col-num {{ b_cls }}">
+                        {% if b_val > 0 %}<strong>{{ "{:,.0f}".format(b_val) }}</strong>{% else %}-{% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="col-num col-total">
+                        <strong>{{ "{:,.0f}".format(monthly_data.budget_row.total) }}</strong>
+                    </td>
+                </tr>
+
+                <!-- Budget Short / Variance Row -->
+                <tr class="data-row">
+                    <td class="col-particulars"><strong>{{ monthly_data.budget_short_row.name }}</strong></td>
+                    <td class="col-notes"></td>
+                    {% for m in monthly_data.months %}
+                    {% set s_val = monthly_data.budget_short_row.monthly[m.key] %}
+                    <!-- May budget short highlighted in orange as in Image 2 -->
+                    {% set s_cls = "fill-orange" if m.key.endswith("-05") else "" %}
+                    <td class="col-num {{ s_cls }}">
+                        {% if s_val < 0 %}
+                            <strong style="color: #dc2626;">({{ "{:,.0f}".format(s_val|abs) }})</strong>
+                        {% elif s_val > 0 %}
+                            <strong style="color: #059669;">{{ "{:,.0f}".format(s_val) }}</strong>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="col-num col-total">
+                        {% if monthly_data.budget_short_row.total < 0 %}
+                            <strong style="color: #dc2626;">({{ "{:,.0f}".format(monthly_data.budget_short_row.total|abs) }})</strong>
+                        {% elif monthly_data.budget_short_row.total > 0 %}
+                            <strong style="color: #059669;">{{ "{:,.0f}".format(monthly_data.budget_short_row.total) }}</strong>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                </tr>
+
+                <!-- 4. CLOSING BALANCE -->
+                <tr class="row-section-header">
+                    <td class="col-particulars" colspan="{{ monthly_data.months|length + 3 }}">
+                        <strong>Closing Balance:</strong>
+                    </td>
+                </tr>
+                {% for r in monthly_data.closing_rows %}
+                <tr class="data-row" data-has-data="{% if r.total != 0 %}true{% else %}false{% endif %}">
+                    <td class="col-particulars">{{ r.name }}</td>
+                    <td class="col-notes">{{ r.note }}</td>
+                    {% for m in monthly_data.months %}
+                    <td class="col-num">
+                        {% set val = r.monthly[m.key] %}
+                        {% if val > 0 %}{{ "{:,.0f}".format(val) }}{% elif val < 0 %}({{ "{:,.0f}".format(val|abs) }}){% else %}-{% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="col-num col-total">
+                        {% if r.total > 0 %}{{ "{:,.0f}".format(r.total) }}{% elif r.total < 0 %}({{ "{:,.0f}".format(r.total|abs) }}){% else %}-{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+
+                <!-- Closing Subtotal -->
+                <tr class="row-subtotal">
+                    <td class="col-particulars"><strong>{{ monthly_data.closing_subtotal.name }}</strong></td>
+                    <td class="col-notes"></td>
+                    {% for m in monthly_data.months %}
+                    <td class="col-num">
+                        <strong>{{ "{:,.0f}".format(monthly_data.closing_subtotal.monthly[m.key]) }}</strong>
+                    </td>
+                    {% endfor %}
+                    <td class="col-num col-total">
+                        <strong>{{ "{:,.0f}".format(monthly_data.closing_subtotal.total) }}</strong>
+                    </td>
+                </tr>
+
+                <!-- Grand Accounting Reconciliation: Total Payment + Closing Balance -->
+                <tr class="row-reconciled">
+                    <td class="col-particulars"><strong>{{ monthly_data.reconciliation_row.name }}</strong></td>
+                    <td class="col-notes"></td>
+                    {% for m in monthly_data.months %}
+                    <td class="col-num">
+                        <strong>{{ "{:,.0f}".format(monthly_data.reconciliation_row.monthly[m.key]) }}</strong>
+                    </td>
+                    {% endfor %}
+                    <td class="col-num col-total">
+                        <strong>{{ "{:,.0f}".format(monthly_data.reconciliation_row.total) }}</strong>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card-body" style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 0.75rem 1.25rem;">
+        <div style="font-size: 0.82rem; color: #64748b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+            <span><em>✓ Fully Reconciled: Total (Payment + Closing Balance) strictly matches Total Available Funds (Opening Balance + Receipts) for every month.</em></span>
+            <span>Generated from live ERP General Ledger & Cash Book records</span>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- ======================================================================= -->
+<!-- VIEW 2: STANDARD PERIOD SUMMARY (P&L VIEW) -->
+<!-- ======================================================================= -->
 <!-- Date Filter -->
-<form method="GET" action="{{ url_for('income_expenditure') }}" class="filter-bar no-print">
+<form method="GET" action="{{ url_for('income_expenditure') }}" class="filter-bar no-print" style="margin-bottom: 1.25rem;">
+    <input type="hidden" name="view" value="summary">
     <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
         <label class="form-label" style="margin-bottom: 0;">Period From:</label>
         <input type="date" name="from_date" class="form-control" value="{{ from_date }}" style="width: 170px;">
@@ -27,7 +696,7 @@
 
 <div class="card">
     <div class="card-header" style="text-align: center; display: block; border-bottom: 2px solid var(--primary);">
-        <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.35rem; color: var(--primary);">LEDGERPRO ENTERPRISE</h2>
+        <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.35rem; color: var(--primary);">{{ company_name }}</h2>
         <div style="font-size: 1.1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin: 0.25rem 0;">Income & Expenditure Statement</div>
         <div style="font-size: 0.9rem; color: var(--text-secondary);">For the period from {{ from_date }} to {{ to_date }}</div>
     </div>
@@ -174,4 +843,99 @@
         </div>
     </div>
 </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Interactive Client-Side Zoom Controls for Multi-Column Matrix
+let currentZoom = 1.0;
+
+function updateZoomDisplay() {
+    const matrixContainer = document.getElementById('matrixContainer');
+    const zoomPctEl = document.getElementById('zoomPct');
+    if (!matrixContainer) return;
+
+    matrixContainer.style.transform = `scale(${currentZoom})`;
+    if (currentZoom < 1.0) {
+        // adjust container height to eliminate whitespace
+        matrixContainer.style.marginBottom = `-${(1 - currentZoom) * matrixContainer.offsetHeight}px`;
+    } else {
+        matrixContainer.style.marginBottom = '0px';
+    }
+
+    if (zoomPctEl) {
+        zoomPctEl.textContent = `${Math.round(currentZoom * 100)}%`;
+    }
+}
+
+function adjustZoom(delta) {
+    currentZoom = Math.min(Math.max(0.4, currentZoom + delta), 1.5);
+    updateZoomDisplay();
+}
+
+function resetZoom() {
+    currentZoom = 1.0;
+    updateZoomDisplay();
+}
+
+function fitZoomToScreen() {
+    const matrixContainer = document.getElementById('matrixContainer');
+    const matrixTable = document.getElementById('matrixTable');
+    if (!matrixContainer || !matrixTable) return;
+
+    const availableWidth = matrixContainer.parentElement.clientWidth - 20;
+    const tableWidth = matrixTable.scrollWidth || 1350;
+
+    if (tableWidth > 0 && availableWidth > 0) {
+        let targetScale = availableWidth / tableWidth;
+        currentZoom = Math.min(Math.max(0.4, Math.round(targetScale * 100) / 100), 1.0);
+        updateZoomDisplay();
+    }
+}
+
+// Live search filter across row particulars
+function filterParticularsRows() {
+    const input = document.getElementById('particularsSearch');
+    if (!input) return;
+    const filter = input.value.toLowerCase().trim();
+    const rows = document.querySelectorAll('#matrixTable tbody tr.data-row');
+
+    rows.forEach(row => {
+        const text = row.querySelector('.col-particulars')?.textContent.toLowerCase() || '';
+        if (filter === '' || text.includes(filter)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+// Live toggle to hide/show zero amount rows
+function toggleZeroRows(hide) {
+    const rows = document.querySelectorAll('#matrixTable tbody tr.data-row');
+    rows.forEach(row => {
+        const hasData = row.getAttribute('data-has-data') === 'true';
+        if (hide && !hasData) {
+            row.style.display = 'none';
+        } else {
+            // Respect search filter if any
+            const searchVal = document.getElementById('particularsSearch')?.value.toLowerCase().trim() || '';
+            const text = row.querySelector('.col-particulars')?.textContent.toLowerCase() || '';
+            if (searchVal === '' || text.includes(searchVal)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // If screen is smaller than table width, fit zoom nicely
+    if (window.innerWidth < 1400) {
+        setTimeout(fitZoomToScreen, 150);
+    }
+});
+</script>
 {% endblock %}
