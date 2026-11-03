@@ -17506,16 +17506,361 @@ def export_attendance_excel():
 @app.route('/attendance/employee/<int:emp_id>')
 @login_required
 def employee_attendance_card(emp_id):
-    employee = Employee.query.get_or_404(emp_id)
-    records = EmployeeAttendance.query.filter_by(employee_id=emp_id).order_by(EmployeeAttendance.attendance_date.desc()).limit(60).all()
-    raw_punches = BiometricPunchLog.query.filter_by(employee_id=emp_id).order_by(BiometricPunchLog.punch_time.desc()).limit(100).all()
+    employee = Employee.query.get(emp_id)
+    if not employee:
+        employee = Employee.query.filter_by(employee_id=str(emp_id)).first()
+    if not employee:
+        abort(404)
+
+    # Available years list
+    current_year = date.today().year
+    year_options = sorted(list(set([2024, 2025, 2026, 2027, current_year])))
+
+    # Months list
+    months_list = [
+        (1, 'January'), (2, 'February'), (3, 'March'), (4, 'April'),
+        (5, 'May'), (6, 'June'), (7, 'July'), (8, 'August'),
+        (9, 'September'), (10, 'October'), (11, 'November'), (12, 'December')
+    ]
+    month_name_dict = dict(months_list)
+
+    # Determine default year and month: check latest attendance record for this employee
+    latest_rec = EmployeeAttendance.query.filter_by(employee_id=employee.id).order_by(EmployeeAttendance.attendance_date.desc()).first()
+    default_year = latest_rec.attendance_date.year if latest_rec else current_year
+    default_month = latest_rec.attendance_date.month if latest_rec else date.today().month
+
+    try:
+        selected_year = int(request.args.get('year', default_year))
+    except (ValueError, TypeError):
+        selected_year = default_year
+
+    try:
+        selected_month = int(request.args.get('month', default_month))
+        if selected_month < 1 or selected_month > 12:
+            selected_month = default_month
+    except (ValueError, TypeError):
+        selected_month = default_month
+
+    sort_order = request.args.get('sort', 'asc')  # 'asc' = 1 to 31, 'desc' = 31 to 1
+
+    # Date range for selected month
+    import calendar
+    days_in_month = calendar.monthrange(selected_year, selected_month)[1]
+    m_start = date(selected_year, selected_month, 1)
+    m_end = date(selected_year, selected_month, days_in_month)
+
+    # Fetch attendance records in this month
+    month_attendances = EmployeeAttendance.query.filter(
+        EmployeeAttendance.employee_id == employee.id,
+        EmployeeAttendance.attendance_date >= m_start,
+        EmployeeAttendance.attendance_date <= m_end
+    ).order_by(EmployeeAttendance.attendance_date.asc()).all()
+
+    # Map records by date (list per date to handle multiple shifts if any)
+    att_by_date = {}
+    for r in month_attendances:
+        att_by_date.setdefault(r.attendance_date, []).append(r)
+
+    # Fetch Govt Holidays for the selected month
+    from govt_holiday_manager import govt_holiday_manager
+    holiday_map = govt_holiday_manager.get_holiday_map_for_month(selected_year, selected_month)
+
+    # Calculate KPIs for the selected month
+    kpi_present_shifts = 0
+    kpi_holidays_total = len(set(h.id for h in holiday_map.values()))
+    kpi_holidays_worked = 0
+    kpi_weekends = 0
+    kpi_absent = 0
+    kpi_total_hours = 0.0
+    kpi_total_ot = 0.0
+    kpi_night_duties = 0
+    kpi_day_duties = 0
+    kpi_double_duties = 0
+    kpi_late_days = 0
+
+    today = date.today()
+
+    # Build the full monthly daily report
+    month_days = []
+    day_numbers = range(1, days_in_month + 1) if sort_order == 'asc' else range(days_in_month, 0, -1)
+
+    for d in day_numbers:
+        cur_date = date(selected_year, selected_month, d)
+        weekday = cur_date.weekday()  # 4 is Friday
+        is_friday = (weekday == 4)
+        h_obj = holiday_map.get(cur_date)
+        is_holiday = (h_obj is not None)
+        recs = att_by_date.get(cur_date, [])
+
+        if recs:
+            for rec in recs:
+                kpi_present_shifts += 1
+                hrs = rec.total_hours or 0.0
+                ot = rec.overtime_hours or 0.0
+                kpi_total_hours += hrs
+                kpi_total_ot += ot
+
+                if 'Late' in (rec.status or ''):
+                    kpi_late_days += 1
+
+                if rec.is_night_shift or ('Night' in (rec.shift_type or '')):
+                    kpi_night_duties += 1
+                elif 'Double' in (rec.shift_type or ''):
+                    kpi_double_duties += 1
+                else:
+                    kpi_day_duties += 1
+
+                if is_holiday:
+                    kpi_holidays_worked += 1
+                    row_type = 'holiday_duty'
+                    display_status = f"Holiday Duty: {h_obj.name}"
+                    ai_text = f"🏛️ Govt Holiday Duty: Worked on official gazette holiday '{h_obj.name}'." + (f" {rec.ai_analysis}" if rec.ai_analysis else "")
+                else:
+                    row_type = 'worked'
+                    display_status = rec.status
+                    ai_text = rec.ai_analysis or 'Standard automated biometric pairing'
+
+                month_days.append({
+                    'date': cur_date,
+                    'day_num': d,
+                    'weekday_name': cur_date.strftime('%a'),
+                    'full_day_name': cur_date.strftime('%A'),
+                    'record': rec,
+                    'is_holiday': is_holiday,
+                    'holiday_obj': h_obj,
+                    'holiday_name': h_obj.name if is_holiday else '',
+                    'is_weekend': is_friday,
+                    'is_future': (cur_date > today),
+                    'shift_type': rec.shift_type,
+                    'in_time': rec.in_time,
+                    'out_time': rec.out_time,
+                    'total_hours': hrs,
+                    'overtime_hours': ot,
+                    'is_cross_day': rec.is_cross_day,
+                    'is_night_shift': rec.is_night_shift,
+                    'manual_override': rec.manual_override,
+                    'status': display_status,
+                    'ai_analysis': ai_text,
+                    'row_type': row_type
+                })
+        else:
+            # No duty logged for this day
+            if is_holiday:
+                month_days.append({
+                    'date': cur_date,
+                    'day_num': d,
+                    'weekday_name': cur_date.strftime('%a'),
+                    'full_day_name': cur_date.strftime('%A'),
+                    'record': None,
+                    'is_holiday': True,
+                    'holiday_obj': h_obj,
+                    'holiday_name': h_obj.name,
+                    'is_weekend': is_friday,
+                    'is_future': (cur_date > today),
+                    'shift_type': f"Govt Holiday: {h_obj.name}",
+                    'in_time': None,
+                    'out_time': None,
+                    'total_hours': 0.0,
+                    'overtime_hours': 0.0,
+                    'is_cross_day': False,
+                    'is_night_shift': False,
+                    'manual_override': False,
+                    'status': 'Govt Holiday (Paid)',
+                    'ai_analysis': f"🏛️ Official Government Gazette Holiday: {h_obj.name} ({h_obj.holiday_type or 'General Holiday'}). Non-working paid holiday.",
+                    'row_type': 'govt_holiday'
+                })
+            elif is_friday:
+                kpi_weekends += 1
+                month_days.append({
+                    'date': cur_date,
+                    'day_num': d,
+                    'weekday_name': cur_date.strftime('%a'),
+                    'full_day_name': cur_date.strftime('%A'),
+                    'record': None,
+                    'is_holiday': False,
+                    'holiday_obj': None,
+                    'holiday_name': '',
+                    'is_weekend': True,
+                    'is_future': (cur_date > today),
+                    'shift_type': 'Weekly Weekend (Friday)',
+                    'in_time': None,
+                    'out_time': None,
+                    'total_hours': 0.0,
+                    'overtime_hours': 0.0,
+                    'is_cross_day': False,
+                    'is_night_shift': False,
+                    'manual_override': False,
+                    'status': 'Weekend (Off)',
+                    'ai_analysis': 'Standard corporate weekly rest day (Friday).',
+                    'row_type': 'weekend'
+                })
+            elif cur_date > today:
+                month_days.append({
+                    'date': cur_date,
+                    'day_num': d,
+                    'weekday_name': cur_date.strftime('%a'),
+                    'full_day_name': cur_date.strftime('%A'),
+                    'record': None,
+                    'is_holiday': False,
+                    'holiday_obj': None,
+                    'holiday_name': '',
+                    'is_weekend': False,
+                    'is_future': True,
+                    'shift_type': 'Upcoming',
+                    'in_time': None,
+                    'out_time': None,
+                    'total_hours': 0.0,
+                    'overtime_hours': 0.0,
+                    'is_cross_day': False,
+                    'is_night_shift': False,
+                    'manual_override': False,
+                    'status': 'Upcoming',
+                    'ai_analysis': 'Upcoming scheduled calendar date.',
+                    'row_type': 'future'
+                })
+            else:
+                kpi_absent += 1
+                month_days.append({
+                    'date': cur_date,
+                    'day_num': d,
+                    'weekday_name': cur_date.strftime('%a'),
+                    'full_day_name': cur_date.strftime('%A'),
+                    'record': None,
+                    'is_holiday': False,
+                    'holiday_obj': None,
+                    'holiday_name': '',
+                    'is_weekend': False,
+                    'is_future': False,
+                    'shift_type': 'No Duty Logged',
+                    'in_time': None,
+                    'out_time': None,
+                    'total_hours': 0.0,
+                    'overtime_hours': 0.0,
+                    'is_cross_day': False,
+                    'is_night_shift': False,
+                    'manual_override': False,
+                    'status': 'Absent',
+                    'ai_analysis': 'No biometric face recognition punch detected for this working day.',
+                    'row_type': 'absent'
+                })
+
+    # Standard BD HR Payable Days calculation = Days Worked + Paid Govt Holidays (off) + Weekends
+    paid_holidays_off = max(0, kpi_holidays_total - kpi_holidays_worked)
+    kpi_payable_days = kpi_present_shifts + paid_holidays_off + kpi_weekends
+
+    # All Recent 60 Shifts (with Govt Holidays annotated)
+    recent_all_records = EmployeeAttendance.query.filter_by(employee_id=employee.id).order_by(EmployeeAttendance.attendance_date.desc()).limit(60).all()
+    recent_years = list({r.attendance_date.year for r in recent_all_records} | {selected_year})
+    all_year_holidays = GovtHoliday.query.filter(GovtHoliday.year.in_(recent_years)).all() if recent_years else []
+    all_holiday_map = {}
+    for h in all_year_holidays:
+        c_date = h.holiday_date
+        e_date = h.end_date or h.holiday_date
+        while c_date <= e_date:
+            all_holiday_map[c_date] = h
+            c_date += timedelta(days=1)
+
+    annotated_recent_records = []
+    for r in recent_all_records:
+        h = all_holiday_map.get(r.attendance_date)
+        annotated_recent_records.append({
+            'record': r,
+            'is_govt_holiday': (h is not None),
+            'holiday_name': h.name if h else ''
+        })
+
+    # Raw biometric punch logs (Tab 3)
+    raw_punches = BiometricPunchLog.query.filter_by(employee_id=employee.id).order_by(BiometricPunchLog.punch_time.desc()).limit(100).all()
+
+    month_kpis = {
+        'total_days': days_in_month,
+        'present_days': kpi_present_shifts,
+        'govt_holidays': kpi_holidays_total,
+        'govt_holidays_worked': kpi_holidays_worked,
+        'weekends': kpi_weekends,
+        'absent_days': kpi_absent,
+        'payable_days': kpi_payable_days,
+        'total_hours': round(kpi_total_hours, 1),
+        'total_ot': round(kpi_total_ot, 1),
+        'night_duties': kpi_night_duties,
+        'day_duties': kpi_day_duties,
+        'double_duties': kpi_double_duties,
+        'late_days': kpi_late_days
+    }
 
     return render_template(
         'attendance/employee_card.html',
         employee=employee,
-        records=records,
+        selected_year=selected_year,
+        selected_month=selected_month,
+        selected_month_name=month_name_dict.get(selected_month, ''),
+        year_options=year_options,
+        months_list=months_list,
+        sort_order=sort_order,
+        month_days=month_days,
+        month_kpis=month_kpis,
+        annotated_recent_records=annotated_recent_records,
+        records=recent_all_records,
         raw_punches=raw_punches
     )
+
+
+@app.route('/attendance/add-manual', methods=['POST'])
+@login_required
+def add_attendance_manual_ajax():
+    data = request.get_json() or {}
+    emp_id = data.get('employee_id')
+    date_str = data.get('attendance_date')
+    in_str = data.get('in_time')
+    out_str = data.get('out_time')
+    shift_type = data.get('shift_type', 'Day Shift')
+    status = data.get('status', 'Present')
+    remarks = data.get('remarks', 'Manual duty record entered by admin')
+
+    try:
+        employee = Employee.query.get(emp_id) or Employee.query.filter_by(employee_id=str(emp_id)).first()
+        if not employee:
+            return jsonify({'status': 'error', 'message': 'Employee not found'}), 404
+
+        att_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
+
+        in_time = None
+        if in_str:
+            in_time = datetime.strptime(in_str, '%Y-%m-%d %H:%M') if len(in_str) == 16 else datetime.strptime(in_str, '%Y-%m-%d %H:%M:%S')
+        out_time = None
+        if out_str:
+            out_time = datetime.strptime(out_str, '%Y-%m-%d %H:%M') if len(out_str) == 16 else datetime.strptime(out_str, '%Y-%m-%d %H:%M:%S')
+
+        total_hours = 0.0
+        overtime_hours = 0.0
+        is_cross_day = False
+        if in_time and out_time:
+            dur = (out_time - in_time).total_seconds() / 3600.0
+            total_hours = round(dur, 2)
+            is_cross_day = (out_time.date() > in_time.date())
+            overtime_hours = max(0.0, round(dur - 8.0, 2))
+
+        att = EmployeeAttendance(
+            employee_id=employee.id,
+            attendance_date=att_date,
+            in_time=in_time,
+            out_time=out_time,
+            total_hours=total_hours,
+            overtime_hours=overtime_hours,
+            shift_type=shift_type,
+            status=status,
+            is_night_shift=('Night' in shift_type),
+            is_cross_day=is_cross_day,
+            ai_analysis=f"Manual attendance override: {remarks}",
+            manual_override=True,
+            remarks=remarks
+        )
+        db.session.add(att)
+        db.session.commit()
+        return jsonify({'status': 'success', 'message': 'Attendance recorded successfully', 'id': att.id})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 400
 
 
 @app.route('/attendance/edit/<int:att_id>', methods=['POST'])

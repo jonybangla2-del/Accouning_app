@@ -157,7 +157,7 @@
                                 <span class="emp-id-badge">{{ emp.employee_id }}</span>
                             </td>
                             <td class="sticky-col col-name">
-                                <a href="{{ url_for('employee_attendance_card', emp_id=emp.id) }}" class="emp-name-link" title="View Duty Profile">
+                                <a href="{{ url_for('employee_attendance_card', emp_id=emp.id, year=year, month=month) }}" class="emp-name-link" title="View Duty Profile">
                                     {{ emp.name }}
                                 </a>
                                 {% if emp.designation %}
@@ -234,7 +234,7 @@
                                 {% endif %}
                             </td>
                             <td class="summary-col col-action">
-                                <a href="{{ url_for('employee_attendance_card', emp_id=emp.id) }}" class="btn-view-card" title="View Duty Profile">
+                                <a href="{{ url_for('employee_attendance_card', emp_id=emp.id, year=year, month=month) }}" class="btn-view-card" title="View Duty Profile">
                                     👤
                                 </a>
                             </td>

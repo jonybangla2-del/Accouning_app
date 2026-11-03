@@ -1,0 +1,1680 @@
+{% extends "base.html" %}
+
+{% block title %}Monthly Attendance Report & Duty Profile - {{ employee.name }} ({{ selected_month_name }} {{ selected_year }}) &bull; ZR-ERP{% endblock %}
+
+{% block content %}
+<div class="card-container">
+
+    <!-- Top Action / Breadcrumb Bar (Hidden on Print) -->
+    <div class="profile-top-bar no-print">
+        <div class="top-nav-links">
+            <a href="{{ url_for('attendance_dashboard') }}" class="btn-back">⬅ Date-wise Dashboard</a>
+            <a href="{{ url_for('attendance_month_matrix', year=selected_year, month=selected_month) }}" class="btn-back">📅 Monthly 31-Day Matrix</a>
+            <a href="{{ url_for('employee_profile', emp_id=employee.id) }}" class="btn-back">👤 Full Employee File</a>
+        </div>
+        <div class="top-badge">
+            <span class="pulsing-dot"></span>
+            <span>BIOMETRIC DUTY CARD &bull; AI ROSTER</span>
+        </div>
+    </div>
+
+    <!-- Print-Only Executive Header -->
+    <div class="print-only-header">
+        <div class="print-header-top">
+            <div class="print-brand">
+                <h2>TBN BD LTD &bull; ENTERPRISE ACCOUNTING &amp; HR</h2>
+                <div class="print-doc-title">EMPLOYEE MONTHLY ATTENDANCE REGISTER &amp; DUTY REPORT</div>
+                <div class="print-sub-period">For the Period: <strong>{{ selected_month_name }} {{ selected_year }}</strong> ({{ month_kpis.total_days }} Calendar Days)</div>
+            </div>
+            <div class="print-meta-box">
+                <div><strong>Generated:</strong> {{ get_bst_now().strftime('%d %b, %Y %I:%M %p') if get_bst_now is defined else '' }}</div>
+                <div><strong>System:</strong> ZR-ERP Biometric AI Roster</div>
+            </div>
+        </div>
+
+        <div class="print-emp-grid">
+            <div><span>Employee ID:</span> <strong>{{ employee.employee_id }}</strong></div>
+            <div><span>Employee Name:</span> <strong>{{ employee.name }}</strong></div>
+            <div><span>Department:</span> <strong>{{ employee.department or 'General' }}</strong></div>
+            <div><span>Designation:</span> <strong>{{ employee.designation or 'Staff' }}</strong></div>
+            <div><span>Contact Phone:</span> <strong>{{ employee.phone or '-' }}</strong></div>
+            <div><span>Date of Joining:</span> <strong>{{ employee.joining_date.strftime('%d %b, %Y') if employee.joining_date else '-' }}</strong></div>
+        </div>
+
+        <div class="print-kpi-summary-table">
+            <table class="print-table-kpi">
+                <tr>
+                    <th>Total Days</th>
+                    <th>Days Present</th>
+                    <th>Govt Holidays (Paid)</th>
+                    <th>Weekly Weekends</th>
+                    <th>Total Payable Days</th>
+                    <th>Day Duties</th>
+                    <th>Night Duties</th>
+                    <th>Total Duty Hours</th>
+                    <th>Overtime (OT)</th>
+                </tr>
+                <tr>
+                    <td><strong>{{ month_kpis.total_days }}</strong></td>
+                    <td class="text-success"><strong>{{ month_kpis.present_days }}</strong></td>
+                    <td class="text-holiday"><strong>{{ month_kpis.govt_holidays }}</strong></td>
+                    <td><strong>{{ month_kpis.weekends }}</strong></td>
+                    <td class="text-payable"><strong>{{ month_kpis.payable_days }}</strong></td>
+                    <td>{{ month_kpis.day_duties }}</td>
+                    <td>{{ month_kpis.night_duties }}</td>
+                    <td>{{ month_kpis.total_hours }}h</td>
+                    <td class="text-warning"><strong>+{{ month_kpis.total_ot }}h</strong></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- Employee Header Profile Card (Screen View) -->
+    <div class="emp-profile-header">
+        <div class="emp-avatar-box">
+            <div class="emp-avatar-circle">
+                {{ employee.name[:2]|upper }}
+            </div>
+        </div>
+
+        <div class="emp-main-info">
+            <div class="emp-id-tag">EMP ID: {{ employee.employee_id }}</div>
+            <h1 class="emp-name">{{ employee.name }}</h1>
+            <div class="emp-meta-row">
+                <span class="meta-item">🏢 <strong>Dept:</strong> {{ employee.department or 'General' }}</span>
+                <span class="meta-item">💼 <strong>Designation:</strong> {{ employee.designation or 'Staff' }}</span>
+                <span class="meta-item">📞 <strong>Phone:</strong> {{ employee.phone or '-' }}</span>
+                <span class="meta-item">📅 <strong>Joined:</strong> {{ employee.joining_date.strftime('%d %b, %Y') if employee.joining_date else '-' }}</span>
+            </div>
+        </div>
+
+        <!-- Monthly KPI Stack -->
+        <div class="emp-kpi-stack">
+            <div class="kpi-mini-card">
+                <span class="kpi-mini-label">Selected Month</span>
+                <span class="kpi-mini-val text-white" style="font-size: 1.05rem;">{{ selected_month_name[:3] }} {{ selected_year }}</span>
+                <span class="kpi-sub-text">{{ month_kpis.total_days }} Days</span>
+            </div>
+            <div class="kpi-mini-card">
+                <span class="kpi-mini-label">Present</span>
+                <span class="kpi-mini-val text-info">{{ month_kpis.present_days }}</span>
+                <span class="kpi-sub-text">Duty Shifts</span>
+            </div>
+            <div class="kpi-mini-card kpi-card-holiday">
+                <span class="kpi-mini-label text-amber">Govt Holidays</span>
+                <span class="kpi-mini-val text-amber">🏛️ {{ month_kpis.govt_holidays }}</span>
+                <span class="kpi-sub-text text-amber" style="opacity: 0.9;">Paid Gazette</span>
+            </div>
+            <div class="kpi-mini-card">
+                <span class="kpi-mini-label">Weekends</span>
+                <span class="kpi-mini-val text-muted">{{ month_kpis.weekends }}</span>
+                <span class="kpi-sub-text">Fridays Off</span>
+            </div>
+            <div class="kpi-mini-card kpi-card-payable">
+                <span class="kpi-mini-label text-emerald">Payable Days</span>
+                <span class="kpi-mini-val text-emerald">{{ month_kpis.payable_days }}</span>
+                <span class="kpi-sub-text text-emerald" style="opacity: 0.9;">Present + Hol + Wk</span>
+            </div>
+            <div class="kpi-mini-card">
+                <span class="kpi-mini-label">Night Duties</span>
+                <span class="kpi-mini-val text-purple">{{ month_kpis.night_duties }}</span>
+                <span class="kpi-sub-text">Overnight</span>
+            </div>
+            <div class="kpi-mini-card">
+                <span class="kpi-mini-label">Total OT</span>
+                <span class="kpi-mini-val text-warning">{{ month_kpis.total_ot }}h</span>
+                <span class="kpi-sub-text">Overtime</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monthly Report Selector & Action Toolbar (Screen Only) -->
+    <div class="monthly-filter-bar no-print">
+        <form method="GET" action="{{ url_for('employee_attendance_card', emp_id=employee.id) }}" class="month-selector-form" id="monthFilterForm">
+            <!-- Year Selector -->
+            <div class="filter-item-inline">
+                <label for="selYear">Year:</label>
+                <select name="year" id="selYear" onchange="this.form.submit()" class="ctrl-select-styled">
+                    {% for y in year_options %}
+                    <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Month Selector -->
+            <div class="filter-item-inline">
+                <label for="selMonth">Month:</label>
+                <select name="month" id="selMonth" onchange="this.form.submit()" class="ctrl-select-styled">
+                    {% for m_num, m_name in months_list %}
+                    <option value="{{ m_num }}" {% if m_num == selected_month %}selected{% endif %}>
+                        {{ "%02d"|format(m_num) }} - {{ m_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Sequence / Sort Order -->
+            <div class="filter-item-inline">
+                <label for="selSort">Sequence:</label>
+                <select name="sort" id="selSort" onchange="this.form.submit()" class="ctrl-select-styled">
+                    <option value="asc" {% if sort_order == 'asc' %}selected{% endif %}>1 ➔ 31 (Calendar Order)</option>
+                    <option value="desc" {% if sort_order == 'desc' %}selected{% endif %}>31 ➔ 1 (Latest First)</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn-filter-submit">
+                🔍 View Monthly Report
+            </button>
+        </form>
+
+        <div class="filter-actions-right">
+            {% if month_kpis.govt_holidays > 0 %}
+            <div class="holiday-banner-pill" title="Bangladesh Official Government Gazette Holidays">
+                <span class="pill-dot-holiday"></span>
+                <span>🏛️ {{ month_kpis.govt_holidays }} Govt Holidays in {{ selected_month_name }}</span>
+            </div>
+            {% endif %}
+
+            <button type="button" class="btn-action-print" onclick="window.print()" title="Print Executive Monthly Report">
+                🖨️ Print Monthly Report
+            </button>
+
+            <a href="{{ url_for('attendance_month_matrix', year=selected_year, month=selected_month) }}" class="btn-action-matrix" title="Open Full 31-Day Attendance Matrix for this month">
+                📊 Monthly Register Matrix
+            </a>
+        </div>
+    </div>
+
+    <!-- Tabs: 1. Selected Monthly Timesheet | 2. All Analyzed Shifts | 3. Raw Face Machine Punches -->
+    <div class="tabs-container">
+        <div class="tabs-header no-print">
+            <button class="tab-btn active" onclick="switchTab('tabMonthReport', event)">
+                📅 Selected Monthly Timesheet ({{ selected_month_name }} {{ selected_year }} &bull; {{ month_days|length }} Days)
+            </button>
+            <button class="tab-btn" onclick="switchTab('tabShifts', event)">
+                🤖 All Analyzed Shifts ({{ records|length }})
+            </button>
+            <button class="tab-btn" onclick="switchTab('tabRawPunches', event)">
+                ⏱️ Raw Face Machine Punches ({{ raw_punches|length }})
+            </button>
+        </div>
+
+        <!-- TAB 1: Selected Monthly Report (Day-by-Day with Govt Holidays Marked) -->
+        <div id="tabMonthReport" class="tab-content active">
+            <div class="table-card">
+                <table class="duty-table monthly-timesheet-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 140px;">Day &amp; Date</th>
+                            <th style="width: 170px;">Shift Classification</th>
+                            <th style="width: 100px;">Check-In</th>
+                            <th style="width: 110px;">Check-Out</th>
+                            <th style="width: 105px;">Total Worked</th>
+                            <th style="width: 95px;">Overtime</th>
+                            <th style="width: 135px;">Status</th>
+                            <th>AI Duty Analysis &amp; Notes</th>
+                            <th class="no-print" style="width: 80px; text-align: center;">Override</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if month_days %}
+                            {% for day in month_days %}
+                            <tr class="{% if day.is_holiday %}row-govt-holiday{% elif day.is_weekend %}row-weekend{% elif day.row_type == 'absent' %}row-absent{% elif day.row_type == 'future' %}row-future{% endif %}">
+                                <!-- Day & Date Cell -->
+                                <td class="date-cell">
+                                    <div class="date-primary font-mono font-bold">{{ day.date.strftime('%Y-%m-%d') }}</div>
+                                    <div class="day-subtitle">
+                                        <span class="day-name-tag {% if day.is_weekend %}day-weekend-tag{% endif %}">{{ day.weekday_name }}</span>
+                                        {% if day.is_holiday %}
+                                            <span class="mini-holiday-pill" title="Bangladesh Official Government Gazette Holiday">🏛️ Govt Holiday</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if day.is_holiday %}
+                                        <div class="holiday-title-box">
+                                            🏛️ {{ day.holiday_name }}
+                                        </div>
+                                    {% endif %}
+                                </td>
+
+                                <!-- Shift Classification Cell -->
+                                <td>
+                                    {% if day.row_type == 'holiday_duty' %}
+                                        <span class="shift-badge badge-holiday-duty">🏛️ Govt Holiday Duty</span>
+                                        <div class="shift-sub-title">
+                                            {% if 'Night' in (day.shift_type or '') %}🌙 Night Shift{% else %}☀️ Day Shift{% endif %}
+                                        </div>
+                                    {% elif day.row_type == 'govt_holiday' %}
+                                        <span class="shift-badge badge-holiday-paid">🏛️ Govt Holiday (Paid)</span>
+                                    {% elif day.row_type == 'weekend' %}
+                                        <span class="shift-badge badge-weekend">☕ Weekend (Friday)</span>
+                                    {% elif day.row_type == 'future' %}
+                                        <span class="shift-badge badge-future">⏳ Upcoming</span>
+                                    {% elif day.row_type == 'absent' %}
+                                        <span class="shift-badge badge-absent">❌ No Duty Logged</span>
+                                    {% else %}
+                                        {% if 'Night' in (day.shift_type or '') %}
+                                            <span class="shift-badge badge-night">🌙 {{ day.shift_type }}</span>
+                                        {% elif 'Double' in (day.shift_type or '') %}
+                                            <span class="shift-badge badge-double">⚡ {{ day.shift_type }}</span>
+                                        {% elif 'Evening' in (day.shift_type or '') %}
+                                            <span class="shift-badge badge-evening">🌆 {{ day.shift_type }}</span>
+                                        {% else %}
+                                            <span class="shift-badge badge-day">☀️ {{ day.shift_type }}</span>
+                                        {% endif %}
+
+                                        {% if day.is_cross_day %}
+                                            <span class="cross-day-pill" title="Cross-day overnight duty: Check-out occurred next morning">+1 Day</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+
+                                <!-- Check-In Cell -->
+                                <td class="font-mono">
+                                    {% if day.in_time %}
+                                        <span class="time-in font-bold">{{ day.in_time.strftime('%H:%M:%S') }}</span>
+                                    {% else %}
+                                        <span class="text-off-dash">--:--:--</span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- Check-Out Cell -->
+                                <td class="font-mono">
+                                    {% if day.out_time %}
+                                        <span class="time-out font-bold">{{ day.out_time.strftime('%H:%M:%S') }}</span>
+                                        {% if day.is_cross_day %}
+                                            <span class="cross-day-sub">({{ day.out_time.strftime('%d %b') }})</span>
+                                        {% endif %}
+                                    {% elif day.record %}
+                                        <span class="text-missing">Missing Out</span>
+                                    {% else %}
+                                        <span class="text-off-dash">--:--:--</span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- Total Worked Cell -->
+                                <td class="font-mono font-bold">
+                                    {% if day.record and day.total_hours %}
+                                        <span class="text-worked-hours">{{ day.total_hours }} hrs</span>
+                                    {% else %}
+                                        <span class="text-off-dash">-</span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- Overtime Cell -->
+                                <td class="font-mono">
+                                    {% if day.overtime_hours and day.overtime_hours > 0 %}
+                                        <span class="text-warning font-bold">+{{ day.overtime_hours }} hrs</span>
+                                    {% else %}
+                                        <span class="text-off-dash">-</span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- Status Cell -->
+                                <td>
+                                    {% if day.row_type == 'holiday_duty' %}
+                                        <span class="status-pill status-holiday-duty">🏛️ Holiday Duty + OT</span>
+                                    {% elif day.row_type == 'govt_holiday' %}
+                                        <span class="status-pill status-holiday-paid">🏛️ Govt Holiday (Paid)</span>
+                                    {% elif day.row_type == 'weekend' %}
+                                        <span class="status-pill status-weekend">☕ Weekend (Off)</span>
+                                    {% elif day.row_type == 'future' %}
+                                        <span class="status-pill status-future">⏳ Upcoming</span>
+                                    {% elif day.row_type == 'absent' %}
+                                        <span class="status-pill status-absent">❌ Absent</span>
+                                    {% else %}
+                                        {% if 'Late' in (day.status or '') %}
+                                            <span class="status-pill status-late">⏰ Late</span>
+                                        {% elif day.status == 'Night Duty' %}
+                                            <span class="status-pill status-night">🌙 Night Duty</span>
+                                        {% elif day.status == 'Missing Out' %}
+                                            <span class="status-pill status-missing">⚠️ Missing Out</span>
+                                        {% else %}
+                                            <span class="status-pill status-present">✓ Present</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+
+                                <!-- AI Duty Analysis Cell -->
+                                <td class="ai-note-cell">
+                                    <div class="ai-note-box {% if day.is_holiday %}ai-note-holiday{% elif day.is_weekend %}ai-note-weekend{% endif %}">
+                                        {{ day.ai_analysis }}
+                                    </div>
+                                    {% if day.manual_override %}
+                                        <span class="manual-override-tag">✍️ Manually Adjusted</span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- Override / Actions (Screen Only) -->
+                                <td class="no-print" style="text-align: center;">
+                                    {% if day.record %}
+                                        <button type="button" class="btn-edit-sm" onclick="openEditRecordModal({{ day.record.id }}, '{{ day.record.shift_type }}', '{{ day.record.in_time.strftime('%Y-%m-%d %H:%M') if day.record.in_time else '' }}', '{{ day.record.out_time.strftime('%Y-%m-%d %H:%M') if day.record.out_time else '' }}', '{{ day.record.status }}', '{{ day.record.remarks or '' }}')" title="Edit duty times">
+                                            ✏️ Edit
+                                        </button>
+                                    {% else %}
+                                        <button type="button" class="btn-add-duty-sm" onclick="openAddRecordModal('{{ day.date.strftime('%Y-%m-%d') }}')" title="Manually log duty punch for this date">
+                                            + Duty
+                                        </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="9" class="empty-state">No duty calendar data found for the selected month.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB 2: All Analyzed Shifts (Last 60) -->
+        <div id="tabShifts" class="tab-content" style="display: none;">
+            <div class="table-card">
+                <table class="duty-table">
+                    <thead>
+                        <tr>
+                            <th>Duty Date</th>
+                            <th>Shift Classification</th>
+                            <th>Check-In</th>
+                            <th>Check-Out</th>
+                            <th>Total Worked</th>
+                            <th>Overtime</th>
+                            <th>Status</th>
+                            <th>AI Duty Analysis &amp; Overtime Reason</th>
+                            <th class="no-print">Override</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if annotated_recent_records %}
+                            {% for item in annotated_recent_records %}
+                            {% set r = item.record %}
+                            <tr class="{% if item.is_govt_holiday %}row-govt-holiday{% endif %}">
+                                <td class="font-mono font-bold">
+                                    {{ r.attendance_date.strftime('%Y-%m-%d') }}
+                                    {% if item.is_govt_holiday %}
+                                        <div class="holiday-title-box">
+                                            🏛️ {{ item.holiday_name }}
+                                        </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if item.is_govt_holiday %}
+                                        <span class="shift-badge badge-holiday-duty">🏛️ Govt Holiday Duty</span>
+                                    {% elif 'Night' in r.shift_type %}
+                                        <span class="shift-badge badge-night">🌙 {{ r.shift_type }}</span>
+                                    {% elif 'Double' in r.shift_type %}
+                                        <span class="shift-badge badge-double">⚡ {{ r.shift_type }}</span>
+                                    {% elif 'Evening' in r.shift_type %}
+                                        <span class="shift-badge badge-evening">🌆 {{ r.shift_type }}</span>
+                                    {% else %}
+                                        <span class="shift-badge badge-day">☀️ {{ r.shift_type }}</span>
+                                    {% endif %}
+
+                                    {% if r.is_cross_day %}
+                                        <span class="cross-day-pill" title="Cross-day overnight duty: Check-out occurred next morning">+1 Day</span>
+                                    {% endif %}
+                                </td>
+                                <td class="font-mono text-cyan">
+                                    {{ r.in_time.strftime('%H:%M:%S') if r.in_time else '--:--:--' }}
+                                </td>
+                                <td class="font-mono text-cyan">
+                                    {% if r.out_time %}
+                                        {{ r.out_time.strftime('%H:%M:%S') }}
+                                        {% if r.is_cross_day %}
+                                            <span style="font-size: 0.7rem; color: #a855f7;">({{ r.out_time.strftime('%d %b') }})</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-missing">Missing Out</span>
+                                    {% endif %}
+                                </td>
+                                <td class="font-mono font-bold">
+                                    {{ r.total_hours|default(0.0) }} hrs
+                                </td>
+                                <td class="font-mono text-warning">
+                                    {% if r.overtime_hours and r.overtime_hours > 0 %}
+                                        +{{ r.overtime_hours }} hrs
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if item.is_govt_holiday %}
+                                        <span class="status-pill status-holiday-duty">🏛️ Holiday Duty</span>
+                                    {% elif 'Late' in (r.status or '') %}
+                                        <span class="status-pill status-late">⏰ Late</span>
+                                    {% elif r.status == 'Night Duty' %}
+                                        <span class="status-pill status-night">🌙 Night Duty</span>
+                                    {% elif r.status == 'Missing Out' %}
+                                        <span class="status-pill status-missing">⚠️ Missing Out</span>
+                                    {% else %}
+                                        <span class="status-pill status-present">✓ Present</span>
+                                    {% endif %}
+                                </td>
+                                <td class="ai-note-cell">
+                                    <div class="ai-note-box {% if item.is_govt_holiday %}ai-note-holiday{% endif %}">
+                                        {{ r.ai_analysis or 'Standard automated biometric pairing' }}
+                                    </div>
+                                    {% if r.manual_override %}
+                                        <span class="manual-override-tag">✍️ Manually Adjusted</span>
+                                    {% endif %}
+                                </td>
+                                <td class="no-print">
+                                    <button type="button" class="btn-edit-sm" onclick="openEditRecordModal({{ r.id }}, '{{ r.shift_type }}', '{{ r.in_time.strftime('%Y-%m-%d %H:%M') if r.in_time else '' }}', '{{ r.out_time.strftime('%Y-%m-%d %H:%M') if r.out_time else '' }}', '{{ r.status }}', '{{ r.remarks or '' }}')">
+                                        ✏️ Edit
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="9" class="empty-state">No attendance records logged for this employee.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB 3: Raw Face Machine Punches -->
+        <div id="tabRawPunches" class="tab-content" style="display: none;">
+            <div class="table-card">
+                <table class="duty-table">
+                    <thead>
+                        <tr>
+                            <th>Punch Time</th>
+                            <th>Device User ID</th>
+                            <th>Device / Mode</th>
+                            <th>Raw Notepad Log Line</th>
+                            <th>Import Batch</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if raw_punches %}
+                            {% for p in raw_punches %}
+                            <tr>
+                                <td class="font-mono text-cyan font-bold">
+                                    {{ p.punch_time.strftime('%Y-%m-%d %H:%M:%S') }}
+                                </td>
+                                <td>
+                                    <span class="emp-id-badge">{{ p.device_user_id }}</span>
+                                </td>
+                                <td class="font-mono">
+                                    {{ p.device_code or '-' }}
+                                </td>
+                                <td class="font-mono raw-line-cell">
+                                    <code>{{ p.raw_line or '-' }}</code>
+                                </td>
+                                <td class="font-mono text-muted">
+                                    {{ p.batch_id or '-' }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="empty-state">No raw biometric punch logs imported for this employee.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Print-Only Endorsement / Signatures Block -->
+    <div class="print-signatures-block">
+        <div class="sig-col">
+            <div class="sig-line"></div>
+            <div class="sig-label">Prepared By (HR &amp; Roster)</div>
+        </div>
+        <div class="sig-col">
+            <div class="sig-line"></div>
+            <div class="sig-label">Verified By (Accounts / Payroll)</div>
+        </div>
+        <div class="sig-col">
+            <div class="sig-line"></div>
+            <div class="sig-label">Department Head Approval</div>
+        </div>
+        <div class="sig-col">
+            <div class="sig-line"></div>
+            <div class="sig-label">Management Authorization</div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal 1: In-Place Edit Record -->
+<div id="editRecordModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>✏️ Manual Attendance Override</h3>
+                <button type="button" class="btn-close" onclick="closeEditModal()">&times;</button>
+            </div>
+            <form id="editRecordForm" onsubmit="submitEditRecord(event)">
+                <input type="hidden" id="edit_att_id" name="att_id">
+                <div class="modal-body">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;">Shift Type:</label>
+                        <select id="edit_shift_type" class="ctrl-input" style="width: 100%;">
+                            <option value="Day Shift">Day Shift</option>
+                            <option value="Night Shift">Night Shift</option>
+                            <option value="Evening Shift">Evening Shift</option>
+                            <option value="Double Shift (Day-to-Night)">Double Shift (Day-to-Night)</option>
+                            <option value="Double Shift (Night-to-Day)">Double Shift (Night-to-Day)</option>
+                        </select>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div>
+                            <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;">In Time (YYYY-MM-DD HH:MM):</label>
+                            <input type="text" id="edit_in_time" class="ctrl-input" style="width: 100%; font-family: monospace;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;">Out Time (YYYY-MM-DD HH:MM):</label>
+                            <input type="text" id="edit_out_time" class="ctrl-input" style="width: 100%; font-family: monospace;">
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;">Status:</label>
+                        <select id="edit_status" class="ctrl-input" style="width: 100%;">
+                            <option value="Present">Present</option>
+                            <option value="Night Duty">Night Duty</option>
+                            <option value="Double Shift">Double Shift</option>
+                            <option value="Late">Late</option>
+                            <option value="Missing Out">Missing Out</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;">Remarks / Override Note:</label>
+                        <textarea id="edit_remarks" class="ctrl-input" rows="2" style="width: 100%;" placeholder="Reason for manual adjustment..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem; padding: 1rem 1.5rem; border-top: 1px solid #334155;">
+                    <button type="button" class="btn-cancel" onclick="closeEditModal()" style="padding: 0.5rem 1rem; background: #334155; color: #fff; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
+                    <button type="submit" class="btn-save" style="padding: 0.5rem 1.25rem; background: #2563eb; color: #fff; font-weight: 600; border: none; border-radius: 6px; cursor: pointer;">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal 2: Manually Log Duty for Unpunched Day -->
+<div id="addDutyModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>➕ Manual Duty Log &bull; {{ employee.name }}</h3>
+                <button type="button" class="btn-close" onclick="closeAddModal()">&times;</button>
+            </div>
+            <form id="addDutyForm" onsubmit="submitAddDuty(event)">
+                <input type="hidden" id="add_emp_id" value="{{ employee.id }}">
+                <div class="modal-body">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;">Attendance Date (YYYY-MM-DD):</label>
+                        <input type="date" id="add_att_date" class="ctrl-input" style="width: 100%; font-family: monospace;" required>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;">Shift Type:</label>
+                        <select id="add_shift_type" class="ctrl-input" style="width: 100%;">
+                            <option value="Day Shift">Day Shift (09:00 - 18:00)</option>
+                            <option value="Night Shift">Night Shift (20:00 - 08:00)</option>
+                            <option value="Evening Shift">Evening Shift (14:00 - 22:00)</option>
+                            <option value="Double Shift (Day-to-Night)">Double Shift (Day-to-Night)</option>
+                        </select>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div>
+                            <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;">Check-In (YYYY-MM-DD HH:MM):</label>
+                            <input type="text" id="add_in_time" class="ctrl-input" style="width: 100%; font-family: monospace;" placeholder="2026-10-20 09:30">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;">Check-Out (YYYY-MM-DD HH:MM):</label>
+                            <input type="text" id="add_out_time" class="ctrl-input" style="width: 100%; font-family: monospace;" placeholder="2026-10-20 18:00">
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;">Status:</label>
+                        <select id="add_status" class="ctrl-input" style="width: 100%;">
+                            <option value="Present">Present</option>
+                            <option value="Late">Late</option>
+                            <option value="Night Duty">Night Duty</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem;">Reason / Admin Remarks:</label>
+                        <textarea id="add_remarks" class="ctrl-input" rows="2" style="width: 100%;" placeholder="e.g. Field duty / missed face biometric punch override..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem; padding: 1rem 1.5rem; border-top: 1px solid #334155;">
+                    <button type="button" class="btn-cancel" onclick="closeAddModal()" style="padding: 0.5rem 1rem; background: #334155; color: #fff; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
+                    <button type="submit" class="btn-save" style="padding: 0.5rem 1.25rem; background: #10b981; color: #fff; font-weight: 600; border: none; border-radius: 6px; cursor: pointer;">Save Duty Punch</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.card-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.5rem 1.5rem 3rem 1.5rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #e2e8f0;
+}
+
+.profile-top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.top-nav-links {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.btn-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    padding: 0.45rem 0.9rem;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+.btn-back:hover {
+    background: #334155;
+    color: #f8fafc;
+}
+
+.top-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(147, 51, 234, 0.15);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    color: #c084fc;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 0.35rem 0.8rem;
+    border-radius: 9999px;
+}
+
+.pulsing-dot {
+    width: 8px;
+    height: 8px;
+    background-color: #a855f7;
+    border-radius: 50%;
+    animation: pulseGlow 1.8s infinite;
+}
+
+@keyframes pulseGlow {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.7); }
+    70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(168, 85, 247, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(168, 85, 247, 0); }
+}
+
+/* Employee Header Profile Card */
+.emp-profile-header {
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, #0f172a 100%);
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 1.5rem 1.75rem;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.25rem;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+}
+
+.emp-avatar-circle {
+    width: 68px;
+    height: 68px;
+    background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+    color: #ffffff;
+    font-size: 1.6rem;
+    font-weight: 800;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid rgba(255,255,255,0.2);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+}
+
+.emp-main-info {
+    flex: 1;
+    min-width: 250px;
+}
+
+.emp-id-tag {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #38bdf8;
+    letter-spacing: 0.05em;
+    font-family: ui-monospace, monospace;
+    margin-bottom: 0.2rem;
+}
+
+.emp-name {
+    font-size: 1.65rem;
+    font-weight: 800;
+    color: #ffffff;
+    margin: 0 0 0.35rem 0;
+    letter-spacing: -0.02em;
+}
+
+.emp-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+    font-size: 0.82rem;
+    color: #94a3b8;
+}
+
+.meta-item strong {
+    color: #cbd5e1;
+}
+
+/* Monthly KPI Stack */
+.emp-kpi-stack {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+}
+
+.kpi-mini-card {
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 0.55rem 0.85rem;
+    text-align: center;
+    min-width: 78px;
+}
+
+.kpi-mini-label {
+    display: block;
+    font-size: 0.68rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 0.15rem;
+    letter-spacing: 0.03em;
+}
+
+.kpi-mini-val {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: #ffffff;
+    font-family: ui-monospace, monospace;
+    line-height: 1.2;
+}
+
+.kpi-sub-text {
+    display: block;
+    font-size: 0.65rem;
+    color: #64748b;
+    margin-top: 0.15rem;
+}
+
+.kpi-card-holiday {
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.45);
+}
+
+.kpi-card-payable {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.45);
+}
+
+/* Monthly Filter Bar */
+.monthly-filter-bar {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 0.85rem 1.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.month-selector-form {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.filter-item-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.filter-item-inline label {
+    font-size: 0.82rem;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.ctrl-select-styled {
+    background: #0f172a;
+    border: 1px solid #475569;
+    color: #f8fafc;
+    border-radius: 6px;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+}
+.ctrl-select-styled:focus {
+    border-color: #38bdf8;
+}
+
+.btn-filter-submit {
+    background: #2563eb;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.45rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.btn-filter-submit:hover {
+    background: #1d4ed8;
+}
+
+.filter-actions-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.holiday-banner-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(245, 158, 11, 0.18);
+    border: 1px solid rgba(245, 158, 11, 0.5);
+    color: #fbbf24;
+    padding: 0.4rem 0.85rem;
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.pill-dot-holiday {
+    width: 8px;
+    height: 8px;
+    background-color: #f59e0b;
+    border-radius: 50%;
+    animation: pulseGlowAmber 1.8s infinite;
+}
+
+@keyframes pulseGlowAmber {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+    70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+.btn-action-print {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.45rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.25);
+    transition: transform 0.15s, opacity 0.2s;
+}
+.btn-action-print:hover {
+    opacity: 0.95;
+    transform: translateY(-1px);
+}
+
+.btn-action-matrix {
+    background: #334155;
+    color: #f8fafc;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+.btn-action-matrix:hover {
+    background: #475569;
+}
+
+/* Tabs */
+.tabs-container {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.tabs-header {
+    display: flex;
+    background: #1e293b;
+    border-bottom: 1px solid #334155;
+    flex-wrap: wrap;
+}
+
+.tab-btn {
+    padding: 0.9rem 1.5rem;
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-bottom: 3px solid transparent;
+}
+
+.tab-btn:hover {
+    color: #f8fafc;
+}
+
+.tab-btn.active {
+    color: #38bdf8;
+    border-bottom-color: #38bdf8;
+    background: #0f172a;
+}
+
+.tab-content {
+    padding: 1.25rem;
+}
+
+/* Duty Table */
+.duty-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.duty-table th {
+    background: #1e293b;
+    color: #cbd5e1;
+    font-weight: 700;
+    text-align: left;
+    padding: 0.75rem 1rem;
+    border-bottom: 2px solid #334155;
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.duty-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #1e293b;
+    vertical-align: middle;
+}
+
+.duty-table tr:hover td {
+    background: rgba(30, 41, 59, 0.45);
+}
+
+/* Government Holiday Row Highlighting */
+tr.row-govt-holiday {
+    background: linear-gradient(90deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.04) 100%) !important;
+    border-left: 4px solid #f59e0b !important;
+}
+tr.row-govt-holiday:hover td {
+    background: rgba(245, 158, 11, 0.18) !important;
+}
+
+/* Weekend Row Highlighting */
+tr.row-weekend {
+    background: rgba(30, 41, 59, 0.35);
+}
+
+/* Absent Row Highlighting */
+tr.row-absent {
+    background: rgba(239, 68, 68, 0.04);
+}
+
+/* Date Cell Styling */
+.date-cell {
+    white-space: nowrap;
+}
+.date-primary {
+    font-size: 0.92rem;
+    color: #f1f5f9;
+}
+.day-subtitle {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.15rem;
+}
+.day-name-tag {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    font-weight: 600;
+}
+.day-weekend-tag {
+    color: #38bdf8;
+    font-weight: 700;
+}
+.mini-holiday-pill {
+    background: rgba(245, 158, 11, 0.2);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    color: #fbbf24;
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+}
+.holiday-title-box {
+    margin-top: 0.3rem;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px dashed rgba(245, 158, 11, 0.35);
+    padding: 0.2rem 0.45rem;
+    border-radius: 4px;
+    max-width: 200px;
+    white-space: normal;
+    line-height: 1.25;
+}
+
+/* Shift Badges */
+.shift-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.25rem 0.6rem;
+    border-radius: 9999px;
+}
+
+.badge-day {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: #34d399;
+}
+.badge-night {
+    background: rgba(168, 85, 247, 0.15);
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    color: #e9d5ff;
+}
+.badge-double {
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    color: #fde68a;
+}
+.badge-evening {
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    color: #7dd3fc;
+}
+.badge-holiday-duty {
+    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+    border: 1px solid #f59e0b;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(217, 119, 6, 0.4);
+}
+.badge-holiday-paid {
+    background: rgba(245, 158, 11, 0.18);
+    border: 1px solid rgba(245, 158, 11, 0.5);
+    color: #fbbf24;
+}
+.badge-weekend {
+    background: rgba(100, 116, 139, 0.2);
+    border: 1px solid rgba(100, 116, 139, 0.4);
+    color: #cbd5e1;
+}
+.badge-future {
+    background: rgba(71, 85, 105, 0.2);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    color: #94a3b8;
+}
+.badge-absent {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #fca5a5;
+}
+
+.shift-sub-title {
+    font-size: 0.7rem;
+    color: #cbd5e1;
+    margin-top: 0.2rem;
+}
+
+.cross-day-pill {
+    background: #4c1d95;
+    color: #e9d5ff;
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    margin-left: 0.35rem;
+    border: 1px solid #7c3aed;
+}
+
+.cross-day-sub {
+    font-size: 0.7rem;
+    color: #c084fc;
+    margin-left: 0.2rem;
+}
+
+/* Time & Number Formatting */
+.time-in { color: #38bdf8; }
+.time-out { color: #38bdf8; }
+.text-off-dash { color: #64748b; font-style: italic; }
+.text-worked-hours { color: #f8fafc; }
+
+/* Status Pills */
+.status-pill {
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.status-present { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+.status-night { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
+.status-late { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+.status-missing { background: rgba(244, 63, 94, 0.2); color: #f43f5e; }
+.status-holiday-duty {
+    background: linear-gradient(135deg, #b45309 0%, #92400e 100%);
+    color: #ffffff;
+    border: 1px solid #f59e0b;
+}
+.status-holiday-paid {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.45);
+}
+.status-weekend {
+    background: rgba(100, 116, 139, 0.2);
+    color: #cbd5e1;
+    border: 1px solid rgba(100, 116, 139, 0.35);
+}
+.status-future {
+    background: rgba(71, 85, 105, 0.2);
+    color: #94a3b8;
+}
+.status-absent {
+    background: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+/* AI Note Box */
+.ai-note-box {
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    background: rgba(15, 23, 42, 0.6);
+    border-left: 3px solid #818cf8;
+    padding: 0.4rem 0.6rem;
+    border-radius: 0 4px 4px 0;
+    line-height: 1.35;
+}
+
+.ai-note-holiday {
+    background: rgba(245, 158, 11, 0.1);
+    border-left: 3px solid #f59e0b;
+    color: #fde68a;
+}
+
+.ai-note-weekend {
+    border-left: 3px solid #64748b;
+    color: #94a3b8;
+}
+
+.manual-override-tag {
+    display: inline-block;
+    font-size: 0.68rem;
+    color: #f59e0b;
+    margin-top: 0.25rem;
+}
+
+/* Action Buttons */
+.btn-edit-sm {
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #38bdf8;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+.btn-edit-sm:hover {
+    background: #334155;
+    color: #ffffff;
+}
+
+.btn-add-duty-sm {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: #34d399;
+    padding: 0.25rem 0.55rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 700;
+    transition: all 0.2s;
+}
+.btn-add-duty-sm:hover {
+    background: #10b981;
+    color: #ffffff;
+}
+
+.font-mono { font-family: ui-monospace, monospace; }
+.font-bold { font-weight: 700; }
+.text-cyan { color: #38bdf8; }
+.text-purple { color: #c084fc; }
+.text-info { color: #38bdf8; }
+.text-warning { color: #fbbf24; }
+.text-amber { color: #f59e0b; }
+.text-emerald { color: #34d399; }
+.text-muted { color: #94a3b8; }
+.text-white { color: #ffffff; }
+.text-missing { color: #f43f5e; font-style: italic; }
+
+.raw-line-cell code {
+    background: #0f172a;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    font-size: 0.78rem;
+    display: inline-block;
+    max-width: 450px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.emp-id-badge {
+    background: #1e293b;
+    color: #93c5fd;
+    font-family: monospace;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    border: 1px solid #334155;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem !important;
+    color: #94a3b8;
+}
+
+/* Modals */
+.modal-backdrop {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+}
+.modal-dialog { width: 90%; max-width: 520px; }
+.modal-content {
+    background: #1e293b; border: 1px solid #334155;
+    border-radius: 12px; color: #f8fafc; overflow: hidden;
+}
+.modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1rem 1.5rem; background: #0f172a; border-bottom: 1px solid #334155;
+}
+.modal-header h3 { margin: 0; font-size: 1.1rem; }
+.btn-close { background: none; border: none; color: #94a3b8; font-size: 1.5rem; cursor: pointer; }
+.modal-body { padding: 1.5rem; }
+.ctrl-input {
+    background: #0f172a; border: 1px solid #334155; color: #f8fafc;
+    border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.85rem; box-sizing: border-box;
+}
+
+/* Print Only Elements (Hidden on Screen) */
+.print-only-header, .print-signatures-block {
+    display: none;
+}
+
+/* ========================================================================= */
+/* EXECUTIVE PRINT STYLESHEET (Runs when window.print() is called)           */
+/* ========================================================================= */
+@media print {
+    body {
+        background: #ffffff !important;
+        color: #000000 !important;
+        font-family: "Calibri", "Segoe UI", Arial, sans-serif !important;
+        font-size: 9pt !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Hide standard UI Chrome */
+    .no-print, header, nav, footer, .navbar, .top-bar, .tabs-header,
+    .monthly-filter-bar, .profile-top-bar, .emp-profile-header, .btn-edit-sm, .btn-add-duty-sm,
+    .modal-backdrop, #tabShifts, #tabRawPunches {
+        display: none !important;
+    }
+
+    .card-container {
+        max-width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .tabs-container {
+        border: none !important;
+        background: transparent !important;
+    }
+
+    .tab-content {
+        padding: 0 !important;
+        display: block !important;
+    }
+
+    /* Show Print Header */
+    .print-only-header {
+        display: block !important;
+        margin-bottom: 12px;
+        border-bottom: 2px solid #000000;
+        padding-bottom: 8px;
+    }
+
+    .print-header-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 8px;
+    }
+
+    .print-brand h2 {
+        margin: 0;
+        font-size: 13pt;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        color: #000000;
+    }
+
+    .print-doc-title {
+        font-size: 11pt;
+        font-weight: 700;
+        color: #1e293b;
+        margin-top: 2px;
+    }
+
+    .print-sub-period {
+        font-size: 9pt;
+        color: #334155;
+        margin-top: 2px;
+    }
+
+    .print-meta-box {
+        text-align: right;
+        font-size: 8pt;
+        color: #475569;
+    }
+
+    .print-emp-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px 12px;
+        background: #f8fafc;
+        border: 1px solid #cbd5e1;
+        padding: 6px 10px;
+        border-radius: 4px;
+        font-size: 8.5pt;
+        margin-bottom: 8px;
+    }
+
+    .print-emp-grid span {
+        color: #475569;
+    }
+
+    .print-table-kpi {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: center;
+        font-size: 8pt;
+        margin-top: 4px;
+    }
+
+    .print-table-kpi th {
+        background: #e2e8f0 !important;
+        color: #0f172a !important;
+        border: 1px solid #94a3b8 !important;
+        padding: 4px 6px;
+        font-weight: 700;
+    }
+
+    .print-table-kpi td {
+        border: 1px solid #94a3b8 !important;
+        padding: 4px 6px;
+        background: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    .text-success { color: #047857 !important; }
+    .text-holiday { color: #b45309 !important; font-weight: 800 !important; }
+    .text-payable { color: #065f46 !important; font-weight: 800 !important; }
+
+    /* Print Table */
+    .duty-table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-size: 8pt !important;
+    }
+
+    .duty-table th {
+        background: #e2e8f0 !important;
+        color: #000000 !important;
+        border: 1px solid #64748b !important;
+        padding: 4px 6px !important;
+        font-size: 7.5pt !important;
+    }
+
+    .duty-table td {
+        border: 1px solid #cbd5e1 !important;
+        padding: 3.5px 6px !important;
+        color: #000000 !important;
+        background: #ffffff !important;
+    }
+
+    /* Print Govt Holiday Highlighting */
+    tr.row-govt-holiday td {
+        background: #fef3c7 !important; /* Soft festive yellow/amber */
+        color: #92400e !important;
+        font-weight: 600;
+        border-color: #f59e0b !important;
+    }
+
+    tr.row-govt-holiday .holiday-title-box {
+        background: transparent !important;
+        border: none !important;
+        color: #b45309 !important;
+        font-weight: 700 !important;
+        padding: 0 !important;
+        margin-top: 1px !important;
+    }
+
+    tr.row-weekend td {
+        background: #f1f5f9 !important;
+        color: #475569 !important;
+    }
+
+    .shift-badge, .status-pill {
+        border: none !important;
+        background: transparent !important;
+        color: inherit !important;
+        padding: 0 !important;
+        font-size: inherit !important;
+    }
+
+    .ai-note-box {
+        background: transparent !important;
+        border-left: none !important;
+        color: #334155 !important;
+        font-size: 7.5pt !important;
+        padding: 0 !important;
+    }
+
+    /* Signature Authorization Blocks */
+    .print-signatures-block {
+        display: flex !important;
+        justify-content: space-between;
+        margin-top: 36px;
+        page-break-inside: avoid;
+    }
+
+    .sig-col {
+        width: 22%;
+        text-align: center;
+    }
+
+    .sig-line {
+        border-top: 1px solid #000000;
+        margin-bottom: 4px;
+    }
+
+    .sig-label {
+        font-size: 8pt;
+        font-weight: 700;
+        color: #1e293b;
+    }
+}
+</style>
+
+<script>
+function switchTab(tabId, ev) {
+    document.getElementById('tabMonthReport').style.display = 'none';
+    document.getElementById('tabShifts').style.display = 'none';
+    document.getElementById('tabRawPunches').style.display = 'none';
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    
+    document.getElementById(tabId).style.display = 'block';
+    if (ev && ev.currentTarget) {
+        ev.currentTarget.classList.add('active');
+    }
+}
+
+function openEditRecordModal(id, shift, inTime, outTime, status, remarks) {
+    document.getElementById('edit_att_id').value = id;
+    document.getElementById('edit_shift_type').value = shift;
+    document.getElementById('edit_in_time').value = inTime;
+    document.getElementById('edit_out_time').value = outTime;
+    document.getElementById('edit_status').value = status;
+    document.getElementById('edit_remarks').value = remarks;
+    document.getElementById('editRecordModal').style.display = 'flex';
+}
+
+function closeEditModal() {
+    document.getElementById('editRecordModal').style.display = 'none';
+}
+
+async function submitEditRecord(e) {
+    e.preventDefault();
+    const id = document.getElementById('edit_att_id').value;
+    const payload = {
+        shift_type: document.getElementById('edit_shift_type').value,
+        in_time: document.getElementById('edit_in_time').value,
+        out_time: document.getElementById('edit_out_time').value,
+        status: document.getElementById('edit_status').value,
+        remarks: document.getElementById('edit_remarks').value
+    };
+
+    try {
+        const res = await fetch(`/attendance/edit/${id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (err) {
+        alert('Request failed: ' + err);
+    }
+}
+
+function openAddRecordModal(dateStr) {
+    document.getElementById('add_att_date').value = dateStr;
+    document.getElementById('add_in_time').value = dateStr + ' 09:00';
+    document.getElementById('add_out_time').value = dateStr + ' 18:00';
+    document.getElementById('add_remarks').value = 'Manual duty override by admin';
+    document.getElementById('addDutyModal').style.display = 'flex';
+}
+
+function closeAddModal() {
+    document.getElementById('addDutyModal').style.display = 'none';
+}
+
+async function submitAddDuty(e) {
+    e.preventDefault();
+    const payload = {
+        employee_id: document.getElementById('add_emp_id').value,
+        attendance_date: document.getElementById('add_att_date').value,
+        shift_type: document.getElementById('add_shift_type').value,
+        in_time: document.getElementById('add_in_time').value,
+        out_time: document.getElementById('add_out_time').value,
+        status: document.getElementById('add_status').value,
+        remarks: document.getElementById('add_remarks').value
+    };
+
+    try {
+        const res = await fetch('/attendance/add-manual', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (err) {
+        alert('Request failed: ' + err);
+    }
+}
+</script>
+{% endblock %}
