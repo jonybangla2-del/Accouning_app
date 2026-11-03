@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}Company Fixed Fund / Reserve Fund Ledger - ZR-ERP ERP{% endblock %}
+
+{% block content %}
+<style>
+@media print {
+    .no-print, .navbar, .sidebar, .header-actions, .breadcrumb, footer, .alert {
+        display: none !important;
+    }
+    body, .main-content, .content-wrapper {
+        background: #fff !important;
+        color: #000 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .print-only {
+        display: block !important;
+    }
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
+    table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+    }
+    th, td {
+        border: 1px solid #333 !important;
+        padding: 4px 6px !important;
+        font-size: 8.5pt !important;
+    }
+    th {
+        background: #f1f5f9 !important;
+        color: #000 !important;
+    }
+}
+.print-only {
+    display: none;
+}
+.reserve-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background: #dbeafe;
+    color: #1e40af;
+}
+.ledger-table th {
+    background: #f8fafc;
+    color: #475569;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 700;
+    padding: 0.75rem 0.65rem;
+    border-bottom: 2px solid #e2e8f0;
+    white-space: nowrap;
+}
+.ledger-table td {
+    padding: 0.65rem 0.65rem;
+    font-size: 0.85rem;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+}
+.ledger-table tbody tr:hover {
+    background-color: #f8fafc;
+}
+</style>
+
+<!-- Printable Header -->
+<div class="print-only" style="text-align: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #0f172a;">
+    <h2 style="margin: 0; font-size: 16pt; font-weight: 800; color: #0f172a;">{{ company.name if company else 'TBN BD LTD.' }}</h2>
+    <div style="font-size: 10pt; color: #475569; margin-top: 0.2rem;">Corporate Fixed Fund / Reserve Account Ledger</div>
+    <div style="font-size: 8.5pt; color: #64748b; margin-top: 0.2rem;">Generated on {{ now_date_str if now_date_str else '' }} • Accumulated from Forfeited Employee Matching Contributions</div>
+</div>
+
+<!-- Page Header (Screen) -->
+<div class="page-header no-print" style="margin-bottom: 1.5rem;">
+    <div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+            <a href="{{ url_for('fund_contributions_dashboard') }}" style="color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600;">← Back to Fund Portfolio</a>
+            <span style="color: #cbd5e1;">/</span>
+            <span class="reserve-badge">🏛️ Corporate Reserve</span>
+        </div>
+        <h1 class="page-title" style="margin: 0; display: flex; align-items: center; gap: 0.6rem;">
+            🏛️ Company Fixed Fund (Reserve Fund) Ledger
+        </h1>
+        <p class="page-description" style="margin-top: 0.35rem; color: #64748b; font-size: 0.88rem;">
+            Corporate reserve account accumulating forfeited company contributions upon employee final settlements and vesting adjustments. All funds remain retained in the company treasury.
+        </p>
+    </div>
+    <div class="header-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <a href="{{ url_for('export_company_fixed_fund_excel') }}" class="btn btn-success" style="display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600;">
+            📊 Export to Excel
+        </a>
+        <button type="button" class="btn btn-outline" onclick="window.print()" style="display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600;">
+            🖨️ Print Statement
+        </button>
+        <a href="{{ url_for('fund_contributions_dashboard') }}" class="btn btn-outline" style="font-weight: 600;">
+            👨‍💼 All Employee Funds
+        </a>
+    </div>
+</div>
+
+<!-- KPI Metrics Grid -->
+<div class="metrics-grid no-print" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 1.5rem;">
+    <div class="metric-card" style="border-left: 4px solid #2563eb; background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);">
+        <div class="metric-label" style="color: #1e40af; font-weight: 700;">Net Reserve Fund Balance</div>
+        <div class="metric-value" style="color: #1e3a8a; font-family: 'JetBrains Mono', monospace; font-size: 1.75rem; font-weight: 900;">
+            ৳{{ "{:,.2f}".format(total_balance) }}
+        </div>
+        <div class="metric-sub" style="color: #64748b;">Current retained company reserve</div>
+    </div>
+
+    <div class="metric-card" style="border-left: 4px solid #059669; background: #f0fdf4;">
+        <div class="metric-label" style="color: #065f46; font-weight: 700;">Total Forfeited Credited</div>
+        <div class="metric-value" style="color: #047857; font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 800;">
+            ৳{{ "{:,.2f}".format(total_credited) }}
+        </div>
+        <div class="metric-sub" style="color: #64748b;">Cumulative matching share transferred</div>
+    </div>
+
+    <div class="metric-card" style="border-left: 4px solid #d97706; background: #fffbeb;">
+        <div class="metric-label" style="color: #92400e; font-weight: 700;">Contributing Staff Count</div>
+        <div class="metric-value" style="color: #b45309; font-size: 1.5rem; font-weight: 800;">
+            {{ contributing_staff_count }} Employees
+        </div>
+        <div class="metric-sub" style="color: #64748b;">Resigned / Settled before vesting</div>
+    </div>
+
+    <div class="metric-card" style="border-left: 4px solid #64748b; background: #f8fafc;">
+        <div class="metric-label" style="color: #475569; font-weight: 700;">Total Debited / Reallocated</div>
+        <div class="metric-value" style="color: #334155; font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 800;">
+            ৳{{ "{:,.2f}".format(total_debited) }}
+        </div>
+        <div class="metric-sub" style="color: #64748b;">Reversals or corporate appropriations</div>
+    </div>
+</div>
+
+<!-- Ledger Card -->
+<div class="card" style="border-radius: 10px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+    <div class="card-header no-print" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; padding: 1rem 1.25rem; background: #ffffff; border-bottom: 1px solid #e2e8f0;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #0f172a;">
+                📜 Transaction History & Audit Trail ({{ entries|length }})
+            </h3>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <input type="text" id="reserveSearchInput" placeholder="🔍 Search ID, Name, Dept..." class="form-control" style="width: 220px; font-size: 0.85rem; padding: 0.35rem 0.65rem;" oninput="filterReserveTable()">
+        </div>
+    </div>
+
+    <div style="overflow-x: auto;">
+        <table class="table ledger-table" id="reserveLedgerTable" style="width: 100%; margin: 0;">
+            <thead>
+                <tr>
+                    <th style="width: 45px; text-align: center;">SL</th>
+                    <th style="width: 100px;">Date</th>
+                    <th style="width: 90px; text-align: center;">Emp ID</th>
+                    <th>Employee Name</th>
+                    <th>Department</th>
+                    <th>Transaction Type</th>
+                    <th>Voucher Ref</th>
+                    <th style="text-align: right; color: #047857;">Forfeited Credit (৳)</th>
+                    <th style="text-align: right; color: #1e40af;">Reserve Balance (৳)</th>
+                    <th>Remarks / Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if entries %}
+                    {% for e in entries %}
+                    <tr>
+                        <td style="text-align: center; color: #64748b; font-size: 0.8rem;">{{ loop.index }}</td>
+                        <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: #334155; white-space: nowrap;">
+                            {{ e.forfeited_date.strftime('%d-%b-%Y') if e.forfeited_date else (e.transaction_date.strftime('%d-%b-%Y') if e.transaction_date else '-') }}
+                        </td>
+                        <td style="text-align: center;">
+                            <a href="{{ url_for('employee_fund_ledger', emp_id=e.emp_code or e.employee_id) }}" style="font-weight: 700; color: #2563eb; text-decoration: none;" title="View Individual Statement">
+                                {{ e.emp_code or e.employee_id or '-' }}
+                            </a>
+                        </td>
+                        <td style="font-weight: 600; color: #0f172a;">
+                            {{ e.emp_name or 'Staff Member' }}
+                        </td>
+                        <td style="color: #64748b; font-size: 0.82rem;">
+                            {{ e.department or 'General' }}
+                        </td>
+                        <td>
+                            <span style="display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 700; background: #dcfce7; color: #15803d;">
+                                {{ e.transaction_type or 'Forfeiture Credit' }}
+                            </span>
+                        </td>
+                        <td style="font-size: 0.8rem; color: #64748b;">
+                            {% if e.reference_settlement_id %}
+                                <a href="{{ url_for('print_fund_settlement', settlement_id=e.reference_settlement_id) }}" target="_blank" style="color: #0284c7; text-decoration: underline; font-weight: 600;">
+                                    Settlement #{{ e.reference_settlement_id }}
+                                </a>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #047857; font-size: 0.9rem;">
+                            +৳{{ "{:,.2f}".format(e.credit_amount or 0.0) }}
+                        </td>
+                        <td style="text-align: right; font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #1e3a8a; font-size: 0.92rem;">
+                            ৳{{ "{:,.2f}".format(e.running_balance or 0.0) }}
+                        </td>
+                        <td style="font-size: 0.8rem; color: #64748b; max-width: 250px;">
+                            {{ e.remarks or '-' }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="10" style="text-align: center; padding: 3rem 1rem; color: #64748b;">
+                            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🏛️</div>
+                            <div style="font-size: 1rem; font-weight: 600; color: #334155;">No Company Fixed Fund transactions recorded yet</div>
+                            <div style="font-size: 0.85rem; color: #94a3b8; margin-top: 0.25rem;">
+                                When employees resign without full vesting (under 3 years), their forfeited company matching share will auto-credit here.
+                            </div>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+            {% if entries %}
+            <tfoot>
+                <tr style="background: #f8fafc; font-weight: 800; border-top: 2px solid #cbd5e1;">
+                    <td colspan="7" style="text-align: right; padding: 0.75rem 0.65rem; color: #0f172a; text-transform: uppercase; font-size: 0.82rem;">
+                        Total Accumulated Reserve:
+                    </td>
+                    <td style="text-align: right; padding: 0.75rem 0.65rem; font-family: 'JetBrains Mono', monospace; color: #047857; font-size: 0.95rem;">
+                        ৳{{ "{:,.2f}".format(total_credited) }}
+                    </td>
+                    <td style="text-align: right; padding: 0.75rem 0.65rem; font-family: 'JetBrains Mono', monospace; color: #1e3a8a; font-size: 1rem;">
+                        ৳{{ "{:,.2f}".format(total_balance) }}
+                    </td>
+                    <td></td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+</div>
+
+<script>
+function filterReserveTable() {
+    const input = document.getElementById('reserveSearchInput').value.toLowerCase().trim();
+    const rows = document.querySelectorAll('#reserveLedgerTable tbody tr');
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(input) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

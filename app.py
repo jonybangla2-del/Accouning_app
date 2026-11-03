@@ -1651,6 +1651,199 @@ class EmployeeClearanceRecord(db.Model):
     def __repr__(self):
         return f'<EmployeeClearanceRecord Emp:{self.employee_id} Settlement:{self.settlement_id}>'
 
+class CompanyFixedFundLedger(db.Model):
+    __tablename__ = 'company_fixed_fund_ledger'
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, default=1, index=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=True, index=True)
+    emp_code = db.Column(db.String(50), nullable=True, index=True)
+    emp_name = db.Column(db.String(150), nullable=True)
+    department = db.Column(db.String(100), nullable=True)
+    transaction_type = db.Column(db.String(50), default='Forfeiture Credit', index=True)  # 'Forfeiture Credit', 'Settlement Adjustment', 'Manual Transfer'
+    transaction_date = db.Column(db.Date, nullable=False, default=date.today)
+    forfeited_date = db.Column(db.Date, nullable=False, default=date.today)
+    forfeited_amount = db.Column(db.Float, default=0.0)
+    debit_amount = db.Column(db.Float, default=0.0)
+    credit_amount = db.Column(db.Float, default=0.0)
+    running_balance = db.Column(db.Float, default=0.0)
+    reference_settlement_id = db.Column(db.Integer, db.ForeignKey('employee_fund_settlement.id'), nullable=True, index=True)
+    contribution_id = db.Column(db.Integer, db.ForeignKey('employee_fund_contribution.id'), nullable=True, index=True)
+    remarks = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    employee = db.relationship('Employee', backref=db.backref('fixed_fund_records', lazy=True))
+    settlement = db.relationship('EmployeeFundSettlement', backref=db.backref('fixed_fund_entries', lazy=True))
+    contribution = db.relationship('EmployeeFundContribution', backref=db.backref('fixed_fund_entry', lazy=True))
+
+    def __init__(self, company_id=1, employee_id=None, emp_code=None, emp_name=None, department=None,
+                 transaction_type='Forfeiture Credit', transaction_date=None, forfeited_date=None,
+                 forfeited_amount=0.0, debit_amount=0.0, credit_amount=0.0, running_balance=0.0,
+                 reference_settlement_id=None, contribution_id=None, remarks=None, **kwargs):
+        super().__init__(**kwargs)
+        self.company_id = company_id
+        self.employee_id = employee_id
+        self.emp_code = emp_code
+        self.emp_name = emp_name
+        self.department = department
+        self.transaction_type = transaction_type
+        self.transaction_date = transaction_date or date.today()
+        self.forfeited_date = forfeited_date or transaction_date or date.today()
+        amt = float(forfeited_amount or credit_amount or 0.0)
+        self.forfeited_amount = amt
+        self.debit_amount = float(debit_amount or 0.0)
+        self.credit_amount = float(credit_amount or amt)
+        self.running_balance = float(running_balance or 0.0)
+        self.reference_settlement_id = reference_settlement_id
+        self.contribution_id = contribution_id
+        self.remarks = remarks
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'company_id': self.company_id,
+            'employee_id': self.employee_id,
+            'emp_code': self.emp_code,
+            'emp_name': self.emp_name,
+            'department': self.department,
+            'transaction_type': self.transaction_type,
+            'transaction_date': self.transaction_date.strftime('%Y-%m-%d') if self.transaction_date else '',
+            'forfeited_date': self.forfeited_date.strftime('%Y-%m-%d') if self.forfeited_date else '',
+            'forfeited_amount': self.forfeited_amount,
+            'debit_amount': self.debit_amount,
+            'credit_amount': self.credit_amount,
+            'running_balance': self.running_balance,
+            'reference_settlement_id': self.reference_settlement_id,
+            'contribution_id': self.contribution_id,
+            'remarks': self.remarks,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else ''
+        }
+
+    def __repr__(self):
+        return f'<CompanyFixedFundLedger #{self.id} Emp:{self.emp_code} Credit:৳{self.credit_amount} Bal:৳{self.running_balance}>'
+
+
+def recalculate_company_fixed_fund(company_id=1):
+    """
+    Recalculates cumulative running balances for CompanyFixedFundLedger in chronological order.
+    Returns the total current Company Fixed Fund balance.
+    """
+    entries = CompanyFixedFundLedger.query.filter_by(company_id=company_id).order_by(
+        CompanyFixedFundLedger.forfeited_date.asc(),
+        CompanyFixedFundLedger.id.asc()
+    ).all()
+
+    running = 0.0
+    for e in entries:
+        credit = float(e.credit_amount or e.forfeited_amount or 0.0)
+        debit = float(e.debit_amount or 0.0)
+        running = round(running + credit - debit, 2)
+        e.running_balance = running
+
+    db.session.commit()
+    return running
+
+
+def sync_forfeited_to_company_fixed_fund(company_id=1):
+    """
+    Scans EmployeeFundSettlement and EmployeeFundContribution for any forfeited company shares
+    and ensures each forfeiture is recorded as an auto-credit in CompanyFixedFundLedger.
+    Recalculates the running balance in chronological order and returns (records_synced, total_balance).
+    """
+    try:
+        CompanyFixedFundLedger.__table__.create(db.engine, checkfirst=True)
+    except Exception:
+        pass
+
+    synced_count = 0
+
+    # 1. Check all settlements with forfeited_company_share > 0
+    settlements = EmployeeFundSettlement.query.filter(EmployeeFundSettlement.forfeited_company_share > 0).all()
+    for s in settlements:
+        exists = CompanyFixedFundLedger.query.filter_by(reference_settlement_id=s.id).first()
+        if not exists:
+            exists = CompanyFixedFundLedger.query.filter(
+                CompanyFixedFundLedger.emp_code == s.emp_code,
+                CompanyFixedFundLedger.forfeited_amount == s.forfeited_company_share,
+                CompanyFixedFundLedger.forfeited_date == s.settlement_date
+            ).first()
+
+        if not exists:
+            match_cf = EmployeeFundContribution.query.filter(
+                (EmployeeFundContribution.emp_code == s.emp_code) | (EmployeeFundContribution.employee_id == s.employee_id),
+                EmployeeFundContribution.adjustment == s.forfeited_company_share
+            ).first()
+
+            entry = CompanyFixedFundLedger(
+                company_id=company_id,
+                employee_id=s.employee_id,
+                emp_code=s.emp_code,
+                emp_name=s.emp_name,
+                department=s.department,
+                transaction_type='Forfeiture Credit',
+                transaction_date=s.settlement_date or date.today(),
+                forfeited_date=s.settlement_date or date.today(),
+                forfeited_amount=s.forfeited_company_share,
+                credit_amount=s.forfeited_company_share,
+                reference_settlement_id=s.id,
+                contribution_id=match_cf.id if match_cf else None,
+                remarks=f"Auto-Credit from Settlement #{s.id} ({s.remarks or 'Tenure < 3 yrs forfeiture'})"
+            )
+            db.session.add(entry)
+            synced_count += 1
+        else:
+            if exists.forfeited_amount != s.forfeited_company_share:
+                exists.forfeited_amount = s.forfeited_company_share
+                exists.credit_amount = s.forfeited_company_share
+
+    # 2. Check any EmployeeFundContribution records with adjustment > 0 that might not have a settlement row
+    contributions = EmployeeFundContribution.query.filter(EmployeeFundContribution.adjustment > 0).all()
+    for c in contributions:
+        exists = CompanyFixedFundLedger.query.filter(
+            (CompanyFixedFundLedger.contribution_id == c.id) |
+            ((CompanyFixedFundLedger.emp_code == c.emp_code) & 
+             (CompanyFixedFundLedger.forfeited_amount == c.adjustment) &
+             (CompanyFixedFundLedger.forfeited_date == c.contribution_date))
+        ).first()
+
+        if not exists:
+            emp = Employee.query.filter_by(employee_id=c.emp_code).first() if c.emp_code else None
+            if not emp and c.employee_id:
+                emp = Employee.query.get(c.employee_id)
+
+            emp_name = c.emp_name or (emp.name if emp else f"Staff {c.emp_code}")
+            dept = c.department or (emp.department if emp else "General")
+
+            entry = CompanyFixedFundLedger(
+                company_id=company_id,
+                employee_id=c.employee_id or (emp.id if emp else None),
+                emp_code=c.emp_code or (emp.employee_id if emp else str(c.employee_id)),
+                emp_name=emp_name,
+                department=dept,
+                transaction_type='Forfeiture Credit',
+                transaction_date=c.contribution_date or date.today(),
+                forfeited_date=c.contribution_date or date.today(),
+                forfeited_amount=c.adjustment,
+                credit_amount=c.adjustment,
+                reference_settlement_id=None,
+                contribution_id=c.id,
+                remarks=f"Auto-Credit from Contribution Adjustment ({c.contribution_month}: {c.remarks or 'Forfeited company share'})"
+            )
+            db.session.add(entry)
+            synced_count += 1
+
+    db.session.commit()
+    total_balance = recalculate_company_fixed_fund(company_id=company_id)
+    return synced_count, total_balance
+
+
+def ensure_company_fixed_fund_table():
+    """Ensures company_fixed_fund_ledger table exists and is synced across active databases."""
+    try:
+        CompanyFixedFundLedger.__table__.create(db.engine, checkfirst=True)
+        sync_forfeited_to_company_fixed_fund()
+    except Exception:
+        pass
+
 
 class BiometricPunchLog(db.Model):
     __tablename__ = 'biometric_punch_log'
@@ -3311,6 +3504,7 @@ def api_schema_sync():
     """System schema validation & repair endpoint."""
     ensure_user_table_columns()
     ensure_security_tables()
+    ensure_company_fixed_fund_table()
     import sqlite3, glob
     base_dir = os.path.dirname(os.path.abspath(__file__))
     db_paths = set(
@@ -11258,6 +11452,11 @@ def delete_all_employees():
 
 @app.route('/payroll/fund-contributions')
 def fund_contributions_dashboard():
+    cid = session.get('active_company_id', 1)
+    try:
+        sync_forfeited_to_company_fixed_fund(cid)
+    except Exception:
+        pass
     # Decoupled: Query all fund records regardless of whether employees are in master Employee table
     all_cfs = EmployeeFundContribution.query.order_by(EmployeeFundContribution.contribution_date.asc(), EmployeeFundContribution.id.asc()).all()
     emp_cf_map = {}
@@ -12708,8 +12907,28 @@ def settle_employee_resignation():
         emp.status = 'Resigned'
         emp.release_date = r_date
 
+    # 4. Auto-credit Forfeited Company Share to CompanyFixedFundLedger
+    if forfeited_comp > 0:
+        fund_entry = CompanyFixedFundLedger(
+            company_id=session.get('active_company_id', 1),
+            employee_id=emp_db_id,
+            emp_code=emp_code,
+            emp_name=emp_name,
+            department=dept,
+            transaction_type='Forfeiture Credit',
+            transaction_date=s_date,
+            forfeited_date=s_date,
+            forfeited_amount=forfeited_comp,
+            credit_amount=forfeited_comp,
+            reference_settlement_id=settlement.id,
+            contribution_id=settle_cf.id,
+            remarks=f"Auto-Credit from Resignation Settlement #{settlement.id} ({benefit_text})"
+        )
+        db.session.add(fund_entry)
+
     db.session.commit()
     recalculate_employee_fund_balances(emp_key)
+    recalculate_company_fixed_fund(session.get('active_company_id', 1))
 
     # 4. Auto-generate Financial Settlement Clearance Declaration for employee
     active_cid = session.get('active_company_id', 1)
@@ -12795,6 +13014,13 @@ def delete_fund_settlement(settlement_id):
 
     if settle_cf:
         db.session.delete(settle_cf)
+
+    # Revert / delete corresponding Company Fixed Fund ledger entry
+    try:
+        CompanyFixedFundLedger.query.filter_by(reference_settlement_id=settlement.id).delete()
+        recalculate_company_fixed_fund(session.get('active_company_id', 1))
+    except Exception:
+        pass
 
     db.session.delete(settlement)
     db.session.commit()
@@ -13146,6 +13372,67 @@ def update_employee_fund_summary():
             )
             db.session.add(new_settle)
 
+    # Auto-credit or adjust CompanyFixedFundLedger
+    active_cid = session.get('active_company_id', 1)
+    settle_obj = existing_settle or (new_settle if 'new_settle' in locals() else None)
+    cf_obj = existing_settle_cf or (new_settle_cf if 'new_settle_cf' in locals() else None)
+
+    if withdrawal_action in ['own_only', 'custom', 'rejoined']:
+        if forfeited_comp > 0:
+            fund_entry = None
+            if settle_obj and settle_obj.id:
+                fund_entry = CompanyFixedFundLedger.query.filter_by(reference_settlement_id=settle_obj.id).first()
+            if not fund_entry and cf_obj and cf_obj.id:
+                fund_entry = CompanyFixedFundLedger.query.filter_by(contribution_id=cf_obj.id).first()
+            if not fund_entry:
+                fund_entry = CompanyFixedFundLedger.query.filter(
+                    CompanyFixedFundLedger.emp_code == emp_code,
+                    CompanyFixedFundLedger.forfeited_date == eff_date
+                ).first()
+
+            if fund_entry:
+                fund_entry.forfeited_amount = forfeited_comp
+                fund_entry.credit_amount = forfeited_comp
+                fund_entry.transaction_date = eff_date
+                fund_entry.forfeited_date = eff_date
+                fund_entry.reference_settlement_id = settle_obj.id if settle_obj else None
+                fund_entry.contribution_id = cf_obj.id if cf_obj else None
+                fund_entry.remarks = remarks or f"Auto-Credit from Updated Settlement ({benefit_text})"
+            else:
+                fund_entry = CompanyFixedFundLedger(
+                    company_id=active_cid,
+                    employee_id=emp_db_id,
+                    emp_code=emp_code,
+                    emp_name=emp_name,
+                    department=dept,
+                    transaction_type='Forfeiture Credit',
+                    transaction_date=eff_date,
+                    forfeited_date=eff_date,
+                    forfeited_amount=forfeited_comp,
+                    credit_amount=forfeited_comp,
+                    reference_settlement_id=settle_obj.id if settle_obj else None,
+                    contribution_id=cf_obj.id if cf_obj else None,
+                    remarks=remarks or f"Auto-Credit from Settlement ({benefit_text})"
+                )
+                db.session.add(fund_entry)
+            db.session.commit()
+            recalculate_company_fixed_fund(active_cid)
+        elif forfeited_comp == 0 and withdrawal_action != 'rejoined':
+            if settle_obj and settle_obj.id:
+                CompanyFixedFundLedger.query.filter_by(reference_settlement_id=settle_obj.id).delete()
+            if cf_obj and cf_obj.id:
+                CompanyFixedFundLedger.query.filter_by(contribution_id=cf_obj.id).delete()
+            db.session.commit()
+            recalculate_company_fixed_fund(active_cid)
+
+    elif withdrawal_action == 'active':
+        if settle_obj and settle_obj.id:
+            CompanyFixedFundLedger.query.filter_by(reference_settlement_id=settle_obj.id).delete()
+        if cf_obj and cf_obj.id:
+            CompanyFixedFundLedger.query.filter_by(contribution_id=cf_obj.id).delete()
+        db.session.commit()
+        recalculate_company_fixed_fund(active_cid)
+
     db.session.commit()
 
     # CRITICAL: Recalculate running balances across all records for this employee
@@ -13464,6 +13751,11 @@ def fund_contributions_employee_report():
     with breakdown of staff deposits, company matching funds, full vs own withdrawal,
     forfeitures, and executive signature endorsements.
     """
+    cid = session.get('active_company_id', 1)
+    try:
+        sync_forfeited_to_company_fixed_fund(cid)
+    except Exception:
+        pass
     all_cfs = EmployeeFundContribution.query.order_by(EmployeeFundContribution.contribution_date.asc(), EmployeeFundContribution.id.asc()).all()
     emp_cf_map = {}
     for c in all_cfs:
@@ -13633,6 +13925,148 @@ def fund_contributions_employee_report():
         count_active=count_active,
         now_date_str=date.today().strftime('%B %d, %Y')
     )
+
+
+
+@app.route('/payroll/fund-contributions/company-fixed-fund')
+@login_required
+def company_fixed_fund_dashboard():
+    """
+    Displays the dedicated Company Fixed Fund / Reserve Fund Ledger & History.
+    Lists all forfeited company contributions transferred into the corporate reserve.
+    """
+    cid = session.get('active_company_id', 1)
+    sync_forfeited_to_company_fixed_fund(cid)
+
+    entries = CompanyFixedFundLedger.query.filter_by(company_id=cid).order_by(
+        CompanyFixedFundLedger.forfeited_date.desc(),
+        CompanyFixedFundLedger.id.desc()
+    ).all()
+
+    total_credited = sum(e.credit_amount or 0.0 for e in entries)
+    total_debited = sum(e.debit_amount or 0.0 for e in entries)
+    total_balance = entries[0].running_balance if entries else 0.0
+    contributing_staff_count = len(set(e.emp_code for e in entries if e.emp_code))
+
+    if request.is_json or request.args.get('format') == 'json':
+        return jsonify({
+            'success': True,
+            'entries': [e.to_dict() for e in entries],
+            'total_credited': total_credited,
+            'total_debited': total_debited,
+            'total_balance': total_balance,
+            'contributing_staff_count': contributing_staff_count
+        })
+
+    company = CompanyManager.get_by_id(cid) if 'CompanyManager' in globals() else None
+
+    return render_template(
+        'payroll/company_fixed_fund.html',
+        entries=entries,
+        company=company,
+        total_credited=total_credited,
+        total_debited=total_debited,
+        total_balance=total_balance,
+        contributing_staff_count=contributing_staff_count
+    )
+
+
+@app.route('/payroll/fund-contributions/company-fixed-fund/export-excel')
+@login_required
+def export_company_fixed_fund_excel():
+    """
+    Exports the complete Company Fixed Fund / Reserve Fund Ledger as an Excel workbook (.xlsx).
+    """
+    cid = session.get('active_company_id', 1)
+    sync_forfeited_to_company_fixed_fund(cid)
+
+    entries = CompanyFixedFundLedger.query.filter_by(company_id=cid).order_by(
+        CompanyFixedFundLedger.forfeited_date.asc(),
+        CompanyFixedFundLedger.id.asc()
+    ).all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Company Fixed Fund"
+
+    # Header Title
+    ws.merge_cells("A1:I1")
+    ws["A1"] = "TBN BD LTD. — COMPANY FIXED FUND / RESERVE FUND LEDGER"
+    ws["A1"].font = Font(name="Calibri", size=14, bold=True, color="1E3A8A")
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+
+    ws.merge_cells("A2:I2")
+    ws["A2"] = f"Corporate Reserve Accumulated from Forfeited Employee Shares • Generated on: {get_bst_now().strftime('%d-%b-%Y %I:%M %p')}"
+    ws["A2"].font = Font(name="Calibri", size=10, italic=True, color="475569")
+    ws["A2"].alignment = Alignment(horizontal="center", vertical="center")
+
+    headers = [
+        "SL", "Transaction Date", "Forfeited Date", "Emp ID", "Employee Name",
+        "Department", "Type", "Forfeited Credit (৳)", "Reserve Balance (৳)"
+    ]
+    hdr_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+    hdr_font = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
+
+    for col_idx, h in enumerate(headers, 1):
+        c = ws.cell(row=4, column=col_idx, value=h)
+        c.fill = hdr_fill
+        c.font = hdr_font
+        c.alignment = Alignment(horizontal="center" if col_idx in [1, 2, 3, 4, 7] else ("right" if col_idx in [8, 9] else "left"), vertical="center")
+
+    row_num = 5
+    thin_border = Border(
+        left=Side(style='thin', color='CBD5E1'),
+        right=Side(style='thin', color='CBD5E1'),
+        top=Side(style='thin', color='CBD5E1'),
+        bottom=Side(style='thin', color='CBD5E1')
+    )
+    zebra_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+
+    for idx, e in enumerate(entries, 1):
+        ws.cell(row=row_num, column=1, value=idx)
+        ws.cell(row=row_num, column=2, value=e.transaction_date.strftime('%Y-%m-%d') if e.transaction_date else '')
+        ws.cell(row=row_num, column=3, value=e.forfeited_date.strftime('%Y-%m-%d') if e.forfeited_date else '')
+        ws.cell(row=row_num, column=4, value=e.emp_code or '-')
+        ws.cell(row=row_num, column=5, value=e.emp_name or '-')
+        ws.cell(row=row_num, column=6, value=e.department or '-')
+        ws.cell(row=row_num, column=7, value=e.transaction_type or 'Forfeiture Credit')
+
+        c_credit = ws.cell(row=row_num, column=8, value=float(e.credit_amount or 0.0))
+        c_credit.number_format = "#,##0.00"
+        c_credit.font = Font(name="Calibri", size=10, bold=True, color="047857")
+
+        c_bal = ws.cell(row=row_num, column=9, value=float(e.running_balance or 0.0))
+        c_bal.number_format = "#,##0.00"
+        c_bal.font = Font(name="Calibri", size=10, bold=True, color="1E3A8A")
+
+        for c_idx in range(1, 10):
+            cell = ws.cell(row=row_num, column=c_idx)
+            cell.border = thin_border
+            if idx % 2 == 0:
+                cell.fill = zebra_fill
+        row_num += 1
+
+    # Totals Row
+    ws.cell(row=row_num, column=7, value="TOTAL RESERVE:").font = Font(name="Calibri", size=10, bold=True)
+    tot_cell = ws.cell(row=row_num, column=8, value=sum(e.credit_amount or 0.0 for e in entries))
+    tot_cell.font = Font(name="Calibri", size=10, bold=True, color="047857")
+    tot_cell.number_format = "#,##0.00"
+
+    last_bal_cell = ws.cell(row=row_num, column=9, value=entries[-1].running_balance if entries else 0.0)
+    last_bal_cell.font = Font(name="Calibri", size=10, bold=True, color="1E3A8A")
+    last_bal_cell.number_format = "#,##0.00"
+
+    for c_idx in range(1, 10):
+        ws.cell(row=row_num, column=c_idx).border = thin_border
+
+    # Auto-fit column widths
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+
+    filename = f"Company_Fixed_Fund_Ledger_{get_bst_now().strftime('%Y%m%d')}.xlsx"
+    return safe_excel_response(wb, filename)
 
 
 MONTH_NAME_LOOKUP = {
@@ -20839,6 +21273,7 @@ def ensure_security_tables():
 try:
     ensure_user_table_columns()
     ensure_security_tables()
+    ensure_company_fixed_fund_table()
 except Exception:
     pass
 

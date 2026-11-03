@@ -11,6 +11,9 @@
         </p>
     </div>
     <div class="header-actions">
+        <a href="{{ url_for('company_fixed_fund_dashboard') }}" class="btn btn-outline" style="display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 700; color: #1e3a8a; border-color: #3b82f6; background: #eff6ff;" title="Corporate Reserve Fund accumulating forfeited employee matching contributions">
+            🏛️ Company Fixed Fund
+        </a>
         <a href="{{ url_for('export_fund_summary_report_excel') }}" class="btn btn-success" style="display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600;">
             📊 Export Report (Excel)
         </a>
@@ -70,10 +73,16 @@
         <div class="metric-sub">Paid: ৳{{ "{:,.2f}".format(total_own_withdrawn_amount) }}</div>
     </div>
 
-    <div class="metric-card" style="border-left: 4px solid #ef4444; background: #fef2f2;">
-        <div class="metric-label">Company Share Forfeited</div>
-        <div class="metric-value" style="color: #b91c1c;" id="kpi_top_forfeited">৳{{ "{:,.2f}".format(total_forfeited_comp) }}</div>
-        <div class="metric-sub">Deducted / forfeited adjustments</div>
+    <div class="metric-card" style="border-left: 4px solid #2563eb; background: #eff6ff; cursor: pointer;" onclick="window.location.href='{{ url_for('company_fixed_fund_dashboard') }}'" title="Click to inspect Company Fixed Fund Reserve Ledger">
+        <div class="metric-label" style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: #1e40af; font-weight: 700;">🏛️ Company Fixed Fund</span>
+            <span style="font-size: 0.68rem; background: #2563eb; color: #fff; padding: 1px 6px; border-radius: 4px; font-weight: 700;">RESERVE</span>
+        </div>
+        <div class="metric-value" style="color: #1e3a8a;" id="kpi_top_forfeited">৳{{ "{:,.2f}".format(total_forfeited_comp) }}</div>
+        <div class="metric-sub" style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: #64748b;">Retained from forfeited shares</span>
+            <a href="{{ url_for('company_fixed_fund_dashboard') }}" style="color: #2563eb; font-weight: 700; text-decoration: underline; font-size: 0.75rem;">View Ledger →</a>
+        </div>
     </div>
 
     <div class="metric-card" style="border-left: 4px solid #0284c7; background: #f0f9ff;">
