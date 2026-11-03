@@ -21,12 +21,24 @@
             </p>
         </div>
 
-        <div class="header-actions">
+        <div class="header-actions" style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+            <button type="button" class="btn-matrix-action" onclick="openLeavePostingModal()" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; font-weight: 700; border: none; cursor: pointer;">
+                🏖️ Post Leave
+            </button>
+            <button type="button" class="btn-matrix-action" onclick="openDutySwapModal()" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: #ffffff; font-weight: 700; border: none; cursor: pointer;">
+                🔄 Swap Duty
+            </button>
+            <button type="button" class="btn-matrix-action" onclick="openManualAdjustmentModal()" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; font-weight: 700; border: none; cursor: pointer;">
+                ✏️ Adjust Attendance
+            </button>
+            <button type="button" class="btn-matrix-action" onclick="openRosterAuditModal()" style="background: #334155; color: #ffffff; font-weight: 700; border: none; cursor: pointer;">
+                📜 Audit Log
+            </button>
             <button type="button" class="btn-matrix-action btn-holiday" onclick="openHolidayModal()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff; font-weight: 700; border: none; box-shadow: 0 4px 10px rgba(217, 119, 6, 0.35); cursor: pointer;">
-                🎉 Govt Holidays (PDF / Excel)
+                🎉 Govt Holidays
             </button>
             <a href="{{ url_for('export_attendance_excel', year=year, month=month) }}" class="btn-matrix-action btn-excel" title="Download Excel Sheet">
-                📥 Export Excel (.xlsx)
+                📥 Export Excel
             </a>
             <button type="button" class="btn-matrix-action btn-print" onclick="window.print()" title="Print Monthly Sheet">
                 🖨️ Print Sheet
@@ -105,6 +117,9 @@
             <span class="legend-badge legend-holiday"><span class="badge-pill pill-holiday">H</span> Govt Holiday (Paid)</span>
             <span class="legend-badge legend-holiday-work"><span class="badge-pill pill-holiday-work">H*</span> Holiday Duty</span>
             <span class="legend-badge legend-weekend"><span class="badge-pill pill-weekend">W</span> Weekend</span>
+            <span class="legend-badge" style="background: #dcfce7; color: #15803d; border: 1px solid #86efac; border-radius: 9999px; padding: 0.15rem 0.55rem; font-size: 0.72rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.35rem;"><span class="badge-pill" style="background: #15803d; color: #fff; width: 18px; height: 18px; border-radius: 4px; font-size: 0.65rem; display: inline-flex; align-items: center; justify-content: center; font-weight: 800;">LV</span> Approved Leave</span>
+            <span class="legend-badge" style="background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; border-radius: 9999px; padding: 0.15rem 0.55rem; font-size: 0.72rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.35rem;"><span class="badge-pill" style="background: #7e22ce; color: #fff; width: 18px; height: 18px; border-radius: 4px; font-size: 0.65rem; display: inline-flex; align-items: center; justify-content: center; font-weight: 800;">SW</span> Duty Swap</span>
+            <span class="legend-badge" style="background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; border-radius: 9999px; padding: 0.15rem 0.55rem; font-size: 0.72rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.35rem;"><span class="badge-pill" style="background: #0369a1; color: #fff; width: 18px; height: 18px; border-radius: 4px; font-size: 0.65rem; display: inline-flex; align-items: center; justify-content: center; font-weight: 800;">AD</span> Manual Adjusted</span>
             <span class="legend-badge legend-absent"><span class="badge-pill pill-absent">A</span> Absent</span>
         </div>
     </div>
@@ -1011,7 +1026,6 @@ window.onclick = function(event) {
     }
 }
 </script>
-{% endblock %}
 
 <style>
 .pill-holiday {
@@ -1240,3 +1254,6 @@ function switchHolidayTab(tabId, btn) {
     if (pane) pane.style.display = 'block';
 }
 </script>
+
+{% include "attendance/_roster_action_modals.html" %}
+{% endblock %}

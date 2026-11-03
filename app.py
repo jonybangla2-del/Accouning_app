@@ -2675,6 +2675,199 @@ class AttendanceShiftSetting(db.Model):
 
 
 
+
+class LeavePosting(db.Model):
+    __tablename__ = 'leave_postings'
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, default=1, index=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False, index=True)
+    emp_code = db.Column(db.String(50), nullable=True, index=True)
+    emp_name = db.Column(db.String(150), nullable=True)
+    department = db.Column(db.String(100), nullable=True)
+    leave_type = db.Column(db.String(50), nullable=False)
+    date_from = db.Column(db.Date, nullable=False, index=True)
+    date_to = db.Column(db.Date, nullable=False, index=True)
+    total_days = db.Column(db.Integer, default=1)
+    notes = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(30), default='Approved')
+    created_by = db.Column(db.String(100), default='Admin')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    employee = db.relationship('Employee', backref=db.backref('leave_postings', lazy=True, cascade='all, delete-orphan'))
+
+    def __init__(self, company_id=1, employee_id=None, emp_code=None, emp_name=None, department=None,
+                 leave_type="Casual Leave", date_from=None, date_to=None, total_days=1, notes="",
+                 status="Approved", created_by="Admin", created_at=None, **kwargs):
+        super().__init__(**kwargs)
+        self.company_id = company_id
+        self.employee_id = employee_id
+        self.emp_code = emp_code
+        self.emp_name = emp_name
+        self.department = department
+        self.leave_type = leave_type
+        self.date_from = date_from
+        self.date_to = date_to or date_from
+        self.total_days = total_days
+        self.notes = notes
+        self.status = status
+        self.created_by = created_by
+        if created_at is not None:
+            self.created_at = created_at
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'employee_id': self.employee_id,
+            'emp_code': self.emp_code,
+            'emp_name': self.emp_name,
+            'department': self.department,
+            'leave_type': self.leave_type,
+            'date_from': self.date_from.strftime('%Y-%m-%d') if self.date_from else '',
+            'date_to': self.date_to.strftime('%Y-%m-%d') if self.date_to else '',
+            'total_days': self.total_days,
+            'notes': self.notes,
+            'status': self.status,
+            'created_by': self.created_by,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else ''
+        }
+
+
+class RosterSwap(db.Model):
+    __tablename__ = 'roster_swaps'
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, default=1, index=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False, index=True)
+    emp_code = db.Column(db.String(50), nullable=True, index=True)
+    emp_name = db.Column(db.String(150), nullable=True)
+    department = db.Column(db.String(100), nullable=True)
+    original_duty_date = db.Column(db.Date, nullable=False, index=True)
+    swap_date = db.Column(db.Date, nullable=False, index=True)
+    swap_with_employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=True, index=True)
+    swap_with_emp_code = db.Column(db.String(50), nullable=True)
+    swap_with_emp_name = db.Column(db.String(150), nullable=True)
+    notes = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(30), default='Completed')
+    created_by = db.Column(db.String(100), default='Admin')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    employee = db.relationship('Employee', foreign_keys=[employee_id], backref=db.backref('roster_swaps_initiated', lazy=True))
+    swap_with_employee = db.relationship('Employee', foreign_keys=[swap_with_employee_id], backref=db.backref('roster_swaps_received', lazy=True))
+
+    def __init__(self, company_id=1, employee_id=None, emp_code=None, emp_name=None, department=None,
+                 original_duty_date=None, swap_date=None, swap_with_employee_id=None, swap_with_emp_code=None,
+                 swap_with_emp_name=None, notes="", status="Completed", created_by="Admin", created_at=None, **kwargs):
+        super().__init__(**kwargs)
+        self.company_id = company_id
+        self.employee_id = employee_id
+        self.emp_code = emp_code
+        self.emp_name = emp_name
+        self.department = department
+        self.original_duty_date = original_duty_date
+        self.swap_date = swap_date
+        self.swap_with_employee_id = swap_with_employee_id
+        self.swap_with_emp_code = swap_with_emp_code
+        self.swap_with_emp_name = swap_with_emp_name
+        self.notes = notes
+        self.status = status
+        self.created_by = created_by
+        if created_at is not None:
+            self.created_at = created_at
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'employee_id': self.employee_id,
+            'emp_code': self.emp_code,
+            'emp_name': self.emp_name,
+            'department': self.department,
+            'original_duty_date': self.original_duty_date.strftime('%Y-%m-%d') if self.original_duty_date else '',
+            'swap_date': self.swap_date.strftime('%Y-%m-%d') if self.swap_date else '',
+            'swap_with_employee_id': self.swap_with_employee_id,
+            'swap_with_emp_code': self.swap_with_emp_code,
+            'swap_with_emp_name': self.swap_with_emp_name,
+            'notes': self.notes,
+            'status': self.status,
+            'created_by': self.created_by,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else ''
+        }
+
+
+class AttendanceAdjustment(db.Model):
+    __tablename__ = 'attendance_adjustments'
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, default=1, index=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False, index=True)
+    emp_code = db.Column(db.String(50), nullable=True, index=True)
+    emp_name = db.Column(db.String(150), nullable=True)
+    department = db.Column(db.String(100), nullable=True)
+    target_date = db.Column(db.Date, nullable=False, index=True)
+    adjustment_type = db.Column(db.String(50), nullable=False)
+    manual_in_time = db.Column(db.String(10), nullable=True)
+    manual_out_time = db.Column(db.String(10), nullable=True)
+    adjusted_hours = db.Column(db.Float, default=8.0)
+    adjusted_ot = db.Column(db.Float, default=0.0)
+    original_status = db.Column(db.String(50), nullable=True)
+    new_status = db.Column(db.String(50), default='Present (Adjusted)')
+    notes = db.Column(db.Text, nullable=False)
+    created_by = db.Column(db.String(100), default='Admin')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    employee = db.relationship('Employee', backref=db.backref('attendance_adjustments', lazy=True, cascade='all, delete-orphan'))
+
+    def __init__(self, company_id=1, employee_id=None, emp_code=None, emp_name=None, department=None,
+                 target_date=None, adjustment_type="Missed Punch", manual_in_time=None, manual_out_time=None,
+                 adjusted_hours=8.0, adjusted_ot=0.0, original_status=None, new_status="Present (Adjusted)",
+                 notes="", created_by="Admin", created_at=None, **kwargs):
+        super().__init__(**kwargs)
+        self.company_id = company_id
+        self.employee_id = employee_id
+        self.emp_code = emp_code
+        self.emp_name = emp_name
+        self.department = department
+        self.target_date = target_date
+        self.adjustment_type = adjustment_type
+        self.manual_in_time = manual_in_time
+        self.manual_out_time = manual_out_time
+        self.adjusted_hours = adjusted_hours
+        self.adjusted_ot = adjusted_ot
+        self.original_status = original_status
+        self.new_status = new_status
+        self.notes = notes
+        self.created_by = created_by
+        if created_at is not None:
+            self.created_at = created_at
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'employee_id': self.employee_id,
+            'emp_code': self.emp_code,
+            'emp_name': self.emp_name,
+            'department': self.department,
+            'target_date': self.target_date.strftime('%Y-%m-%d') if self.target_date else '',
+            'adjustment_type': self.adjustment_type,
+            'manual_in_time': self.manual_in_time,
+            'manual_out_time': self.manual_out_time,
+            'adjusted_hours': self.adjusted_hours,
+            'adjusted_ot': self.adjusted_ot,
+            'original_status': self.original_status,
+            'new_status': self.new_status,
+            'notes': self.notes,
+            'created_by': self.created_by,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else ''
+        }
+
+
+def ensure_attendance_modules_tables():
+    """Ensures leave_postings, roster_swaps, and attendance_adjustments tables exist across all databases."""
+    try:
+        LeavePosting.__table__.create(db.engine, checkfirst=True)
+        RosterSwap.__table__.create(db.engine, checkfirst=True)
+        AttendanceAdjustment.__table__.create(db.engine, checkfirst=True)
+    except Exception:
+        pass
+
+
 class GovtHoliday(db.Model):
     __tablename__ = 'govt_holiday'
     id = db.Column(db.Integer, primary_key=True)
@@ -18685,6 +18878,438 @@ def clear_govt_holidays():
     deleted = GovtHoliday.query.filter_by(year=year).delete()
     db.session.commit()
     flash(f"🗑️ Cleared {deleted} government holidays for year {year}.", "info")
+    return redirect(request.referrer or url_for('attendance_dashboard'))
+
+
+
+# ==============================================================================
+# FACE MACHINE ATTENDANCE: LEAVE POSTING, DUTY SWAP & ADJUSTMENT MODULES
+# ==============================================================================
+
+@app.route('/attendance/api/employee-lookup/<string:emp_code>')
+@login_required
+def api_employee_attendance_lookup(emp_code):
+    """Instant lookup of employee name, department, and designation for attendance modals."""
+    code = emp_code.strip()
+    emp = Employee.query.filter((Employee.employee_id == code) | (Employee.employee_id == f"EMP-{code}")).first()
+    if not emp and code.isdigit():
+        emp = Employee.query.get(int(code))
+    if not emp:
+        return jsonify({'success': False, 'message': f'Employee with ID "{code}" not found'}), 404
+
+    return jsonify({
+        'success': True,
+        'id': emp.id,
+        'employee_id': emp.employee_id,
+        'name': emp.name,
+        'department': emp.department or 'General',
+        'designation': emp.designation or 'Staff Member'
+    })
+
+
+@app.route('/attendance/leave/post', methods=['POST'])
+@login_required
+def post_employee_leave():
+    """
+    Posts official employee leave (Casual, Sick, Earned, etc.) across a date range.
+    Updates daily attendance logs and monthly register automatically. Mandatory notes required.
+    """
+    emp_input = (request.form.get('employee_id') or '').strip()
+    leave_type = request.form.get('leave_type', 'Casual Leave').strip()
+    date_from_str = request.form.get('date_from', '').strip()
+    date_to_str = request.form.get('date_to', '').strip() or date_from_str
+    notes = (request.form.get('notes') or '').strip()
+
+    if not emp_input:
+        flash("Employee ID is required for leave posting.", "danger")
+        return redirect(request.referrer or url_for('attendance_dashboard'))
+
+    if not notes:
+        flash("Notes / Reason is strictly mandatory for Leave Posting.", "danger")
+        return redirect(request.referrer or url_for('attendance_dashboard'))
+
+    emp = Employee.query.filter((Employee.employee_id == emp_input) | (Employee.employee_id == f"EMP-{emp_input}")).first()
+    if not emp and emp_input.isdigit():
+        emp = Employee.query.get(int(emp_input))
+
+    if not emp:
+        flash(f"Employee '{emp_input}' was not found in the database.", "danger")
+        return redirect(request.referrer or url_for('attendance_dashboard'))
+
+    try:
+        d_from = datetime.strptime(date_from_str, '%Y-%m-%d').date()
+        d_to = datetime.strptime(date_to_str, '%Y-%m-%d').date()
+    except Exception as e:
+        flash(f"Invalid date format: {e}", "danger")
+        return redirect(request.referrer or url_for('attendance_dashboard'))
+
+    if d_to < d_from:
+        flash("Date To cannot be earlier than Date From.", "danger")
+        return redirect(request.referrer or url_for('attendance_dashboard'))
+
+    total_days = (d_to - d_from).days + 1
+    cid = session.get('active_company_id', 1)
+    username = session.get('username', 'Admin')
+
+    try:
+        # Create Leave Posting audit record
+        leave_rec = LeavePosting(
+            company_id=cid,
+            employee_id=emp.id,
+            emp_code=emp.employee_id,
+            emp_name=emp.name,
+            department=emp.department or 'General',
+            leave_type=leave_type,
+            date_from=d_from,
+            date_to=d_to,
+            total_days=total_days,
+            notes=notes,
+            created_by=username
+        )
+        db.session.add(leave_rec)
+
+        # Update daily attendance logs in range
+        curr = d_from
+        while curr <= d_to:
+            att = EmployeeAttendance.query.filter_by(employee_id=emp.id, attendance_date=curr).first()
+            if not att:
+                att = EmployeeAttendance(
+                    employee_id=emp.id,
+                    attendance_date=curr,
+                    shift_type=f"Leave ({leave_type})",
+                    status=leave_type,
+                    manual_override=True,
+                    remarks=f"Leave Posted: {leave_type} — {notes}"
+                )
+                db.session.add(att)
+            else:
+                att.status = leave_type
+                att.shift_type = f"Leave ({leave_type})"
+                att.manual_override = True
+                att.remarks = f"Leave Posted: {leave_type} — {notes}"
+                att.total_hours = 0.0
+                att.overtime_hours = 0.0
+
+            curr += timedelta(days=1)
+
+        db.session.commit()
+        flash(f"🎉 Leave successfully posted for {emp.name} ({total_days} days: {d_from} to {d_to}) with status '{leave_type}'.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error posting leave: {e}", "danger")
+
+    return redirect(request.referrer or url_for('attendance_dashboard'))
+
+
+@app.route('/attendance/roster/swap', methods=['POST'])
+@login_required
+def swap_roster_duty():
+    """
+    Swaps duty shifts or rest days between dates for an employee, or between two colleagues.
+    Mandatory swap reason / authorization note required.
+    """
+    emp_input = (request.form.get('employee_id') or '').strip()
+    orig_date_str = request.form.get('original_duty_date', '').strip()
+    swap_date_str = request.form.get('swap_date', '').strip()
+    swap_with_input = (request.form.get('swap_with_employee_id') or '').strip()
+    notes = (request.form.get('notes') or '').strip()
+
+    if not emp_input or not orig_date_str or not swap_date_str:
+        flash("Employee ID, Original Date, and Swap Date are required.", "danger")
+        return redirect(request.referrer or url_for('attendance_dashboard'))
+
+    if not notes:
+        flash("Swap Reason / Notes are strictly mandatory.", "danger")
+        return redirect(request.referrer or url_for('attendance_dashboard'))
+
+    emp1 = Employee.query.filter((Employee.employee_id == emp_input) | (Employee.employee_id == f"EMP-{emp_input}")).first()
+    if not emp1 and emp_input.isdigit():
+        emp1 = Employee.query.get(int(emp_input))
+
+    if not emp1:
+        flash(f"Primary employee '{emp_input}' not found.", "danger")
+        return redirect(request.referrer or url_for('attendance_dashboard'))
+
+    try:
+        d_orig = datetime.strptime(orig_date_str, '%Y-%m-%d').date()
+        d_swap = datetime.strptime(swap_date_str, '%Y-%m-%d').date()
+    except Exception as e:
+        flash(f"Invalid date format: {e}", "danger")
+        return redirect(request.referrer or url_for('attendance_dashboard'))
+
+    emp2 = None
+    if swap_with_input:
+        emp2 = Employee.query.filter((Employee.employee_id == swap_with_input) | (Employee.employee_id == f"EMP-{swap_with_input}")).first()
+        if not emp2 and swap_with_input.isdigit():
+            emp2 = Employee.query.get(int(swap_with_input))
+
+    cid = session.get('active_company_id', 1)
+    username = session.get('username', 'Admin')
+
+    try:
+        swap_rec = RosterSwap(
+            company_id=cid,
+            employee_id=emp1.id,
+            emp_code=emp1.employee_id,
+            emp_name=emp1.name,
+            department=emp1.department or 'General',
+            original_duty_date=d_orig,
+            swap_date=d_swap,
+            swap_with_employee_id=emp2.id if emp2 else None,
+            swap_with_emp_code=emp2.employee_id if emp2 else None,
+            swap_with_emp_name=emp2.name if emp2 else None,
+            notes=notes,
+            created_by=username
+        )
+        db.session.add(swap_rec)
+
+        if emp2:
+            # Exchange shifts between emp1 and emp2 on d_orig and d_swap
+            att1 = EmployeeAttendance.query.filter_by(employee_id=emp1.id, attendance_date=d_orig).first()
+            att2 = EmployeeAttendance.query.filter_by(employee_id=emp2.id, attendance_date=d_swap).first()
+
+            shift1 = att1.shift_type if att1 else 'Day Shift'
+            shift2 = att2.shift_type if att2 else 'Day Shift'
+
+            if not att1:
+                att1 = EmployeeAttendance(employee_id=emp1.id, attendance_date=d_orig)
+                db.session.add(att1)
+            att1.shift_type = shift2
+            att1.status = 'Duty Swap'
+            att1.manual_override = True
+            att1.remarks = f"Shift Swapped with {emp2.name} ({emp2.employee_id}) — {notes}"
+
+            if not att2:
+                att2 = EmployeeAttendance(employee_id=emp2.id, attendance_date=d_swap)
+                db.session.add(att2)
+            att2.shift_type = shift1
+            att2.status = 'Duty Swap'
+            att2.manual_override = True
+            att2.remarks = f"Shift Swapped with {emp1.name} ({emp1.employee_id}) — {notes}"
+        else:
+            # Single employee swapping duty between d_orig and d_swap
+            att_orig = EmployeeAttendance.query.filter_by(employee_id=emp1.id, attendance_date=d_orig).first()
+            att_swap = EmployeeAttendance.query.filter_by(employee_id=emp1.id, attendance_date=d_swap).first()
+
+            if not att_orig:
+                att_orig = EmployeeAttendance(employee_id=emp1.id, attendance_date=d_orig)
+                db.session.add(att_orig)
+            att_orig.shift_type = 'Swap Off (Rest)'
+            att_orig.status = 'Swap Off'
+            att_orig.manual_override = True
+            att_orig.total_hours = 0.0
+            att_orig.overtime_hours = 0.0
+            att_orig.remarks = f"Duty swapped to {d_swap} — {notes}"
+
+            if not att_swap:
+                att_swap = EmployeeAttendance(employee_id=emp1.id, attendance_date=d_swap)
+                db.session.add(att_swap)
+            att_swap.shift_type = 'Day Shift (Swapped)'
+            att_swap.status = 'Duty Swap'
+            att_swap.manual_override = True
+            att_swap.total_hours = 8.0
+            att_swap.remarks = f"Swapped duty from {d_orig} — {notes}"
+
+        db.session.commit()
+        flash(f"🔄 Duty Swap confirmed successfully for {emp1.name} between {d_orig} and {d_swap}.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error performing duty swap: {e}", "danger")
+
+    return redirect(request.referrer or url_for('attendance_dashboard'))
+
+
+@app.route('/attendance/adjustment/add', methods=['POST'])
+@login_required
+def add_manual_adjustment():
+    """
+    Manual Attendance Adjustment module (Missed punch, Force present, Half day, Grace waiver, OT).
+    Original face machine punch records remain untouched for forensic integrity.
+    Mandatory reason / adjustment note required.
+    """
+    emp_input = (request.form.get('employee_id') or '').strip()
+    target_date_str = request.form.get('target_date', '').strip()
+    adj_type = request.form.get('adjustment_type', 'Missed Punch').strip()
+    manual_in = (request.form.get('manual_in_time') or '').strip()
+    manual_out = (request.form.get('manual_out_time') or '').strip()
+    adj_hours_raw = request.form.get('adjusted_hours', '').strip()
+    adj_ot_raw = request.form.get('adjusted_ot', '').strip()
+    notes = (request.form.get('notes') or '').strip()
+
+    if not emp_input or not target_date_str:
+        flash("Employee ID and Target Date are required.", "danger")
+        return redirect(request.referrer or url_for('attendance_dashboard'))
+
+    if not notes:
+        flash("Adjustment Reason / Notes are strictly mandatory.", "danger")
+        return redirect(request.referrer or url_for('attendance_dashboard'))
+
+    emp = Employee.query.filter((Employee.employee_id == emp_input) | (Employee.employee_id == f"EMP-{emp_input}")).first()
+    if not emp and emp_input.isdigit():
+        emp = Employee.query.get(int(emp_input))
+
+    if not emp:
+        flash(f"Employee '{emp_input}' not found.", "danger")
+        return redirect(request.referrer or url_for('attendance_dashboard'))
+
+    try:
+        t_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+    except Exception as e:
+        flash(f"Invalid date format: {e}", "danger")
+        return redirect(request.referrer or url_for('attendance_dashboard'))
+
+    cid = session.get('active_company_id', 1)
+    username = session.get('username', 'Admin')
+
+    try:
+        att = EmployeeAttendance.query.filter_by(employee_id=emp.id, attendance_date=t_date).first()
+        orig_status = att.status if att else 'Absent'
+
+        in_dt = None
+        out_dt = None
+        if manual_in:
+            try:
+                in_dt = datetime.combine(t_date, datetime.strptime(manual_in, '%H:%M').time())
+            except Exception:
+                pass
+        if manual_out:
+            try:
+                out_dt = datetime.combine(t_date, datetime.strptime(manual_out, '%H:%M').time())
+                if in_dt and out_dt < in_dt:
+                    out_dt += timedelta(days=1)
+            except Exception:
+                pass
+
+        # Calculate duty and OT hours
+        tot_hours = 8.0
+        ot_hours = 0.0
+        if in_dt and out_dt:
+            tot_hours = round((out_dt - in_dt).total_seconds() / 3600.0, 2)
+            ot_hours = max(0.0, round(tot_hours - 8.0, 2))
+
+        if adj_hours_raw:
+            try: tot_hours = float(adj_hours_raw)
+            except Exception: pass
+        if adj_ot_raw:
+            try: ot_hours = float(adj_ot_raw)
+            except Exception: pass
+
+        new_status = 'Present (Adjusted)'
+        shift_name = 'Day Shift'
+        if adj_type == 'Missed Punch':
+            new_status = 'Present (Punch Adjusted)'
+        elif adj_type == 'Force Present':
+            new_status = 'Present (Manual Force)'
+        elif adj_type == 'Half Day':
+            new_status = 'Half Day'
+            tot_hours = 4.0
+            ot_hours = 0.0
+        elif adj_type == 'Grace Time / Late Waiver':
+            new_status = 'Present (Late Waived)'
+        elif adj_type == 'OT Adjustment':
+            new_status = 'Present (OT Adjusted)'
+        elif adj_type == 'On Duty / Official Visit':
+            new_status = 'Present (Official Tour)'
+            shift_name = 'Official Duty / Tour'
+
+        # Record Audit
+        adj_rec = AttendanceAdjustment(
+            company_id=cid,
+            employee_id=emp.id,
+            emp_code=emp.employee_id,
+            emp_name=emp.name,
+            department=emp.department or 'General',
+            target_date=t_date,
+            adjustment_type=adj_type,
+            manual_in_time=manual_in or None,
+            manual_out_time=manual_out or None,
+            adjusted_hours=tot_hours,
+            adjusted_ot=ot_hours,
+            original_status=orig_status,
+            new_status=new_status,
+            notes=notes,
+            created_by=username
+        )
+        db.session.add(adj_rec)
+
+        # Update Attendance Record
+        if not att:
+            att = EmployeeAttendance(
+                employee_id=emp.id,
+                attendance_date=t_date,
+                shift_type=shift_name,
+                in_time=in_dt,
+                out_time=out_dt,
+                total_hours=tot_hours,
+                overtime_hours=ot_hours,
+                status=new_status,
+                manual_override=True,
+                remarks=f"Manual Adjustment [{adj_type}]: {notes}"
+            )
+            db.session.add(att)
+        else:
+            att.status = new_status
+            if in_dt: att.in_time = in_dt
+            if out_dt: att.out_time = out_dt
+            att.total_hours = tot_hours
+            att.overtime_hours = ot_hours
+            att.manual_override = True
+            att.remarks = f"Manual Adjustment [{adj_type}]: {notes}"
+
+        db.session.commit()
+        flash(f"✏️ Attendance adjustment saved for {emp.name} on {t_date} ({adj_type} &mdash; {new_status}).", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error saving attendance adjustment: {e}", "danger")
+
+    return redirect(request.referrer or url_for('attendance_dashboard'))
+
+
+@app.route('/attendance/roster-audit-log')
+@login_required
+def roster_audit_log_api():
+    """Returns historical audit logs for leaves, swaps, and adjustments in JSON or HTML modal format."""
+    cid = session.get('active_company_id', 1)
+    leaves = LeavePosting.query.filter_by(company_id=cid).order_by(LeavePosting.created_at.desc()).limit(100).all()
+    swaps = RosterSwap.query.filter_by(company_id=cid).order_by(RosterSwap.created_at.desc()).limit(100).all()
+    adjs = AttendanceAdjustment.query.filter_by(company_id=cid).order_by(AttendanceAdjustment.created_at.desc()).limit(100).all()
+
+    return jsonify({
+        'success': True,
+        'leaves': [l.to_dict() for l in leaves],
+        'swaps': [s.to_dict() for s in swaps],
+        'adjustments': [a.to_dict() for a in adjs]
+    })
+
+
+@app.route('/attendance/leave/<int:leave_id>/delete', methods=['POST'])
+@login_required
+def delete_leave_posting(leave_id):
+    leave = LeavePosting.query.get_or_404(leave_id)
+    emp_name = leave.emp_name
+    db.session.delete(leave)
+    db.session.commit()
+    flash(f"🗑️ Leave posting for {emp_name} has been removed.", "info")
+    return redirect(request.referrer or url_for('attendance_dashboard'))
+
+
+@app.route('/attendance/swap/<int:swap_id>/delete', methods=['POST'])
+@login_required
+def delete_roster_swap(swap_id):
+    swap = RosterSwap.query.get_or_404(swap_id)
+    db.session.delete(swap)
+    db.session.commit()
+    flash("🗑️ Roster swap record removed.", "info")
+    return redirect(request.referrer or url_for('attendance_dashboard'))
+
+
+@app.route('/attendance/adjustment/<int:adj_id>/delete', methods=['POST'])
+@login_required
+def delete_attendance_adjustment(adj_id):
+    adj = AttendanceAdjustment.query.get_or_404(adj_id)
+    db.session.delete(adj)
+    db.session.commit()
+    flash("🗑️ Attendance adjustment record removed.", "info")
     return redirect(request.referrer or url_for('attendance_dashboard'))
 
 

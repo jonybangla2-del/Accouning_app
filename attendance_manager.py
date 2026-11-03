@@ -222,6 +222,7 @@ def build_monthly_attendance_matrix(attendance_records, employees, year, month):
             'total_holidays': 0,
             'total_holiday_worked': 0,
             'total_weekends': 0,
+            'total_leaves': 0,
             'total_absent': 0,
             'total_payable_days': 0,
             'total_night': 0,
@@ -242,39 +243,95 @@ def build_monthly_attendance_matrix(attendance_records, employees, year, month):
             is_govt_holiday = (h_obj is not None)
             
             if rec:
-                emp_row['total_present'] += 1
-                emp_row['total_hours'] += (rec.total_hours or 0.0)
-                emp_row['total_ot'] += (rec.overtime_hours or 0.0)
-                
-                if 'Late' in (rec.status or ''):
-                    emp_row['late_days'] += 1
-                    
-                if is_govt_holiday:
+                st_lower = (rec.status or '').lower()
+                sh_lower = (rec.shift_type or '').lower()
+                rem_lower = (rec.remarks or '').lower()
+
+                # 1. Leave Posting Check
+                if any(lv in st_lower for lv in ['leave', 'casual', 'sick', 'earned', 'maternity', 'paternity']) or 'leave' in sh_lower:
+                    emp_row['total_leaves'] += 1
+                    if 'casual' in st_lower or 'cl' in st_lower:
+                        badge = 'CL'
+                    elif 'sick' in st_lower or 'sl' in st_lower:
+                        badge = 'SL'
+                    elif 'earned' in st_lower or 'el' in st_lower:
+                        badge = 'EL'
+                    else:
+                        badge = 'LV'
+                    css_class = 'badge-leave'
+                    shift_title = rec.remarks or f"Leave: {rec.status}"
+
+                # 2. Duty Swap Check
+                elif 'swap off' in st_lower or 'swap off' in sh_lower or 'swap off' in rem_lower:
+                    emp_row['total_weekends'] += 1
+                    badge = 'SO'
+                    css_class = 'badge-weekend'
+                    shift_title = rec.remarks or "Duty Swap: Off-Day"
+                elif 'swap' in st_lower or 'swap' in sh_lower or 'swap' in rem_lower:
+                    emp_row['total_present'] += 1
+                    emp_row['total_hours'] += (rec.total_hours or 0.0)
+                    emp_row['total_ot'] += (rec.overtime_hours or 0.0)
+                    badge = 'SW'
+                    css_class = 'badge-swap'
+                    shift_title = rec.remarks or f"Duty Swap: {rec.shift_type}"
+
+                # 3. Manual Adjustment Check
+                elif 'adjust' in st_lower or 'force' in st_lower or 'tour' in st_lower or 'waived' in st_lower:
+                    emp_row['total_present'] += 1
+                    emp_row['total_hours'] += (rec.total_hours or 0.0)
+                    emp_row['total_ot'] += (rec.overtime_hours or 0.0)
+                    if 'half' in st_lower:
+                        badge = 'HD'
+                        css_class = 'badge-warning'
+                    else:
+                        badge = 'AD'
+                        css_class = 'badge-adjusted'
+                    shift_title = rec.remarks or f"Adjusted: {rec.status}"
+
+                # 4. Standard Shifts & Holidays
+                elif is_govt_holiday:
+                    emp_row['total_present'] += 1
                     emp_row['total_holiday_worked'] += 1
+                    emp_row['total_hours'] += (rec.total_hours or 0.0)
+                    emp_row['total_ot'] += (rec.overtime_hours or 0.0)
                     badge = 'H*'
                     css_class = 'badge-holiday-work'
                     shift_title = f"Govt Holiday Duty: {h_obj.name}"
                 elif 'Night' in rec.shift_type:
+                    emp_row['total_present'] += 1
                     emp_row['total_night'] += 1
+                    emp_row['total_hours'] += (rec.total_hours or 0.0)
+                    emp_row['total_ot'] += (rec.overtime_hours or 0.0)
                     badge = 'N'
                     css_class = 'badge-night'
                     shift_title = rec.shift_type
                 elif 'Double' in rec.shift_type:
+                    emp_row['total_present'] += 1
                     emp_row['total_double'] += 1
+                    emp_row['total_hours'] += (rec.total_hours or 0.0)
+                    emp_row['total_ot'] += (rec.overtime_hours or 0.0)
                     badge = 'DN'
                     css_class = 'badge-double'
                     shift_title = rec.shift_type
                 elif 'Late' in (rec.status or ''):
+                    emp_row['total_present'] += 1
                     emp_row['total_day'] += 1
+                    emp_row['late_days'] += 1
+                    emp_row['total_hours'] += (rec.total_hours or 0.0)
+                    emp_row['total_ot'] += (rec.overtime_hours or 0.0)
                     badge = 'L'
                     css_class = 'badge-late'
                     shift_title = rec.shift_type
                 elif rec.status == 'Missing Out':
+                    emp_row['total_present'] += 1
                     badge = '?'
                     css_class = 'badge-warning'
                     shift_title = 'Missing Out'
                 else:
+                    emp_row['total_present'] += 1
                     emp_row['total_day'] += 1
+                    emp_row['total_hours'] += (rec.total_hours or 0.0)
+                    emp_row['total_ot'] += (rec.overtime_hours or 0.0)
                     badge = 'D'
                     css_class = 'badge-day'
                     shift_title = rec.shift_type
@@ -330,8 +387,8 @@ def build_monthly_attendance_matrix(attendance_records, employees, year, month):
                     
         emp_row['total_hours'] = round(emp_row['total_hours'], 1)
         emp_row['total_ot'] = round(emp_row['total_ot'], 1)
-        # Total payable days = Days Worked + Paid Govt Holidays + Weekends
-        emp_row['total_payable_days'] = emp_row['total_present'] + emp_row['total_holidays'] + emp_row['total_weekends']
+        # Total payable days = Days Worked + Paid Govt Holidays + Weekends + Approved Leaves
+        emp_row['total_payable_days'] = emp_row['total_present'] + emp_row['total_holidays'] + emp_row['total_weekends'] + emp_row.get('total_leaves', 0)
         matrix.append(emp_row)
         
     return {

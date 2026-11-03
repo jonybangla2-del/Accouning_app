@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
-{% block title %}Biometric Face Attendance &amp; AI Shift Analyzer &bull; ZR-ERP{% endblock %}
+{% block title %}Biometric Face Attendance &amp; AI Shift Analyzer &bull; ZR-ERP{% include "attendance/_roster_action_modals.html" %}
+{% endblock %}
 
 {% block content %}
 <div class="attendance-container">
@@ -18,12 +19,24 @@
             </p>
         </div>
 
-        <div class="header-actions">
+        <div class="header-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button type="button" class="btn-action" onclick="openLeavePostingModal()" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; font-weight: 700; border: none; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);">
+                🏖️ Post Leave
+            </button>
+            <button type="button" class="btn-action" onclick="openDutySwapModal()" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: #ffffff; font-weight: 700; border: none; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);">
+                🔄 Swap Duty
+            </button>
+            <button type="button" class="btn-action" onclick="openManualAdjustmentModal()" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; font-weight: 700; border: none; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);">
+                ✏️ Adjust Attendance
+            </button>
+            <button type="button" class="btn-action" onclick="openRosterAuditModal()" style="background: #334155; color: #ffffff; font-weight: 700; border: none;">
+                📜 Roster Audit Log
+            </button>
             <button type="button" class="btn-action btn-import" onclick="openImportModal()">
                 📥 Import Notepad Log
             </button>
             <button type="button" class="btn-action btn-holiday" onclick="openHolidayModal()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff; font-weight: 700; border: none; box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35);">
-                🎉 Govt Holiday List (PDF / Excel)
+                🎉 Govt Holiday List
             </button>
             <a href="{{ url_for('attendance_month_matrix') }}" class="btn-action btn-matrix">
                 📊 Monthly Register (31-Day)
@@ -276,9 +289,15 @@
                                     {{ r.ai_analysis or 'Standard automated biometric pairing.' }}
                                 </div>
                             </td>
-                            <td class="text-center">
-                                <button type="button" class="btn-row-edit" onclick="openEditModal({{ r.id }}, '{{ emp.name }}', '{{ r.shift_type }}', '{{ r.in_time.strftime('%Y-%m-%d %H:%M') if r.in_time else '' }}', '{{ r.out_time.strftime('%Y-%m-%d %H:%M') if r.out_time else '' }}', '{{ r.status }}', '{{ r.remarks or '' }}')" title="Edit Attendance Times">
+                            <td class="text-center" style="white-space: nowrap;">
+                                <button type="button" class="btn-row-edit" onclick="openManualAdjustmentModal('{{ emp.employee_id|replace('EMP-', '') if emp else '' }}', '{{ selected_date_str }}')" title="Manual Attendance Adjustment">
                                     ✏️
+                                </button>
+                                <button type="button" class="btn-row-edit" onclick="openLeavePostingModal('{{ emp.employee_id|replace('EMP-', '') if emp else '' }}', '{{ selected_date_str }}')" title="Post Leave" style="color: #059669;">
+                                    🏖️
+                                </button>
+                                <button type="button" class="btn-row-edit" onclick="openDutySwapModal('{{ emp.employee_id|replace('EMP-', '') if emp else '' }}', '{{ selected_date_str }}')" title="Swap Duty" style="color: #7c3aed;">
+                                    🔄
                                 </button>
                             </td>
                         </tr>
@@ -1607,4 +1626,5 @@ function switchHolidayTab(tabId, btn) {
     if (pane) pane.style.display = 'block';
 }
 </script>
+{% include "attendance/_roster_action_modals.html" %}
 {% endblock %}

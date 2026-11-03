@@ -18,6 +18,7 @@ MODULE_TABLES = {
     'budgets': ['monthly_budget', 'budget_item'],
     'remittances': ['remittance_record'],
     'invoices': ['service_invoice'],
+    'attendance': ['employee_attendance', 'attendance_shift_setting', 'biometric_punch_log', 'leave_postings', 'roster_swaps', 'attendance_adjustments', 'govt_holiday'],
     'users': ['user', 'email_otp']
 }
 
@@ -49,7 +50,14 @@ ALL_TABLES_ORDERED = [
     'employee_salary_certificate_record',
     'employee_experience_certificate_record',
     'employee_tax_challan',
-    'employee_clearance_record'
+    'employee_clearance_record',
+    'employee_attendance',
+    'attendance_shift_setting',
+    'biometric_punch_log',
+    'leave_postings',
+    'roster_swaps',
+    'attendance_adjustments',
+    'govt_holiday'
 ]
 
 class CompanyProfile:

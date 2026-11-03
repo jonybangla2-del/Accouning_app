@@ -1,0 +1,575 @@
+<!-- templates/attendance/_roster_action_modals.html -->
+
+<!-- Shared Employee Datalist for Instant Auto-Fill -->
+<datalist id="rosterEmployeesDatalist">
+    {% if all_employees %}
+        {% for emp in all_employees %}
+        <option value="{{ emp.employee_id|replace('EMP-', '') }}" data-full-id="{{ emp.employee_id }}" data-id="{{ emp.id }}" data-name="{{ emp.name }}" data-dept="{{ emp.department or 'General' }}">{{ emp.employee_id }} &mdash; {{ emp.name }} ({{ emp.department or 'General' }})</option>
+        {% endfor %}
+    {% endif %}
+</datalist>
+
+<!-- 1. LEAVE POSTING MODAL -->
+<div class="modal-backdrop" id="leavePostingModal" onclick="if(event.target === this) closeLeavePostingModal()">
+    <div class="modal-dialog" style="max-width: 580px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #fff;">
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                🏖️ Post Employee Leave (ছুটি এন্ট্রি)
+            </h3>
+            <button type="button" class="btn-close-modal" onclick="closeLeavePostingModal()" style="color: #fff; background: transparent; border: none; font-size: 1.25rem; cursor: pointer;">✕</button>
+        </div>
+        <form method="POST" action="{{ url_for('post_employee_leave') }}" class="modal-form" style="padding: 1.25rem;">
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
+                <!-- Employee Lookup -->
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 700; color: #1e293b; font-size: 0.88rem;">Employee ID *</label>
+                    <input type="text" name="employee_id" id="leaveEmpInput" list="rosterEmployeesDatalist" oninput="onRosterEmpInput(this, 'leaveEmpNameDisplay', 'leaveEmpDeptDisplay')" required placeholder="Type or select ID e.g. 127" class="ctrl-input" style="width: 100%; font-size: 0.95rem; font-weight: 700;">
+                    <div style="margin-top: 0.35rem; font-size: 0.82rem; background: #f8fafc; padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid #e2e8f0; color: #475569;">
+                        Staff: <strong id="leaveEmpNameDisplay" style="color: #0f172a;">-</strong> &bull; Dept: <span id="leaveEmpDeptDisplay">-</span>
+                    </div>
+                </div>
+
+                <!-- Leave Type -->
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 700; color: #1e293b; font-size: 0.88rem;">Leave Type *</label>
+                    <select name="leave_type" id="leaveTypeSelect" class="ctrl-select" style="width: 100%; font-size: 0.9rem; font-weight: 600;">
+                        <option value="Casual Leave">🏖️ Casual Leave (CL)</option>
+                        <option value="Sick Leave">🤒 Sick Leave (SL)</option>
+                        <option value="Earned Leave">💼 Earned Leave (EL)</option>
+                        <option value="Maternity Leave">👶 Maternity Leave</option>
+                        <option value="Paternity Leave">👨‍🍼 Paternity Leave</option>
+                        <option value="Special Leave">⭐ Special Leave / Emergency Leave</option>
+                        <option value="Compensatory Off">⏱️ Compensatory Off (C-Off)</option>
+                    </select>
+                </div>
+
+                <!-- Date Range & Total Days -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 700; color: #1e293b; font-size: 0.85rem;">Date From *</label>
+                        <input type="date" name="date_from" id="leaveDateFrom" onchange="calcLeaveDays()" required class="ctrl-input" style="width: 100%;">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 700; color: #1e293b; font-size: 0.85rem;">Date To *</label>
+                        <input type="date" name="date_to" id="leaveDateTo" onchange="calcLeaveDays()" required class="ctrl-input" style="width: 100%;">
+                    </div>
+                </div>
+
+                <!-- Total Days Display -->
+                <div style="display: flex; align-items: center; justify-content: space-between; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 0.6rem 0.85rem; border-radius: 8px;">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: #065f46;">Calculated Leave Duration:</span>
+                    <span id="leaveTotalDaysDisplay" style="font-size: 1rem; font-weight: 900; color: #047857; font-family: 'JetBrains Mono', monospace;">1 Day</span>
+                    <input type="hidden" name="total_days" id="leaveTotalDaysInput" value="1">
+                </div>
+
+                <!-- Notes / Reason (Mandatory) -->
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 700; color: #1e293b; font-size: 0.88rem;">
+                        Notes / Reason * <span style="color: #ef4444;">(Mandatory)</span>
+                    </label>
+                    <textarea name="notes" id="leaveNotes" required rows="2" placeholder="e.g. Approved medical rest as per Dr. certificate / Family emergency..." class="ctrl-input" style="width: 100%; font-size: 0.85rem; resize: vertical;"></textarea>
+                    <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.2rem;">
+                        Roster will automatically mark this staff member as on approved leave for all dates in this range.
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.65rem; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #e2e8f0;">
+                <button type="button" class="btn btn-outline" onclick="closeLeavePostingModal()">Cancel</button>
+                <button type="submit" class="btn btn-success" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #fff; font-weight: 700; border: none; padding: 0.45rem 1.25rem;">
+                    💾 Post Leave &amp; Update Roster
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 2. DUTY / SHIFT SWAP MODAL -->
+<div class="modal-backdrop" id="dutySwapModal" onclick="if(event.target === this) closeDutySwapModal()">
+    <div class="modal-dialog" style="max-width: 600px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: #fff;">
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                🔄 Duty &amp; Shift Swap (ডিউটি অদলবদল)
+            </h3>
+            <button type="button" class="btn-close-modal" onclick="closeDutySwapModal()" style="color: #fff; background: transparent; border: none; font-size: 1.25rem; cursor: pointer;">✕</button>
+        </div>
+        <form method="POST" action="{{ url_for('swap_roster_duty') }}" class="modal-form" style="padding: 1.25rem;">
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
+                <!-- Employee 1 -->
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 700; color: #1e293b; font-size: 0.88rem;">Staff Member (Initiating Swap) *</label>
+                    <input type="text" name="employee_id" id="swapEmpInput1" list="rosterEmployeesDatalist" oninput="onRosterEmpInput(this, 'swapEmpNameDisplay1', 'swapEmpDeptDisplay1')" required placeholder="Type or select ID e.g. 127" class="ctrl-input" style="width: 100%; font-size: 0.95rem; font-weight: 700;">
+                    <div style="margin-top: 0.35rem; font-size: 0.82rem; background: #f8fafc; padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid #e2e8f0; color: #475569;">
+                        Staff: <strong id="swapEmpNameDisplay1" style="color: #0f172a;">-</strong> &bull; Dept: <span id="swapEmpDeptDisplay1">-</span>
+                    </div>
+                </div>
+
+                <!-- Dates -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 700; color: #1e293b; font-size: 0.85rem;">Original Duty Date *</label>
+                        <input type="date" name="original_duty_date" id="swapOrigDate" required class="ctrl-input" style="width: 100%;">
+                        <div style="font-size: 0.73rem; color: #64748b; margin-top: 0.2rem;">Scheduled duty/shift date</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 700; color: #1e293b; font-size: 0.85rem;">Swap / Exchange Date *</label>
+                        <input type="date" name="swap_date" id="swapTargetDate" required class="ctrl-input" style="width: 100%;">
+                        <div style="font-size: 0.73rem; color: #64748b; margin-top: 0.2rem;">Date duty is moved to</div>
+                    </div>
+                </div>
+
+                <!-- Optional Colleague ID -->
+                <div class="form-group" style="background: #faf5ff; border: 1px dashed #d8b4fe; padding: 0.75rem; border-radius: 8px;">
+                    <label class="form-label" style="font-weight: 700; color: #6b21a8; font-size: 0.85rem; display: flex; justify-content: space-between;">
+                        <span>Swap With Another Colleague?</span>
+                        <span style="font-size: 0.72rem; color: #9333ea; font-weight: 600;">(Optional)</span>
+                    </label>
+                    <input type="text" name="swap_with_employee_id" id="swapEmpInput2" list="rosterEmployeesDatalist" oninput="onRosterEmpInput(this, 'swapEmpNameDisplay2', 'swapEmpDeptDisplay2')" placeholder="Optional: Enter colleague ID e.g. 154" class="ctrl-input" style="width: 100%; font-size: 0.9rem;">
+                    <div style="margin-top: 0.35rem; font-size: 0.8rem; color: #6b21a8;">
+                        Colleague: <strong id="swapEmpNameDisplay2">None (Individual Off/Duty Swap)</strong> &bull; Dept: <span id="swapEmpDeptDisplay2">-</span>
+                    </div>
+                </div>
+
+                <!-- Swap Reason (Mandatory) -->
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 700; color: #1e293b; font-size: 0.88rem;">
+                        Swap Reason / Approval Reference * <span style="color: #ef4444;">(Mandatory)</span>
+                    </label>
+                    <textarea name="notes" id="swapNotes" required rows="2" placeholder="e.g. Swapped night shift with Tuesday general shift as approved by Dept In-Charge..." class="ctrl-input" style="width: 100%; font-size: 0.85rem; resize: vertical;"></textarea>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.65rem; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #e2e8f0;">
+                <button type="button" class="btn btn-outline" onclick="closeDutySwapModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: #fff; font-weight: 700; border: none; padding: 0.45rem 1.25rem;">
+                    🔄 Confirm Duty Swap
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 3. MANUAL ATTENDANCE ADJUSTMENT MODAL -->
+<div class="modal-backdrop" id="manualAdjustmentModal" onclick="if(event.target === this) closeManualAdjustmentModal()">
+    <div class="modal-dialog" style="max-width: 620px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #fff;">
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                ✏️ Manual Attendance Adjustment (ম্যানুয়াল অ্যাডজাস্টমেন্ট)
+            </h3>
+            <button type="button" class="btn-close-modal" onclick="closeManualAdjustmentModal()" style="color: #fff; background: transparent; border: none; font-size: 1.25rem; cursor: pointer;">✕</button>
+        </div>
+        <form method="POST" action="{{ url_for('add_manual_adjustment') }}" class="modal-form" style="padding: 1.25rem;">
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
+                <!-- Employee Lookup -->
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 700; color: #1e293b; font-size: 0.88rem;">Employee ID *</label>
+                    <input type="text" name="employee_id" id="adjEmpInput" list="rosterEmployeesDatalist" oninput="onRosterEmpInput(this, 'adjEmpNameDisplay', 'adjEmpDeptDisplay')" required placeholder="Type or select ID e.g. 127" class="ctrl-input" style="width: 100%; font-size: 0.95rem; font-weight: 700;">
+                    <div style="margin-top: 0.35rem; font-size: 0.82rem; background: #f8fafc; padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid #e2e8f0; color: #475569;">
+                        Staff: <strong id="adjEmpNameDisplay" style="color: #0f172a;">-</strong> &bull; Dept: <span id="adjEmpDeptDisplay">-</span>
+                    </div>
+                </div>
+
+                <!-- Date & Adjustment Type -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 700; color: #1e293b; font-size: 0.85rem;">Target Date *</label>
+                        <input type="date" name="target_date" id="adjTargetDate" required class="ctrl-input" style="width: 100%;">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 700; color: #1e293b; font-size: 0.85rem;">Adjustment Type *</label>
+                        <select name="adjustment_type" id="adjTypeSelect" class="ctrl-select" style="width: 100%;">
+                            <option value="Missed Punch">⚠️ Missed Punch (Forgot to punch out)</option>
+                            <option value="Force Present">✓ Force Present (Face machine unread)</option>
+                            <option value="Half Day">🌓 Half Day Duty</option>
+                            <option value="Grace Time / Late Waiver">⏰ Grace Time / Late Waiver</option>
+                            <option value="OT Adjustment">⏱️ Overtime (OT) Adjustment</option>
+                            <option value="On Duty / Official Visit">🚗 On Duty / Official Tour</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Manual In/Out Times -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0.65rem; background: #f0f9ff; border: 1px solid #bae6fd; padding: 0.75rem; border-radius: 8px;">
+                    <div class="form-group">
+                        <label style="font-size: 0.78rem; font-weight: 700; color: #0369a1;">In-Time</label>
+                        <input type="time" name="manual_in_time" id="adjInTime" class="ctrl-input" style="width: 100%; font-size: 0.85rem;" placeholder="09:00">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size: 0.78rem; font-weight: 700; color: #0369a1;">Out-Time</label>
+                        <input type="time" name="manual_out_time" id="adjOutTime" class="ctrl-input" style="width: 100%; font-size: 0.85rem;" placeholder="18:00">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size: 0.78rem; font-weight: 700; color: #0369a1;">Duty Hours</label>
+                        <input type="number" step="0.5" name="adjusted_hours" id="adjHours" value="8.0" class="ctrl-input" style="width: 100%; font-size: 0.85rem;">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size: 0.78rem; font-weight: 700; color: #0369a1;">OT Hours</label>
+                        <input type="number" step="0.5" name="adjusted_ot" id="adjOt" value="0.0" class="ctrl-input" style="width: 100%; font-size: 0.85rem;">
+                    </div>
+                </div>
+
+                <!-- Notes / Remarks (Mandatory) -->
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 700; color: #1e293b; font-size: 0.88rem;">
+                        Adjustment Reason / Authorization * <span style="color: #ef4444;">(Mandatory)</span>
+                    </label>
+                    <textarea name="notes" id="adjNotes" required rows="2" placeholder="e.g. Card scanner glitch / Verified by Security Log / Late waived per Management approval..." class="ctrl-input" style="width: 100%; font-size: 0.85rem; resize: vertical;"></textarea>
+                    <div style="font-size: 0.74rem; color: #0284c7; margin-top: 0.2rem;">
+                        🔒 Original face machine punch log remains 100% intact for forensic audit integrity.
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.65rem; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #e2e8f0;">
+                <button type="button" class="btn btn-outline" onclick="closeManualAdjustmentModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #fff; font-weight: 700; border: none; padding: 0.45rem 1.25rem;">
+                    💾 Save Adjustment &amp; Recalculate
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 4. ROSTER AUDIT & HISTORY LOG MODAL -->
+<div class="modal-backdrop" id="rosterAuditModal" onclick="if(event.target === this) closeRosterAuditModal()">
+    <div class="modal-dialog modal-lg" style="max-width: 920px;">
+        <div class="modal-header" style="background: #1e293b; color: #fff;">
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                📜 Attendance &amp; Roster Audit Log (হিস্ট্রি ট্র্যাকিং)
+            </h3>
+            <button type="button" class="btn-close-modal" onclick="closeRosterAuditModal()" style="color: #fff; background: transparent; border: none; font-size: 1.25rem; cursor: pointer;">✕</button>
+        </div>
+        <div class="modal-body" style="padding: 1.25rem;">
+            <!-- Tabs -->
+            <div style="display: flex; gap: 0.5rem; border-bottom: 2px solid #e2e8f0; margin-bottom: 1rem; padding-bottom: 0.5rem;">
+                <button type="button" class="btn btn-sm" id="tabAuditLeaves" onclick="switchAuditTab('leaves')" style="font-weight: 700; background: #059669; color: #fff;">🏖️ Leave Postings</button>
+                <button type="button" class="btn btn-sm" id="tabAuditSwaps" onclick="switchAuditTab('swaps')" style="font-weight: 700; background: #f1f5f9; color: #475569;">🔄 Duty Swaps</button>
+                <button type="button" class="btn btn-sm" id="tabAuditAdjs" onclick="switchAuditTab('adjs')" style="font-weight: 700; background: #f1f5f9; color: #475569;">✏️ Manual Adjustments</button>
+            </div>
+
+            <!-- Content Panes -->
+            <div id="paneAuditLeaves" style="max-height: 420px; overflow-y: auto;">
+                <table class="table" style="width: 100%; font-size: 0.85rem;">
+                    <thead>
+                        <tr style="background: #f8fafc;">
+                            <th>Emp ID</th>
+                            <th>Staff Name</th>
+                            <th>Leave Type</th>
+                            <th>From &ndash; To</th>
+                            <th>Days</th>
+                            <th>Mandatory Reason / Notes</th>
+                            <th>Posted By</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyAuditLeaves">
+                        <tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 2rem;">Loading audit records...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="paneAuditSwaps" style="display: none; max-height: 420px; overflow-y: auto;">
+                <table class="table" style="width: 100%; font-size: 0.85rem;">
+                    <thead>
+                        <tr style="background: #f8fafc;">
+                            <th>Emp ID</th>
+                            <th>Staff Name</th>
+                            <th>Original Date</th>
+                            <th>Swap Date</th>
+                            <th>Swapped With</th>
+                            <th>Reason / Authorization</th>
+                            <th>Posted By</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyAuditSwaps">
+                        <tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 2rem;">Loading audit records...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="paneAuditAdjs" style="display: none; max-height: 420px; overflow-y: auto;">
+                <table class="table" style="width: 100%; font-size: 0.85rem;">
+                    <thead>
+                        <tr style="background: #f8fafc;">
+                            <th>Emp ID</th>
+                            <th>Staff Name</th>
+                            <th>Target Date</th>
+                            <th>Adjustment Type</th>
+                            <th>In &ndash; Out</th>
+                            <th>Hours</th>
+                            <th>Mandatory Reason / Remarks</th>
+                            <th>Posted By</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyAuditAdjs">
+                        <tr><td colspan="9" style="text-align: center; color: #94a3b8; padding: 2rem;">Loading audit records...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="modal-footer" style="padding: 0.75rem 1.25rem; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end;">
+            <button type="button" class="btn btn-outline" onclick="closeRosterAuditModal()">Close Audit Log</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Employee Datalist / Lookup Helper
+function onRosterEmpInput(inputEl, nameElId, deptElId) {
+    const rawVal = (inputEl.value || '').trim();
+    if (!rawVal) {
+        document.getElementById(nameElId).innerText = '-';
+        document.getElementById(deptElId).innerText = '-';
+        return;
+    }
+    const val = rawVal.toUpperCase();
+    const opts = document.querySelectorAll('#rosterEmployeesDatalist option');
+    let matched = false;
+    for (let opt of opts) {
+        const optVal = (opt.value || '').toUpperCase();
+        const fullId = (opt.getAttribute('data-full-id') || '').toUpperCase();
+        const numId = opt.getAttribute('data-id');
+        if (optVal === val || fullId === val || 'EMP-' + optVal === val || numId === val) {
+            document.getElementById(nameElId).innerText = opt.getAttribute('data-name');
+            document.getElementById(deptElId).innerText = opt.getAttribute('data-dept');
+            matched = true;
+            break;
+        }
+    }
+    if (!matched && rawVal.length >= 1) {
+        fetch('/attendance/api/employee-lookup/' + encodeURIComponent(rawVal))
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById(nameElId).innerText = data.name;
+                    document.getElementById(deptElId).innerText = data.department;
+                } else {
+                    document.getElementById(nameElId).innerText = 'Searching staff ID...';
+                    document.getElementById(deptElId).innerText = '-';
+                }
+            }).catch(() => {});
+    }
+}
+
+// Calculate Leave Days Dynamically
+function calcLeaveDays() {
+    const fVal = document.getElementById('leaveDateFrom').value;
+    const tVal = document.getElementById('leaveDateTo').value;
+    const dDisp = document.getElementById('leaveTotalDaysDisplay');
+    const dInp = document.getElementById('leaveTotalDaysInput');
+    if (!fVal || !tVal) {
+        dDisp.innerText = '1 Day';
+        dDisp.style.color = '#047857';
+        dInp.value = '1';
+        return;
+    }
+    const d1 = new Date(fVal);
+    const d2 = new Date(tVal);
+    const diff = Math.floor((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    if (diff < 1) {
+        dDisp.innerText = '⚠️ Invalid Range (To < From)';
+        dDisp.style.color = '#ef4444';
+        dInp.value = '0';
+    } else {
+        dDisp.innerText = diff + ' Day' + (diff > 1 ? 's' : '');
+        dDisp.style.color = '#047857';
+        dInp.value = diff;
+    }
+}
+
+// Modal Open & Close Functions
+function openLeavePostingModal(prefillEmp, prefillDate) {
+    const m = document.getElementById('leavePostingModal');
+    if (m) {
+        m.classList.add('active');
+        m.classList.add('open');
+        m.style.display = 'flex';
+        if (prefillEmp) {
+            const inp = document.getElementById('leaveEmpInput');
+            inp.value = prefillEmp;
+            onRosterEmpInput(inp, 'leaveEmpNameDisplay', 'leaveEmpDeptDisplay');
+        }
+        if (prefillDate) {
+            document.getElementById('leaveDateFrom').value = prefillDate;
+            document.getElementById('leaveDateTo').value = prefillDate;
+            calcLeaveDays();
+        }
+    }
+}
+function closeLeavePostingModal() {
+    const m = document.getElementById('leavePostingModal');
+    if (m) {
+        m.classList.remove('active');
+        m.classList.remove('open');
+        m.style.display = 'none';
+    }
+}
+
+function openDutySwapModal(prefillEmp, prefillDate) {
+    const m = document.getElementById('dutySwapModal');
+    if (m) {
+        m.classList.add('active');
+        m.classList.add('open');
+        m.style.display = 'flex';
+        if (prefillEmp) {
+            const inp = document.getElementById('swapEmpInput1');
+            inp.value = prefillEmp;
+            onRosterEmpInput(inp, 'swapEmpNameDisplay1', 'swapEmpDeptDisplay1');
+        }
+        if (prefillDate) {
+            document.getElementById('swapOrigDate').value = prefillDate;
+        }
+    }
+}
+function closeDutySwapModal() {
+    const m = document.getElementById('dutySwapModal');
+    if (m) {
+        m.classList.remove('active');
+        m.classList.remove('open');
+        m.style.display = 'none';
+    }
+}
+
+function openManualAdjustmentModal(prefillEmp, prefillDate) {
+    const m = document.getElementById('manualAdjustmentModal');
+    if (m) {
+        m.classList.add('active');
+        m.classList.add('open');
+        m.style.display = 'flex';
+        if (prefillEmp) {
+            const inp = document.getElementById('adjEmpInput');
+            inp.value = prefillEmp;
+            onRosterEmpInput(inp, 'adjEmpNameDisplay', 'adjEmpDeptDisplay');
+        }
+        if (prefillDate) {
+            document.getElementById('adjTargetDate').value = prefillDate;
+        }
+    }
+}
+function closeManualAdjustmentModal() {
+    const m = document.getElementById('manualAdjustmentModal');
+    if (m) {
+        m.classList.remove('active');
+        m.classList.remove('open');
+        m.style.display = 'none';
+    }
+}
+
+function openRosterAuditModal() {
+    const m = document.getElementById('rosterAuditModal');
+    if (m) {
+        m.classList.add('active');
+        m.classList.add('open');
+        m.style.display = 'flex';
+        loadRosterAuditData();
+    }
+}
+function closeRosterAuditModal() {
+    const m = document.getElementById('rosterAuditModal');
+    if (m) {
+        m.classList.remove('active');
+        m.classList.remove('open');
+        m.style.display = 'none';
+    }
+}
+
+function switchAuditTab(tab) {
+    const btnL = document.getElementById('tabAuditLeaves');
+    const btnS = document.getElementById('tabAuditSwaps');
+    const btnA = document.getElementById('tabAuditAdjs');
+    const pL = document.getElementById('paneAuditLeaves');
+    const pS = document.getElementById('paneAuditSwaps');
+    const pA = document.getElementById('paneAuditAdjs');
+
+    btnL.style.background = tab === 'leaves' ? '#059669' : '#f1f5f9';
+    btnL.style.color = tab === 'leaves' ? '#fff' : '#475569';
+    btnS.style.background = tab === 'swaps' ? '#7c3aed' : '#f1f5f9';
+    btnS.style.color = tab === 'swaps' ? '#fff' : '#475569';
+    btnA.style.background = tab === 'adjs' ? '#0284c7' : '#f1f5f9';
+    btnA.style.color = tab === 'adjs' ? '#fff' : '#475569';
+
+    pL.style.display = tab === 'leaves' ? 'block' : 'none';
+    pS.style.display = tab === 'swaps' ? 'block' : 'none';
+    pA.style.display = tab === 'adjs' ? 'block' : 'none';
+}
+
+function loadRosterAuditData() {
+    fetch('/attendance/roster-audit-log')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) return;
+            
+            // 1. Populate Leaves
+            const tbL = document.getElementById('tbodyAuditLeaves');
+            if (data.leaves.length === 0) {
+                tbL.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:2rem;">No leave postings recorded yet.</td></tr>';
+            } else {
+                tbL.innerHTML = data.leaves.map(l => `
+                    <tr>
+                        <td><strong>${l.emp_code || '-'}</strong></td>
+                        <td>${l.emp_name || '-'}</td>
+                        <td><span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:4px;font-weight:700;">${l.leave_type}</span></td>
+                        <td>${l.date_from} &rarr; ${l.date_to}</td>
+                        <td><strong>${l.total_days}d</strong></td>
+                        <td style="max-width:250px;">${l.notes}</td>
+                        <td style="color:#64748b;font-size:0.75rem;">${l.created_by}<br>${l.created_at}</td>
+                        <td>
+                            <form method="POST" action="/attendance/leave/${l.id}/delete" onsubmit="return confirm('Delete this leave posting record?');" style="display:inline;">
+                                <button type="submit" class="btn btn-outline btn-sm" style="color:#ef4444;padding:2px 6px;">🗑️</button>
+                            </form>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // 2. Populate Swaps
+            const tbS = document.getElementById('tbodyAuditSwaps');
+            if (data.swaps.length === 0) {
+                tbS.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:2rem;">No duty swaps recorded yet.</td></tr>';
+            } else {
+                tbS.innerHTML = data.swaps.map(s => `
+                    <tr>
+                        <td><strong>${s.emp_code || '-'}</strong></td>
+                        <td>${s.emp_name || '-'}</td>
+                        <td>${s.original_duty_date}</td>
+                        <td><strong>${s.swap_date}</strong></td>
+                        <td>${s.swap_with_emp_name ? `${s.swap_with_emp_name} (${s.swap_with_emp_code})` : '<em style="color:#64748b;">Self Off-Day Swap</em>'}</td>
+                        <td style="max-width:250px;">${s.notes}</td>
+                        <td style="color:#64748b;font-size:0.75rem;">${s.created_by}<br>${s.created_at}</td>
+                        <td>
+                            <form method="POST" action="/attendance/swap/${s.id}/delete" onsubmit="return confirm('Delete this swap record?');" style="display:inline;">
+                                <button type="submit" class="btn btn-outline btn-sm" style="color:#ef4444;padding:2px 6px;">🗑️</button>
+                            </form>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // 3. Populate Adjustments
+            const tbA = document.getElementById('tbodyAuditAdjs');
+            if (data.adjustments.length === 0) {
+                tbA.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:2rem;">No attendance adjustments recorded yet.</td></tr>';
+            } else {
+                tbA.innerHTML = data.adjustments.map(a => `
+                    <tr>
+                        <td><strong>${a.emp_code || '-'}</strong></td>
+                        <td>${a.emp_name || '-'}</td>
+                        <td>${a.target_date}</td>
+                        <td><span style="background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:4px;font-weight:700;">${a.adjustment_type}</span></td>
+                        <td>${a.manual_in_time || '-'} &ndash; ${a.manual_out_time || '-'}</td>
+                        <td>${a.adjusted_hours}h (${a.adjusted_ot}h OT)</td>
+                        <td style="max-width:250px;">${a.notes}</td>
+                        <td style="color:#64748b;font-size:0.75rem;">${a.created_by}<br>${a.created_at}</td>
+                        <td>
+                            <form method="POST" action="/attendance/adjustment/${a.id}/delete" onsubmit="return confirm('Delete this adjustment record?');" style="display:inline;">
+                                <button type="submit" class="btn btn-outline btn-sm" style="color:#ef4444;padding:2px 6px;">🗑️</button>
+                            </form>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }).catch(() => {});
+}
+</script>
