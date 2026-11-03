@@ -112,7 +112,7 @@
                 <button type="button" class="btn btn-outline btn-sm" onclick="changeFundZoom(0.05)" title="Zoom In" style="padding: 0.1rem 0.4rem; font-size: 0.78rem; font-weight: 800; background: #fff; line-height: 1.2;">➕</button>
                 <button type="button" class="btn btn-sm" onclick="fitFundTableToScreen()" title="Auto-scale sheet to fit on screen" style="padding: 0.12rem 0.55rem; font-size: 0.75rem; font-weight: 700; background: #0284c7; color: #fff; border: none; border-radius: 4px; box-shadow: 0 1px 2px rgba(2,132,199,0.3);">↔️ Fit</button>
             </div>
-            <input type="text" id="fundEmpSearch" placeholder="🔍 Search ID, Name, Dept..." class="form-control" style="width: 200px; font-size: 0.85rem; padding: 0.35rem 0.65rem;" oninput="filterFundTable()">
+            <input type="text" id="fundEmpSearch" placeholder="🔍 Search ID, Name, Dept..." class="form-control" style="width: 200px; font-size: 0.85rem; padding: 0.35rem 0.65rem;" oninput="debouncedFilterFundTable()">
             <a href="{{ url_for('export_fund_summary_report_excel') }}" class="btn btn-outline btn-sm" style="font-size: 0.82rem; font-weight: 600;">
                 📊 Excel
             </a>
@@ -1414,34 +1414,46 @@ function setFundFilter(status, btn) {
     filterFundTable();
 }
 
+let _fundFilterDebounce = null;
+let _cachedFundRows = null;
+
+function debouncedFilterFundTable() {
+    clearTimeout(_fundFilterDebounce);
+    _fundFilterDebounce = setTimeout(filterFundTable, 100);
+}
+
 function filterFundTable() {
     const query = (document.getElementById('fundEmpSearch').value || '').toLowerCase().trim();
-    const rows = document.querySelectorAll('#fundReportTable tbody tr.fund-row');
+    if (!_cachedFundRows || _cachedFundRows.length === 0) {
+        _cachedFundRows = Array.from(document.querySelectorAll('#fundReportTable tbody tr.fund-row'));
+    }
     let visibleCount = 0;
 
-    rows.forEach(r => {
-        const rStatus = r.getAttribute('data-status') || '';
-        const rCode = r.getAttribute('data-code') || '';
-        const rName = r.getAttribute('data-name') || '';
-        const rDept = r.getAttribute('data-dept') || '';
+    window.requestAnimationFrame(() => {
+        _cachedFundRows.forEach(r => {
+            const rStatus = r.getAttribute('data-status') || '';
+            const rCode = r.getAttribute('data-code') || '';
+            const rName = r.getAttribute('data-name') || '';
+            const rDept = r.getAttribute('data-dept') || '';
 
-        const matchesStatus = (activeFundFilter === 'all') 
-            || (rStatus === activeFundFilter) 
-            || (activeFundFilter === 'active' && (rStatus === 'active' || rStatus === 'rejoined'));
-        const matchesQuery = !query || rCode.includes(query) || rName.includes(query) || rDept.includes(query);
+            const matchesStatus = (activeFundFilter === 'all') 
+                || (rStatus === activeFundFilter) 
+                || (activeFundFilter === 'active' && (rStatus === 'active' || rStatus === 'rejoined'));
+            const matchesQuery = !query || rCode.includes(query) || rName.includes(query) || rDept.includes(query);
 
-        if (matchesStatus && matchesQuery) {
-            r.style.display = '';
-            visibleCount++;
-        } else {
-            r.style.display = 'none';
+            if (matchesStatus && matchesQuery) {
+                r.style.display = '';
+                visibleCount++;
+            } else {
+                r.style.display = 'none';
+            }
+        });
+
+        const cntEl = document.getElementById('fundRowCount');
+        if (cntEl) {
+            cntEl.innerText = `Showing ${visibleCount} of ${_cachedFundRows.length} staff`;
         }
     });
-
-    const cntEl = document.getElementById('fundRowCount');
-    if (cntEl) {
-        cntEl.innerText = `Showing ${visibleCount} of ${rows.length} staff`;
-    }
 }
 
 // -----------------------------------------------------------------------------

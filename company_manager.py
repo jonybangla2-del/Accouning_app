@@ -13,16 +13,18 @@ PROFILES_FILE = os.path.join(BASE_DIR, 'company_profiles.json')
 MODULE_TABLES = {
     'accounts': ['account'],
     'vouchers': ['journal_entry', 'transaction_line', 'cash_book_row'],
-    'employees': ['employee', 'payroll_record', 'payroll_item', 'employee_fund_contribution', 'employee_salary_history'],
+    'employees': ['employee', 'payroll_record', 'payroll_item', 'employee_fund_contribution', 'employee_fund_loan', 'employee_fund_settlement', 'employee_salary_history', 'employee_noc_record', 'employee_confirmation_letter', 'employee_offer_letter', 'employee_salary_certificate_record', 'employee_experience_certificate_record', 'employee_tax_challan', 'employee_clearance_record'],
     'banking': ['bank_statement', 'bank_statement_line', 'bank_reconciliation'],
     'budgets': ['monthly_budget', 'budget_item'],
     'remittances': ['remittance_record'],
-    'users': ['user']
+    'invoices': ['service_invoice'],
+    'users': ['user', 'email_otp']
 }
 
 # Ordered tables for proper foreign-key insertion order
 ALL_TABLES_ORDERED = [
     'user',
+    'email_otp',
     'account',
     'employee',
     'bank_statement',
@@ -30,6 +32,7 @@ ALL_TABLES_ORDERED = [
     'bank_reconciliation',
     'monthly_budget',
     'budget_item',
+    'service_invoice',
     'remittance_record',
     'journal_entry',
     'transaction_line',
@@ -37,7 +40,16 @@ ALL_TABLES_ORDERED = [
     'payroll_record',
     'payroll_item',
     'employee_fund_contribution',
-    'employee_salary_history'
+    'employee_fund_loan',
+    'employee_fund_settlement',
+    'employee_salary_history',
+    'employee_noc_record',
+    'employee_confirmation_letter',
+    'employee_offer_letter',
+    'employee_salary_certificate_record',
+    'employee_experience_certificate_record',
+    'employee_tax_challan',
+    'employee_clearance_record'
 ]
 
 class CompanyProfile:
@@ -149,11 +161,14 @@ class CompanyManager:
                 f'sqlite:///{db_path}',
                 connect_args={'timeout': 60, 'check_same_thread': False}
             )
-            # Enable WAL mode
+            # Enable WAL mode & high-performance SQLite PRAGMAs
             with engine.connect() as conn:
                 conn.exec_driver_sql("PRAGMA journal_mode=WAL;")
                 conn.exec_driver_sql("PRAGMA busy_timeout=60000;")
                 conn.exec_driver_sql("PRAGMA synchronous=NORMAL;")
+                conn.exec_driver_sql("PRAGMA cache_size=-64000;")
+                conn.exec_driver_sql("PRAGMA temp_store=MEMORY;")
+                conn.exec_driver_sql("PRAGMA mmap_size=268435456;")
             cls._engines[cid] = engine
 
         engine = cls._engines[cid]
@@ -173,10 +188,10 @@ class CompanyManager:
                 if cur:
                     emp_cols = {r[1] for r in cur}
                     needed_emp = {
-                        'bank_name': "VARCHAR(100) DEFAULT 'The Premier Bank PLC'",
-                        'bank_branch': "VARCHAR(100) DEFAULT 'Banani Branch'",
-                        'routing_no': "VARCHAR(20) DEFAULT '085261198'",
-                        'payment_method': "VARCHAR(20) DEFAULT 'EFT'",
+                        'bank_name': "VARCHAR(100) DEFAULT NULL",
+                        'bank_branch': "VARCHAR(100) DEFAULT NULL",
+                        'routing_no': "VARCHAR(20) DEFAULT NULL",
+                        'payment_method': "VARCHAR(20) DEFAULT 'Cash'",
                         'pf_status': "VARCHAR(10) DEFAULT 'P'",
                         'tds_amount': "FLOAT DEFAULT 0.0",
                         'employment_type': "VARCHAR(20) DEFAULT 'Full-Time'",
@@ -214,11 +229,38 @@ class CompanyManager:
                     je_cols = {r[1] for r in cur}
                     needed_je = {
                         'attachment': "VARCHAR(255) DEFAULT NULL",
-                        'original_filename': "VARCHAR(255) DEFAULT NULL"
+                        'original_filename': "VARCHAR(255) DEFAULT NULL",
+                        'drive_file_id': "VARCHAR(100) DEFAULT NULL",
+                        'drive_view_link': "TEXT DEFAULT NULL"
                     }
                     for col, col_def in needed_je.items():
                         if col not in je_cols:
                             conn.exec_driver_sql(f"ALTER TABLE journal_entry ADD COLUMN {col} {col_def};")
+
+                # Check employee_document table columns
+                cur = conn.exec_driver_sql("PRAGMA table_info(employee_document);").fetchall()
+                if cur:
+                    ed_cols = {r[1] for r in cur}
+                    needed_ed = {
+                        'emp_code': "VARCHAR(50) DEFAULT NULL",
+                        'file_type': "VARCHAR(50) DEFAULT NULL",
+                        'file_path': "VARCHAR(255) DEFAULT NULL",
+                        'upload_date': "TIMESTAMP DEFAULT NULL",
+                        'drive_file_id': "VARCHAR(100) DEFAULT NULL",
+                        'drive_view_link': "TEXT DEFAULT NULL"
+                    }
+                    for col, col_def in needed_ed.items():
+                        if col not in ed_cols:
+                            conn.exec_driver_sql(f"ALTER TABLE employee_document ADD COLUMN {col} {col_def};")
+
+                # Check user table columns (email and phone)
+                cur = conn.exec_driver_sql("PRAGMA table_info(user);").fetchall()
+                if cur:
+                    user_cols = {r[1] for r in cur}
+                    if 'email' not in user_cols:
+                        conn.exec_driver_sql("ALTER TABLE user ADD COLUMN email VARCHAR(120);")
+                    if 'phone' not in user_cols:
+                        conn.exec_driver_sql("ALTER TABLE user ADD COLUMN phone VARCHAR(30);")
         except Exception:
             pass
 
