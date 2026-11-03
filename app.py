@@ -12335,6 +12335,101 @@ def batch_update_employee_fund_rows(emp_id):
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
 
+
+
+@app.route('/payroll/fund-contributions/auto-fix-all', methods=['POST'])
+@login_required
+def auto_fix_fund_contributions():
+    """
+    Automated backend repair and recalculation for Employee Contribution Fund.
+    1. Swaps inverted employee_share and employer_share (where COM > EMP > 0).
+    2. Fixes zero employee_share based on regular preceding/subsequent pattern.
+    3. Sequentially recalculates running balances for all employees.
+    """
+    try:
+        employees = Employee.query.all()
+        id_to_code = {e.id: str(e.employee_id).strip() for e in employees if e.employee_id}
+
+        all_records = EmployeeFundContribution.query.order_by(
+            EmployeeFundContribution.contribution_date.asc(),
+            EmployeeFundContribution.id.asc()
+        ).all()
+
+        emp_groups = {}
+        for r in all_records:
+            if r.employee_id in id_to_code:
+                code = id_to_code[r.employee_id]
+            elif r.emp_code:
+                code = str(r.emp_code).strip()
+            else:
+                code = f"emp_{r.employee_id}"
+            if code not in emp_groups:
+                emp_groups[code] = []
+            emp_groups[code].append(r)
+
+        swapped_count = 0
+        zero_fixed_count = 0
+        affected_employees = set()
+
+        for emp_key, recs in emp_groups.items():
+            for i, r in enumerate(recs):
+                month_str = r.contribution_month or (r.contribution_date.strftime('%Y-%m') if r.contribution_date else '')
+                emp_val = float(r.employee_share or 0.0)
+                com_val = float(r.employer_share or 0.0)
+
+                # 1. Swap
+                if com_val > emp_val and emp_val > 0:
+                    r.employee_share = com_val
+                    r.employer_share = emp_val
+                    swapped_count += 1
+                    affected_employees.add(emp_key)
+                    emp_val, com_val = com_val, emp_val
+
+                # 2. Zero EMP fix
+                if emp_val == 0.0 and com_val > 0:
+                    prev_r = recs[i - 1] if i > 0 else None
+                    next_r = recs[i + 1] if i + 1 < len(recs) else None
+                    prev_emp = float(prev_r.employee_share or 0.0) if prev_r else 0.0
+                    next_emp = float(next_r.employee_share or 0.0) if next_r else 0.0
+                    prev_com = float(prev_r.employer_share or 0.0) if prev_r else 0.0
+                    next_com = float(next_r.employer_share or 0.0) if next_r else 0.0
+
+                    resolved_emp = None
+                    if prev_emp > 0 and (prev_com == com_val or abs(prev_com - com_val) < 1.0):
+                        resolved_emp = prev_emp
+                    elif next_emp > 0 and (next_com == com_val or abs(next_com - com_val) < 1.0):
+                        resolved_emp = next_emp
+                    elif prev_emp > 0:
+                        resolved_emp = prev_emp
+                    elif next_emp > 0:
+                        resolved_emp = next_emp
+                    elif month_str == '2023-03' and com_val > 0:
+                        resolved_emp = round(com_val / 0.6, 2)
+
+                    if resolved_emp and resolved_emp > 0:
+                        r.employee_share = resolved_emp
+                        zero_fixed_count += 1
+                        affected_employees.add(emp_key)
+
+        db.session.commit()
+
+        # 3. Recalculate
+        for emp_k in emp_groups.keys():
+            recalculate_employee_fund_balances(emp_k)
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'Auto-fix completed successfully! {swapped_count} swapped records corrected, {zero_fixed_count} zero records restored, and balances recalculated across {len(emp_groups)} employees.',
+            'swapped_count': swapped_count,
+            'zero_fixed_count': zero_fixed_count,
+            'recalculated_employees': len(emp_groups)
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 @app.route('/payroll/fund-contributions/employee/<string:emp_id>/add-row', methods=['POST'])
 def add_employee_fund_row(emp_id):
     """Adds a new month or adjustment row to the fund ledger."""

@@ -26,6 +26,9 @@
         <button type="button" class="btn btn-primary" onclick="openModal('importFundModal')">
             📤 Import Contributions
         </button>
+        <button type="button" class="btn btn-outline" onclick="openModal('autoFixFundModal')" style="display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 700; color: #0369a1; border-color: #38bdf8; background: #f0f9ff;" title="Auto-detect & fix swapped contributions, zero employee entries, and recalculate all balances">
+            🛠️ Auto-Fix Ledger
+        </button>
         <button type="button" class="btn btn-outline" onclick="openModal('manualFundModal')">
             ➕ Add Manual Entry
         </button>
@@ -1681,4 +1684,80 @@ async function submitEditSummary(e) {
 }
 
 </style>
+
+<!-- MODAL: AUTO-FIX FUND DISCREPANCIES -->
+<div id="autoFixFundModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 600px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #0369a1 0%, #0c4a6e 100%); color: #fff;">
+            <h3 style="margin: 0; font-size: 1.15rem; color: #fff; display: flex; align-items: center; gap: 0.5rem;">
+                🛠️ Auto-Fix Ledger Discrepancies
+            </h3>
+            <button type="button" class="btn-close" style="color: #fff;" onclick="closeModal('autoFixFundModal')">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 1.5rem;">
+            <p style="margin-top: 0; color: #334155; line-height: 1.6; font-size: 0.95rem;">
+                This automated engine will scan all employee contribution records across all months and perform:
+            </p>
+            <ul style="color: #475569; font-size: 0.9rem; line-height: 1.8; margin-bottom: 1.25rem;">
+                <li><strong>1. Swap Fix:</strong> Automatically swaps inverted values where Company Share is greater than Employee Share (e.g. May–Dec 2022).</li>
+                <li><strong>2. Zero EMP Fix:</strong> Restores missing 0 Employee Contribution entries (e.g. Mar-2023) based on the employee's surrounding regular salary rate.</li>
+                <li><strong>3. Cumulative Balance Recalculation:</strong> Sequentially recalculates <code>balance_emp</code>, <code>balance_com</code>, and <code>total_balance</code> from month 1 to the end for all employees.</li>
+            </ul>
+            <div id="autoFixResultBox" style="display: none; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem;"></div>
+            <div id="autoFixSpinner" style="display: none; text-align: center; padding: 1rem; color: #0369a1; font-weight: 700;">
+                ⏳ Running Auto-Fix & Recalculating Running Balances... Please wait.
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-outline" onclick="closeModal('autoFixFundModal')">Cancel</button>
+            <button type="button" id="btnExecuteAutoFix" class="btn btn-primary" onclick="executeAutoFixFund()" style="background: #0284c7; border: none; font-weight: 700;">
+                ⚡ Start Auto-Fix & Recalculate
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+async function executeAutoFixFund() {
+    const btn = document.getElementById('btnExecuteAutoFix');
+    const spinner = document.getElementById('autoFixSpinner');
+    const resultBox = document.getElementById('autoFixResultBox');
+
+    btn.disabled = true;
+    spinner.style.display = 'block';
+    resultBox.style.display = 'none';
+
+    try {
+        const resp = await fetch('/payroll/fund-contributions/auto-fix-all', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await resp.json();
+        spinner.style.display = 'none';
+
+        if (data.success) {
+            resultBox.style.display = 'block';
+            resultBox.style.background = '#f0fdf4';
+            resultBox.style.border = '1px solid #86efac';
+            resultBox.style.color = '#166534';
+            resultBox.innerHTML = `<strong>✓ Success!</strong><br>${data.message}`;
+            setTimeout(() => {
+                window.location.reload();
+            }, 2500);
+        } else {
+            resultBox.style.display = 'block';
+            resultBox.style.background = '#fef2f2';
+            resultBox.style.border = '1px solid #fca5a5';
+            resultBox.style.color = '#991b1b';
+            resultBox.innerHTML = `<strong>Error:</strong> ${data.message}`;
+            btn.disabled = false;
+        }
+    } catch (err) {
+        spinner.style.display = 'none';
+        btn.disabled = false;
+        alert('Network or server error during auto-fix execution.');
+    }
+}
+</script>
+
 {% endblock %}
