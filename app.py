@@ -32,6 +32,27 @@ def get_bst_now() -> datetime:
     """Returns current naive datetime in Bangladesh Standard Time (UTC+6) for database storage."""
     return datetime.now(timezone.utc).astimezone(BST_TIMEZONE).replace(tzinfo=None)
 
+def safe_excel_response(wb_or_buf, filename: str):
+    """
+    Safely builds a Flask Response for Excel downloads from an openpyxl Workbook or BytesIO buffer.
+    Prevents io.UnsupportedOperation: fileno errors on LiteSpeed/cPanel/Passenger WSGI servers.
+    """
+    if hasattr(wb_or_buf, 'save'):
+        buf = BytesIO()
+        wb_or_buf.save(buf)
+        data = buf.getvalue()
+    elif hasattr(wb_or_buf, 'getvalue'):
+        data = wb_or_buf.getvalue()
+    elif isinstance(wb_or_buf, bytes):
+        data = wb_or_buf
+    else:
+        data = bytes(wb_or_buf)
+
+    resp = make_response(data)
+    resp.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    resp.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return resp
+
 # Image Processing (Pillow) & Windows Image Acquisition (WIA) Scanner Integration
 try:
     from PIL import Image
@@ -11952,15 +11973,8 @@ def export_employee_fund_excel(emp_id):
     for c_i, w in col_widths.items():
         ws.column_dimensions[get_column_letter(c_i)].width = w
 
-    buf = BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    return send_file(
-        buf,
-        as_attachment=True,
-        download_name=f"Fund_Statement_{e_code}_{date.today().strftime('%Y%m%d')}.xlsx",
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    filename = f"Fund_Statement_{e_code}_{date.today().strftime('%Y%m%d')}.xlsx"
+    return safe_excel_response(wb, filename)
 
 
 # ------------------------------------------------------------------------------
@@ -12862,15 +12876,8 @@ def export_fund_summary_report_excel():
         col_letter = get_column_letter(col[0].column)
         ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
 
-    buf = BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    return send_file(
-        buf,
-        as_attachment=True,
-        download_name=f"Employee_Fund_Contribution_Report_{date.today().strftime('%Y%m%d')}.xlsx",
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    filename = f"Employee_Fund_Contribution_Report_{date.today().strftime('%Y%m%d')}.xlsx"
+    return safe_excel_response(wb, filename)
 
 
 @app.route('/payroll/fund-contributions/report')
@@ -14589,15 +14596,8 @@ def download_salary_history_sample_excel():
         max_len = max(len(str(cell.value or '')) for cell in col)
         ws.column_dimensions[col_letter].width = max(max_len + 4, 15)
 
-    buf = BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    return send_file(
-        buf,
-        as_attachment=True,
-        download_name="Historical_Salary_Registry_Template.xlsx",
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    filename = "Historical_Salary_Registry_Template.xlsx"
+    return safe_excel_response(wb, filename)
 
 
 # ==============================================================================
@@ -14870,15 +14870,8 @@ def export_employee_salary_report_excel(emp_id):
         max_len = max(len(str(cell.value or '')) for cell in col)
         ws.column_dimensions[col_letter].width = max(max_len + 3, 14)
 
-    buf = BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    return send_file(
-        buf,
-        as_attachment=True,
-        download_name=f"Salary_Report_{emp.employee_id}_{emp.name.replace(' ', '_')}.xlsx",
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    filename = f"Salary_Report_{emp.employee_id}_{emp.name.replace(' ', '_')}.xlsx"
+    return safe_excel_response(wb, filename)
 
 
 # ==============================================================================
