@@ -103,6 +103,42 @@
         </div>
     </div>
 
+    <!-- Dedicated Total Balance of All Employees Banner -->
+    <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff; padding: 1.15rem 1.5rem; margin: 0; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <div style="font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; font-weight: 700;">
+                💰 TOTAL FUND BALANCE OF ALL EMPLOYEES
+            </div>
+            <div style="font-size: 1.85rem; font-weight: 900; color: #10b981; font-family: 'JetBrains Mono', monospace; margin-top: 0.15rem;" id="banner_total_balance">
+                ৳{{ "{:,.2f}".format(total_fund_accumulated) }}
+            </div>
+            <div style="font-size: 0.8rem; color: #cbd5e1; margin-top: 0.2rem;">
+                Total active net fund balance across {{ fund_summaries|length }} enrolled staff members
+            </div>
+        </div>
+        <div style="display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap; background: rgba(255,255,255,0.06); padding: 0.65rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+            <div>
+                <div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;">Total Emp Joma</div>
+                <div style="font-size: 1.05rem; font-weight: 800; color: #60a5fa; font-family: 'JetBrains Mono', monospace;" id="banner_emp_joma">৳{{ "{:,.2f}".format(total_emp_share) }}</div>
+            </div>
+            <div style="border-left: 1px solid rgba(255,255,255,0.15); height: 28px;"></div>
+            <div>
+                <div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;">Total Com Joma</div>
+                <div style="font-size: 1.05rem; font-weight: 800; color: #c084fc; font-family: 'JetBrains Mono', monospace;" id="banner_com_joma">৳{{ "{:,.2f}".format(total_comp_share) }}</div>
+            </div>
+            <div style="border-left: 1px solid rgba(255,255,255,0.15); height: 28px;"></div>
+            <div>
+                <div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;">Total Withdrawn</div>
+                <div style="font-size: 1.05rem; font-weight: 800; color: #f472b6; font-family: 'JetBrains Mono', monospace;" id="banner_withdrawn">৳{{ "{:,.2f}".format(total_withdrawn_all) }}</div>
+            </div>
+            <div style="border-left: 1px solid rgba(255,255,255,0.15); height: 28px;"></div>
+            <div>
+                <div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;">Total Forfeited</div>
+                <div style="font-size: 1.05rem; font-weight: 800; color: #f87171; font-family: 'JetBrains Mono', monospace;" id="banner_forfeited">৳{{ "{:,.2f}".format(total_forfeited_comp) }}</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Filter Pills Toolbar -->
     <div style="padding: 0.75rem 1.25rem; background: #f8fafc; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
         <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
@@ -127,20 +163,21 @@
 
     <!-- Table -->
     <div class="table-responsive">
-        <table class="table" id="fundReportTable">
+                <table class="table" id="fundReportTable">
             <thead>
-                <tr>
-                    <th style="width: 80px;">Emp ID</th>
-                    <th>Employee Name</th>
-                    <th>Department</th>
-                    <th class="num-col">Emp Joma (৳)</th>
-                    <th class="num-col">Com Joma (৳)</th>
+                <tr style="background: #f8fafc; border-bottom: 2px solid #cbd5e1;">
+                    <th style="width: 65px; text-align: center;">Emp ID</th>
+                    <th style="min-width: 170px;">Employee Name &amp; Dept</th>
+                    <th class="num-col" style="color: #2563eb;">Emp Joma (৳)</th>
+                    <th class="num-col" style="color: #7c3aed;">Com Joma (৳)</th>
                     <th class="num-col">Total Joma (৳)</th>
-                    <th style="text-align: center; width: 140px;">Withdrawal Status</th>
                     <th class="num-col" style="color: #7e22ce;">Withdrawn (৳)</th>
-                    <th class="num-col" style="color: #b91c1c;">Forfeited Com (৳)</th>
-                    <th class="num-col" style="color: #059669; width: 130px;">Net Balance (৳)</th>
-                    <th style="width: 175px; text-align: center;" class="no-print">Actions</th>
+                    <th class="num-col" style="color: #b91c1c;">Forfeited (৳)</th>
+                    <th class="num-col" style="color: #047857; background: #ecfdf5; font-size: 0.95rem; font-weight: 800; border-left: 1.5px solid #a7f3d0; border-right: 1.5px solid #a7f3d0; min-width: 140px;">
+                        ⭐ Net Balance (৳)
+                    </th>
+                    <th style="text-align: center; width: 140px;">Withdrawal Status</th>
+                    <th style="width: 150px; text-align: center;" class="no-print">Edit / Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -153,32 +190,40 @@
                         data-dept="{{ item.employee.department|lower }}"
                         id="fund_row_{{ item.employee.employee_id }}">
                         
-                        <td style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent);">
+                        <td style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent); text-align: center;">
                             {{ item.employee.employee_id }}
                         </td>
                         <td>
                             {% if item.is_real_emp %}
-                            <a href="{{ url_for('employee_profile', emp_id=item.employee.id) }}" style="text-decoration: none; color: var(--text-primary); font-weight: 600;">
+                            <a href="{{ url_for('employee_profile', emp_id=item.employee.id) }}" style="text-decoration: none; color: var(--text-primary); font-weight: 700; font-size: 0.92rem;">
                                 {{ item.employee.name }}
                             </a>
                             {% else %}
-                            <span style="color: var(--text-primary); font-weight: 600;">
+                            <span style="color: var(--text-primary); font-weight: 700; font-size: 0.92rem;">
                                 {{ item.employee.name }}
                             </span>
                             {% endif %}
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">{{ item.employee.designation }}</div>
+                            <div style="font-size: 0.74rem; color: #64748b; margin-top: 1px;">
+                                {{ item.employee.department }} &bull; {{ item.employee.designation }}
+                            </div>
                         </td>
-                        <td>
-                            <span style="font-size: 0.8rem; color: var(--text-secondary);">{{ item.employee.department }}</span>
-                        </td>
-                        <td class="num-col font-mono" id="row_emp_{{ item.employee.employee_id }}">
+                        <td class="num-col font-mono" id="row_emp_{{ item.employee.employee_id }}" style="color: #2563eb; font-weight: 600;">
                             ৳{{ "{:,.2f}".format(item.emp_share) }}
                         </td>
-                        <td class="num-col font-mono" style="color: #7c3aed;" id="row_comp_{{ item.employee.employee_id }}">
+                        <td class="num-col font-mono" style="color: #7c3aed; font-weight: 600;" id="row_comp_{{ item.employee.employee_id }}">
                             ৳{{ "{:,.2f}".format(item.comp_share) }}
                         </td>
                         <td class="num-col font-mono" style="font-weight: 700;" id="row_tot_joma_{{ item.employee.employee_id }}">
                             ৳{{ "{:,.2f}".format(item.total_deposit) }}
+                        </td>
+                        <td class="num-col font-mono" style="color: #7e22ce;" id="row_with_{{ item.employee.employee_id }}">
+                            {{ "৳{:,.2f}".format(item.withdrawal) if item.withdrawal > 0 else '-' }}
+                        </td>
+                        <td class="num-col font-mono" style="color: #b91c1c;" id="row_adj_{{ item.employee.employee_id }}">
+                            {{ "৳{:,.2f}".format(item.adjustment) if item.adjustment > 0 else '-' }}
+                        </td>
+                        <td class="num-col font-mono" style="font-weight: 900; color: #047857; font-size: 1.05rem; background: #ecfdf5; border-left: 1.5px solid #a7f3d0; border-right: 1.5px solid #a7f3d0;" id="row_bal_{{ item.employee.employee_id }}">
+                            ৳{{ "{:,.2f}".format(item.balance) }}
                         </td>
                         <td style="text-align: center;" id="row_badge_{{ item.employee.employee_id }}">
                             {% if item.withdrawal_type == 'full_withdrawal' %}
@@ -199,26 +244,17 @@
                             </span>
                             {% endif %}
                         </td>
-                        <td class="num-col font-mono" style="color: #7e22ce;" id="row_with_{{ item.employee.employee_id }}">
-                            {{ "৳{:,.2f}".format(item.withdrawal) if item.withdrawal > 0 else '-' }}
-                        </td>
-                        <td class="num-col font-mono" style="color: #b91c1c;" id="row_adj_{{ item.employee.employee_id }}">
-                            {{ "৳{:,.2f}".format(item.adjustment) if item.adjustment > 0 else '-' }}
-                        </td>
-                        <td class="num-col font-mono" style="font-weight: 800; color: #059669; font-size: 0.98rem;" id="row_bal_{{ item.employee.employee_id }}">
-                            ৳{{ "{:,.2f}".format(item.balance) }}
-                        </td>
                         <td style="text-align: center;" class="no-print">
                             <div style="display: inline-flex; align-items: center; gap: 0.35rem;">
-                                <button type="button" class="btn btn-outline btn-sm" 
-                                    style="padding: 0.2rem 0.55rem; font-size: 0.76rem; font-weight: 600; color: #0284c7; border-color: #38bdf8;" 
+                                <button type="button" class="btn btn-sm" 
+                                    style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 700; color: #ffffff; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); border: none; border-radius: 4px; box-shadow: 0 1px 3px rgba(2, 132, 199, 0.3); cursor: pointer;" 
                                     onclick='openEditSummaryModal({{ item|tojson|safe }})'
-                                    title="Edit employee contribution & withdrawal status">
+                                    title="Edit employee deposit and withdrawal status">
                                     ✏️ Edit
                                 </button>
                                 <a href="{{ url_for('employee_fund_ledger', emp_id=item.employee.employee_id) }}" 
                                     class="btn btn-outline btn-sm" 
-                                    style="padding: 0.2rem 0.55rem; font-size: 0.76rem; font-weight: 600;"
+                                    style="padding: 0.25rem 0.5rem; font-size: 0.78rem; font-weight: 600;"
                                     title="Open 34-column statement with monthly spreadsheet editing">
                                     📜 Statement ↗
                                 </a>
@@ -228,25 +264,31 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="11" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                        <td colspan="10" style="text-align: center; padding: 3rem; color: var(--text-muted);">
                             No employee contribution records found. Import from Excel or add manual entries.
                         </td>
                     </tr>
                 {% endif %}
             </tbody>
             <tfoot>
-                <tr class="report-grandtotal-row">
-                    <td colspan="3" style="text-align: right; font-weight: 700;">TOTAL FUND PORTFOLIO:</td>
-                    <td class="num-col font-mono" style="font-weight: 700;">৳{{ "{:,.2f}".format(total_emp_share) }}</td>
-                    <td class="num-col font-mono" style="font-weight: 700; color: #7c3aed;">৳{{ "{:,.2f}".format(total_comp_share) }}</td>
-                    <td class="num-col font-mono" style="font-weight: 700;">৳{{ "{:,.2f}".format(total_emp_share + total_comp_share + total_welfare_share + total_profit_accrued) }}</td>
+                <tr class="report-grandtotal-row" style="background: #f1f5f9; font-weight: 800; border-top: 2px solid #0f172a; border-bottom: 2px solid #0f172a;">
+                    <td colspan="2" style="text-align: right; font-weight: 800; font-size: 0.95rem; color: #0f172a; padding: 0.75rem 0.6rem;">
+                        TOTAL BALANCE (ALL EMPLOYEES):
+                    </td>
+                    <td class="num-col font-mono" style="font-weight: 800; color: #2563eb;" id="foot_emp_share">৳{{ "{:,.2f}".format(total_emp_share) }}</td>
+                    <td class="num-col font-mono" style="font-weight: 800; color: #7c3aed;" id="foot_comp_share">৳{{ "{:,.2f}".format(total_comp_share) }}</td>
+                    <td class="num-col font-mono" style="font-weight: 800;" id="foot_total_joma">৳{{ "{:,.2f}".format(total_emp_share + total_comp_share + total_welfare_share + total_profit_accrued) }}</td>
+                    <td class="num-col font-mono" style="font-weight: 800; color: #7e22ce;" id="foot_withdrawn">৳{{ "{:,.2f}".format(total_withdrawn_all) }}</td>
+                    <td class="num-col font-mono" style="font-weight: 800; color: #b91c1c;" id="foot_forfeited">৳{{ "{:,.2f}".format(total_forfeited_comp) }}</td>
+                    <td class="num-col font-mono" style="font-weight: 900; color: #047857; font-size: 1.15rem; background: #d1fae5; border-left: 2px solid #10b981; border-right: 2px solid #10b981;" id="foot_total_balance">
+                        ৳{{ "{:,.2f}".format(total_fund_accumulated) }}
+                    </td>
                     <td style="text-align: center; font-size: 0.8rem; font-weight: 700; color: #475569;">
                         {{ count_full_withdrawn }} Full &bull; {{ count_own_withdrawn }} Own
                     </td>
-                    <td class="num-col font-mono" style="font-weight: 700; color: #7e22ce;">৳{{ "{:,.2f}".format(total_withdrawn_all) }}</td>
-                    <td class="num-col font-mono" style="font-weight: 700; color: #b91c1c;">৳{{ "{:,.2f}".format(total_forfeited_comp) }}</td>
-                    <td class="num-col font-mono" style="font-weight: 800; color: #059669; font-size: 1.05rem;">৳{{ "{:,.2f}".format(total_fund_accumulated) }}</td>
-                    <td></td>
+                    <td style="text-align: center; font-size: 0.82rem; font-weight: 700; color: #0369a1;">
+                        {{ fund_summaries|length }} Staff
+                    </td>
                 </tr>
             </tfoot>
         </table>
@@ -656,31 +698,34 @@
                     </div>
                 </div>
 
-                <!-- SECTION 2: OPTIONAL DEPOSIT ADJUSTMENT (Emp Share & Company Share) -->
+                                <!-- SECTION 2: EDIT EMPLOYEE & COMPANY DEPOSITS -->
                 <div style="border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: #ffffff;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
                         <label style="font-weight: 700; font-size: 0.92rem; color: #0f172a; margin: 0;">
-                            💰 Employee &amp; Company Deposit Adjustments (Optional):
+                            💰 Employee &amp; Company Deposit Amounts:
                         </label>
-                        <span style="font-size: 0.78rem; color: #64748b;">Affects running contribution statement</span>
+                        <span style="font-size: 0.78rem; color: #0284c7; font-weight: 600;">Directly editable</span>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 0.75rem;">
                         <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label" style="font-size: 0.82rem; font-weight: 600;">Emp Deposit Adj (± ৳)</label>
-                            <input type="number" step="0.01" name="emp_share_adj" id="m_emp_share_adj" class="form-control" placeholder="e.g. +500 or -200">
-                            <span style="font-size: 0.72rem; color: var(--text-muted);" id="m_emp_tot_hint">Total: ৳0.00</span>
+                            <label class="form-label" style="font-size: 0.82rem; font-weight: 700; color: #2563eb;">
+                                Emp Joma (Employee Deposit ৳)
+                            </label>
+                            <input type="number" step="0.01" name="target_emp_share" id="m_target_emp_share" class="form-control" style="font-weight: 700; font-size: 1.05rem; color: #1e40af; font-family: 'JetBrains Mono', monospace;" placeholder="0.00" oninput="onDepositInputLiveChange()">
+                            <span style="font-size: 0.72rem; color: var(--text-muted);" id="m_emp_tot_hint">Original: ৳0.00</span>
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label" style="font-size: 0.82rem; font-weight: 600;">Com Deposit Adj (± ৳)</label>
-                            <input type="number" step="0.01" name="comp_share_adj" id="m_comp_share_adj" class="form-control" placeholder="e.g. +500 or -200">
-                            <span style="font-size: 0.72rem; color: var(--text-muted);" id="m_comp_tot_hint">Total: ৳0.00</span>
+                            <label class="form-label" style="font-size: 0.82rem; font-weight: 700; color: #7c3aed;">
+                                Com Joma (Company Deposit ৳)
+                            </label>
+                            <input type="number" step="0.01" name="target_comp_share" id="m_target_comp_share" class="form-control" style="font-weight: 700; font-size: 1.05rem; color: #6b21a8; font-family: 'JetBrains Mono', monospace;" placeholder="0.00" oninput="onDepositInputLiveChange()">
+                            <span style="font-size: 0.72rem; color: var(--text-muted);" id="m_comp_tot_hint">Original: ৳0.00</span>
                         </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label" style="font-size: 0.82rem; font-weight: 600;">Target Month</label>
-                            <input type="text" name="adj_month" id="m_adj_month" class="form-control" placeholder="YYYY-MM (e.g. 2026-03)">
-                            <span style="font-size: 0.72rem; color: var(--text-muted);">Month to post adjustment</span>
-                        </div>
+                    </div>
+
+                    <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 0.65rem 0.85rem; font-size: 0.78rem; color: #475569;">
+                        💡 You can change the total deposit amounts directly above. Saving will calculate any difference and update the employee's contribution statement and running balance automatically.
                     </div>
                 </div>
 
@@ -707,7 +752,7 @@
                 <div style="display: flex; gap: 0.5rem;">
                     <button type="button" class="btn btn-outline" onclick="closeModal('editSummaryModal')">Cancel</button>
                     <button type="submit" class="btn btn-primary" id="m_save_submit_btn" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); border: none; font-weight: 700;">
-                        💾 Save &amp; Apply to Statement
+                        💾 Save &amp; Update Data
                     </button>
                 </div>
             </div>
@@ -820,12 +865,14 @@ function openEditSummaryModal(item) {
     document.getElementById('m_emp_dept_display').innerText = `${emp.department || 'General'} • ${emp.designation || 'Staff Member'}`;
     document.getElementById('m_emp_balance_display').innerText = '৳' + Number(item.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
-    document.getElementById('m_emp_tot_hint').innerText = `Current Emp Share: ৳${Number(item.emp_share || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-    document.getElementById('m_comp_tot_hint').innerText = `Current Com Share: ৳${Number(item.comp_share || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    // Populate direct editable amounts
+    const targetEmpInput = document.getElementById('m_target_emp_share');
+    if (targetEmpInput) targetEmpInput.value = Number(item.emp_share || 0).toFixed(2);
+    const targetCompInput = document.getElementById('m_target_comp_share');
+    if (targetCompInput) targetCompInput.value = Number(item.comp_share || 0).toFixed(2);
 
-    document.getElementById('m_emp_share_adj').value = '';
-    document.getElementById('m_comp_share_adj').value = '';
-    document.getElementById('m_adj_month').value = item.settlement_month || new Date().toISOString().slice(0, 7);
+    document.getElementById('m_emp_tot_hint').innerText = `Original: ৳${Number(item.emp_share || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    document.getElementById('m_comp_tot_hint').innerText = `Original: ৳${Number(item.comp_share || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
     // Set radio
     const wType = item.withdrawal_type || 'active';
@@ -860,6 +907,10 @@ function openEditSummaryModal(item) {
     openModal('editSummaryModal');
 }
 
+function onDepositInputLiveChange() {
+    onWithdrawalActionChange();
+}
+
 function onWithdrawalActionChange() {
     if (!currentEditItem) return;
     const selectedRadio = document.querySelector('input[name="withdrawal_action"]:checked');
@@ -868,8 +919,11 @@ function onWithdrawalActionChange() {
     const boxAmounts = document.getElementById('m_withdrawal_fields_box');
     const boxMeta = document.getElementById('m_settlement_meta_box');
 
-    const empShare = currentEditItem.emp_share || 0;
-    const compShare = currentEditItem.comp_share || 0;
+    const empInputVal = parseFloat(document.getElementById('m_target_emp_share').value);
+    const compInputVal = parseFloat(document.getElementById('m_target_comp_share').value);
+    const empShare = isNaN(empInputVal) ? (currentEditItem.emp_share || 0) : empInputVal;
+    const compShare = isNaN(compInputVal) ? (currentEditItem.comp_share || 0) : compInputVal;
+
     const welfare = currentEditItem.welfare_share || 0;
     const profit = currentEditItem.profit || 0;
     const outstanding = currentEditItem.outstanding_loan || 0;
@@ -960,10 +1014,45 @@ async function submitEditSummary(e) {
                 }
             }
 
+            // Update Total Balance Banner, Table Footer, and KPI cards
+            if (res.global_totals) {
+                const gt = res.global_totals;
+                const fmt = (v) => '৳' + Number(v || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                
+                const bTot = document.getElementById('banner_total_balance');
+                if (bTot) bTot.innerText = fmt(gt.total_balance);
+                const bEmp = document.getElementById('banner_emp_joma');
+                if (bEmp) bEmp.innerText = fmt(gt.total_emp);
+                const bCom = document.getElementById('banner_com_joma');
+                if (bCom) bCom.innerText = fmt(gt.total_comp);
+                const bWith = document.getElementById('banner_withdrawn');
+                if (bWith) bWith.innerText = fmt(gt.total_with);
+                const bForf = document.getElementById('banner_forfeited');
+                if (bForf) bForf.innerText = fmt(gt.total_adj);
+
+                const fTot = document.getElementById('foot_total_balance');
+                if (fTot) fTot.innerText = fmt(gt.total_balance);
+                const fEmp = document.getElementById('foot_emp_share');
+                if (fEmp) fEmp.innerText = fmt(gt.total_emp);
+                const fCom = document.getElementById('foot_comp_share');
+                if (fCom) fCom.innerText = fmt(gt.total_comp);
+                const fWith = document.getElementById('foot_withdrawn');
+                if (fWith) fWith.innerText = fmt(gt.total_with);
+                const fForf = document.getElementById('foot_forfeited');
+                if (fForf) fForf.innerText = fmt(gt.total_adj);
+
+                const kpiTot = document.getElementById('kpi_top_total_fund');
+                if (kpiTot) kpiTot.innerText = fmt(gt.total_balance);
+                const kpiEmp = document.getElementById('kpi_top_emp_share');
+                if (kpiEmp) kpiEmp.innerText = fmt(gt.total_emp);
+                const kpiCom = document.getElementById('kpi_top_comp_share');
+                if (kpiCom) kpiCom.innerText = fmt(gt.total_comp);
+            }
+
             setTimeout(() => {
                 closeModal('editSummaryModal');
                 btn.disabled = false;
-                btn.innerText = '💾 Save & Apply to Statement';
+                btn.innerText = '💾 Save & Update Data';
             }, 1200);
 
         } else {
@@ -973,7 +1062,7 @@ async function submitEditSummary(e) {
             fb.style.border = '1px solid #fecaca';
             fb.innerText = res.message || 'Error updating record.';
             btn.disabled = false;
-            btn.innerText = '💾 Save & Apply to Statement';
+            btn.innerText = '💾 Save & Update Data';
         }
     } catch (err) {
         fb.style.display = 'block';
@@ -982,7 +1071,7 @@ async function submitEditSummary(e) {
         fb.style.border = '1px solid #fecaca';
         fb.innerText = 'Server communication error: ' + err.message;
         btn.disabled = false;
-        btn.innerText = '💾 Save & Apply to Statement';
+        btn.innerText = '💾 Save & Update Data';
     }
 }
 </script>

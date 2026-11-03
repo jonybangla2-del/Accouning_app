@@ -12466,7 +12466,11 @@ def update_employee_fund_summary():
     desig = emp.designation if emp else (first_cf.designation if first_cf else "Staff Member")
     emp_db_id = emp.id if emp else (first_cf.employee_id if first_cf else None)
 
-    # 1. Deposit Adjustments (if any)
+    # Current totals before adjustments
+    current_emp_share_sum = sum(r.employee_share or 0.0 for r in existing_cfs)
+    current_comp_share_sum = sum(r.employer_share or 0.0 for r in existing_cfs)
+
+    # 1. Deposit Adjustments or Direct Target Total
     try:
         emp_share_adj = float(str(data.get('emp_share_adj', 0.0) or 0.0).replace(',', '').strip())
     except ValueError:
@@ -12475,6 +12479,22 @@ def update_employee_fund_summary():
         comp_share_adj = float(str(data.get('comp_share_adj', 0.0) or 0.0).replace(',', '').strip())
     except ValueError:
         comp_share_adj = 0.0
+
+    target_emp_str = str(data.get('target_emp_share', '')).replace(',', '').strip()
+    target_comp_str = str(data.get('target_comp_share', '')).replace(',', '').strip()
+    if target_emp_str != '':
+        try:
+            target_emp_val = float(target_emp_str)
+            emp_share_adj = round(target_emp_val - current_emp_share_sum, 2)
+        except ValueError:
+            pass
+    if target_comp_str != '':
+        try:
+            target_comp_val = float(target_comp_str)
+            comp_share_adj = round(target_comp_val - current_comp_share_sum, 2)
+        except ValueError:
+            pass
+
     adj_month = str(data.get('adj_month', '')).strip() or date.today().strftime('%Y-%m')
 
     if emp_share_adj != 0.0 or comp_share_adj != 0.0:
@@ -12662,6 +12682,19 @@ def update_employee_fund_summary():
     new_balance = updated_records[-1].cumulative_balance if updated_records else 0.0
 
     if is_ajax:
+        # Compute global summary totals across all employees
+        all_all_cfs = EmployeeFundContribution.query.all()
+        emp_last_bal_map = {}
+        for c in EmployeeFundContribution.query.order_by(EmployeeFundContribution.contribution_date.asc(), EmployeeFundContribution.id.asc()).all():
+            k = c.emp_code or str(c.employee_id)
+            emp_last_bal_map[k] = c.cumulative_balance or 0.0
+
+        global_total_balance = sum(emp_last_bal_map.values())
+        global_total_emp = sum(c.employee_share or 0.0 for c in all_all_cfs)
+        global_total_comp = sum(c.employer_share or 0.0 for c in all_all_cfs)
+        global_total_with = sum(c.withdrawal or 0.0 for c in all_all_cfs)
+        global_total_adj = sum(c.adjustment or 0.0 for c in all_all_cfs)
+
         return jsonify({
             'success': True,
             'message': f"Fund records and settlement updated successfully for {emp_name}. Statement recalculated.",
@@ -12671,7 +12704,14 @@ def update_employee_fund_summary():
             'withdrawal': new_with_tot,
             'adjustment': new_adj_tot,
             'balance': new_balance,
-            'withdrawal_action': withdrawal_action
+            'withdrawal_action': withdrawal_action,
+            'global_totals': {
+                'total_balance': global_total_balance,
+                'total_emp': global_total_emp,
+                'total_comp': global_total_comp,
+                'total_with': global_total_with,
+                'total_adj': global_total_adj
+            }
         })
 
     flash(f"Employee Contribution Fund details updated for {emp_name} (ID: {emp_code}). Statement has been recalculated.", 'success')
