@@ -92,8 +92,15 @@
             </div>
         </div>
 
-        <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
-            <input type="text" id="fundEmpSearch" placeholder="🔍 Search ID, Name, Dept..." class="form-control" style="width: 230px; font-size: 0.85rem; padding: 0.35rem 0.65rem;" oninput="filterFundTable()">
+        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <!-- Header Quick Zoom Bar -->
+            <div style="display: inline-flex; align-items: center; gap: 0.2rem; background: #f8fafc; padding: 0.15rem 0.35rem; border-radius: 6px; border: 1.5px solid #cbd5e1;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="changeFundZoom(-0.05)" title="Zoom Out (Show all columns)" style="padding: 0.1rem 0.4rem; font-size: 0.78rem; font-weight: 800; background: #fff; line-height: 1.2;">➖</button>
+                <span id="headerZoomPercent" style="font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; font-weight: 800; min-width: 40px; text-align: center; color: #0f172a;">85%</span>
+                <button type="button" class="btn btn-outline btn-sm" onclick="changeFundZoom(0.05)" title="Zoom In" style="padding: 0.1rem 0.4rem; font-size: 0.78rem; font-weight: 800; background: #fff; line-height: 1.2;">➕</button>
+                <button type="button" class="btn btn-sm" onclick="fitFundTableToScreen()" title="Auto-scale sheet to fit on screen" style="padding: 0.12rem 0.55rem; font-size: 0.75rem; font-weight: 700; background: #0284c7; color: #fff; border: none; border-radius: 4px; box-shadow: 0 1px 2px rgba(2,132,199,0.3);">↔️ Fit</button>
+            </div>
+            <input type="text" id="fundEmpSearch" placeholder="🔍 Search ID, Name, Dept..." class="form-control" style="width: 200px; font-size: 0.85rem; padding: 0.35rem 0.65rem;" oninput="filterFundTable()">
             <a href="{{ url_for('export_fund_summary_report_excel') }}" class="btn btn-outline btn-sm" style="font-size: 0.82rem; font-weight: 600;">
                 📊 Excel
             </a>
@@ -156,13 +163,35 @@
                 🔵 Active / Unwithdrawn ({{ count_active }})
             </button>
         </div>
-        <div id="fundRowCount" style="font-size: 0.82rem; color: var(--text-muted); font-weight: 600;">
-            Showing {{ fund_summaries|length }} of {{ fund_summaries|length }} staff
+        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+            <div id="fundRowCount" style="font-size: 0.82rem; color: var(--text-muted); font-weight: 600;">
+                Showing {{ fund_summaries|length }} of {{ fund_summaries|length }} staff
+            </div>
+
+            <!-- Interactive Sheet Zoom Controls -->
+            <div class="fund-zoom-toolbar" style="display: flex; align-items: center; gap: 0.25rem; background: #ffffff; padding: 0.2rem 0.5rem; border-radius: 6px; border: 1.5px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+                <span style="font-size: 0.76rem; font-weight: 700; color: #475569; margin-right: 0.15rem;">🔍 Zoom Sheet:</span>
+                <button type="button" class="btn btn-outline btn-sm" onclick="changeFundZoom(-0.05)" title="Zoom Out (Show all columns from Emp ID to Edit)" style="padding: 0.12rem 0.45rem; font-size: 0.82rem; font-weight: 800; line-height: 1.2;">
+                    ➖
+                </button>
+                <span id="fundZoomPercent" style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 800; min-width: 44px; text-align: center; color: #0f172a;">
+                    85%
+                </span>
+                <button type="button" class="btn btn-outline btn-sm" onclick="changeFundZoom(0.05)" title="Zoom In" style="padding: 0.12rem 0.45rem; font-size: 0.82rem; font-weight: 800; line-height: 1.2;">
+                    ➕
+                </button>
+                <button type="button" class="btn btn-sm" onclick="fitFundTableToScreen()" title="Auto-scale sheet so all columns from Emp ID to Edit option fit on screen" style="padding: 0.15rem 0.65rem; font-size: 0.76rem; font-weight: 700; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); border: none; border-radius: 4px; color: #ffffff; box-shadow: 0 1px 3px rgba(2,132,199,0.3);">
+                    ↔️ Fit to Screen
+                </button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="resetFundZoom()" title="Reset Zoom to 100%" style="padding: 0.12rem 0.45rem; font-size: 0.75rem; font-weight: 600;">
+                    ↺ 100%
+                </button>
+            </div>
         </div>
     </div>
 
     <!-- Table -->
-    <div class="table-responsive">
+    <div class="table-responsive" id="fundTableScrollContainer" style="overflow-x: auto; position: relative;">
                 <table class="table" id="fundReportTable">
             <thead>
                 <tr style="background: #f8fafc; border-bottom: 2px solid #cbd5e1;">
@@ -177,7 +206,7 @@
                         ⭐ Net Balance (৳)
                     </th>
                     <th style="text-align: center; width: 140px;">Withdrawal Status</th>
-                    <th style="width: 150px; text-align: center;" class="no-print">Edit / Actions</th>
+                    <th style="width: 140px; text-align: center;" class="no-print sticky-action-col">Edit / Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -244,7 +273,7 @@
                             </span>
                             {% endif %}
                         </td>
-                        <td style="text-align: center;" class="no-print">
+                        <td style="text-align: center;" class="no-print sticky-action-col">
                             <div style="display: inline-flex; align-items: center; gap: 0.35rem;">
                                 <button type="button" class="btn btn-sm" 
                                     style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 700; color: #ffffff; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); border: none; border-radius: 4px; box-shadow: 0 1px 3px rgba(2, 132, 199, 0.3); cursor: pointer;" 
@@ -286,7 +315,7 @@
                     <td style="text-align: center; font-size: 0.8rem; font-weight: 700; color: #475569;">
                         {{ count_full_withdrawn }} Full &bull; {{ count_own_withdrawn }} Own
                     </td>
-                    <td style="text-align: center; font-size: 0.82rem; font-weight: 700; color: #0369a1;">
+                    <td style="text-align: center; font-size: 0.82rem; font-weight: 700; color: #0369a1;" class="sticky-action-col">
                         {{ fund_summaries|length }} Staff
                     </td>
                 </tr>
@@ -809,6 +838,71 @@ function autoSetGlobalRepaymentStart() {
     }
 }
 
+
+// -----------------------------------------------------------------------------
+// INTERACTIVE SHEET ZOOM IN / ZOOM OUT & AUTO-FIT CONTROLS
+// -----------------------------------------------------------------------------
+let currentFundZoom = parseFloat(localStorage.getItem('fundReportZoom') || '0.85');
+
+function applyFundZoom(level) {
+    currentFundZoom = Math.max(0.5, Math.min(1.5, Math.round(level * 100) / 100));
+    localStorage.setItem('fundReportZoom', currentFundZoom.toString());
+    
+    const pctText = Math.round(currentFundZoom * 100) + '%';
+    const badge = document.getElementById('fundZoomPercent');
+    if (badge) badge.innerText = pctText;
+    const headerBadge = document.getElementById('headerZoomPercent');
+    if (headerBadge) headerBadge.innerText = pctText;
+    
+    const table = document.getElementById('fundReportTable');
+    if (table) {
+        table.style.zoom = currentFundZoom;
+        // Standard transform fallback
+        if (typeof table.style.zoom === 'undefined' || table.style.zoom === '') {
+            table.style.transform = `scale(${currentFundZoom})`;
+            table.style.transformOrigin = 'top left';
+            table.style.width = `${Math.round(100 / currentFundZoom)}%`;
+        }
+    }
+}
+
+function changeFundZoom(delta) {
+    applyFundZoom(currentFundZoom + delta);
+}
+
+function resetFundZoom() {
+    applyFundZoom(1.0);
+}
+
+function fitFundTableToScreen() {
+    const container = document.getElementById('fundTableScrollContainer') || document.querySelector('.table-responsive');
+    const table = document.getElementById('fundReportTable');
+    if (!container || !table) return;
+    
+    table.style.zoom = '1';
+    table.style.transform = 'none';
+    table.style.width = 'auto';
+    
+    const naturalWidth = table.scrollWidth || table.offsetWidth;
+    const availableWidth = container.clientWidth - 15;
+    
+    if (naturalWidth > 0 && availableWidth > 0) {
+        let fitRatio = Math.floor((availableWidth / naturalWidth) * 100) / 100;
+        fitRatio = Math.max(0.55, Math.min(1.0, fitRatio));
+        applyFundZoom(fitRatio);
+    }
+}
+
+// Auto-apply stored zoom or fit to screen on initial page load
+document.addEventListener('DOMContentLoaded', function() {
+    const saved = localStorage.getItem('fundReportZoom');
+    if (saved) {
+        applyFundZoom(parseFloat(saved));
+    } else {
+        fitFundTableToScreen();
+    }
+});
+
 // -----------------------------------------------------------------------------
 // CLIENT-SIDE FILTERING & SEARCH FOR EMPLOYEE FUND REPORT
 // -----------------------------------------------------------------------------
@@ -1112,5 +1206,27 @@ async function submitEditSummary(e) {
     display: flex; justify-content: flex-end; gap: 0.5rem; background: #f8fafc;
 }
 .btn-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); }
+
+#fundReportTable {
+    transform-origin: top left;
+    transition: transform 0.15s ease, zoom 0.15s ease;
+}
+#fundReportTable th.sticky-action-col,
+#fundReportTable td.sticky-action-col {
+    position: sticky;
+    right: 0;
+    background: #ffffff;
+    box-shadow: -3px 0 8px rgba(0, 0, 0, 0.08);
+    z-index: 5;
+}
+#fundReportTable thead th.sticky-action-col {
+    background: #f8fafc;
+    z-index: 6;
+}
+#fundReportTable tfoot td.sticky-action-col {
+    background: #f1f5f9;
+    z-index: 6;
+}
+
 </style>
 {% endblock %}
