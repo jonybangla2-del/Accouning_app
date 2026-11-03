@@ -1,0 +1,594 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Leave Statement &bull; {{ emp.name }} ({{ emp.employee_id }}) &bull; ZR-ERP{% endblock %}
+
+{% block content %}
+{% include "attendance/_roster_action_modals.html" %}
+
+<div class="attendance-container" style="max-width: 1400px; margin: 0 auto; padding: 1.25rem 1rem;">
+
+    <!-- TOP HEADER BAR -->
+    <div class="module-header-card" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 14px; padding: 1.5rem 1.75rem; color: #fff; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2); margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div class="header-left">
+            <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(13, 148, 136, 0.2); border: 1px solid rgba(13, 148, 136, 0.4); padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.78rem; font-weight: 700; color: #5eead4; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.5rem;">
+                <span style="width: 8px; height: 8px; border-radius: 50%; background: #14b8a6; display: inline-block;"></span>
+                <span>ENTERPRISE LEAVE LEDGER &bull; 50% DUTY PTO ENGINE</span>
+            </div>
+            <h1 style="font-size: 1.65rem; font-weight: 800; margin: 0 0 0.35rem 0; color: #ffffff; letter-spacing: -0.02em;">
+                🏖️ Individual Leave Statement &amp; Balance Ledger
+            </h1>
+            <p style="margin: 0; font-size: 0.9rem; color: #94a3b8; max-width: 750px; line-height: 1.4;">
+                50% duty attendance earns 1.5 days General PTO &bull; Govt Holiday duties earn compensatory +1.0 PTO &bull; 50% year-end balance rolls over into next year.
+            </p>
+        </div>
+
+        <!-- Action Toolbar -->
+        <div class="header-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+            <button type="button" class="btn" onclick="openLeavePostingModal()" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #fff; font-weight: 700; border: none; padding: 0.55rem 1.1rem; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);">
+                ➕ Post Leave
+            </button>
+            <a href="{{ url_for('sync_employee_leave_ledger', emp_id=emp.id, year=year) }}" class="btn" style="background: #334155; color: #f8fafc; font-weight: 600; border: 1px solid #475569; padding: 0.55rem 1rem; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem;">
+                🔄 Sync Biometrics
+            </a>
+            <a href="{{ url_for('export_employee_leave_ledger_excel', emp_id=emp.id, year=year) }}" class="btn" style="background: #0d9488; color: #fff; font-weight: 700; border: none; padding: 0.55rem 1rem; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.35);">
+                📥 Export Excel
+            </a>
+            <button type="button" class="btn" onclick="window.print()" style="background: #475569; color: #fff; font-weight: 600; border: none; padding: 0.55rem 1rem; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;">
+                🖨️ Print Statement
+            </button>
+            <button type="button" class="btn" onclick="openImportExcelModal()" style="background: #6366f1; color: #fff; font-weight: 600; border: none; padding: 0.55rem 1rem; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;">
+                📤 Import Excel
+            </button>
+            <a href="{{ url_for('view_all_staff_leave_summary', year=year) }}" class="btn" style="background: #1e293b; color: #cbd5e1; border: 1px solid #475569; font-weight: 600; padding: 0.55rem 1rem; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem;">
+                📊 All Staff Summary
+            </a>
+        </div>
+    </div>
+
+    <!-- EMPLOYEE SWITCHER & YEAR SELECTOR -->
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <!-- Employee Selector Dropdown -->
+        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; flex: 1; min-width: 300px;">
+            <label style="font-size: 0.88rem; font-weight: 700; color: #334155; white-space: nowrap;">
+                👤 View Statement For:
+            </label>
+            <select id="employeeSelectSwitcher" onchange="window.location.href='/attendance/leave/ledger/' + this.value + '?year={{ year }}'" style="padding: 0.5rem 0.85rem; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; font-weight: 600; color: #0f172a; background: #f8fafc; min-width: 280px; max-width: 450px;">
+                {% for e in all_employees %}
+                <option value="{{ e.id }}" {% if e.id == emp.id %}selected{% endif %}>
+                    {{ e.employee_id }} &mdash; {{ e.name }} ({{ e.department or 'General' }})
+                </option>
+                {% endfor %}
+            </select>
+
+            <!-- Quick Search Input -->
+            <div style="display: flex; gap: 0.35rem; align-items: center;">
+                <input type="text" id="quickEmpSearchInput" placeholder="Enter ID e.g. 85" style="padding: 0.45rem 0.65rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; width: 130px;" onkeydown="if(event.key==='Enter') executeQuickSearch()">
+                <button type="button" onclick="executeQuickSearch()" style="padding: 0.45rem 0.75rem; background: #0f172a; color: #fff; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+                    Go
+                </button>
+            </div>
+        </div>
+
+        <!-- Year Switcher Pills -->
+        <div style="display: flex; align-items: center; gap: 0.4rem;">
+            <span style="font-size: 0.82rem; font-weight: 700; color: #64748b; margin-right: 0.35rem;">YEAR:</span>
+            {% for y in [2024, 2025, 2026, 2027] %}
+            <a href="{{ url_for('view_employee_leave_ledger', emp_id=emp.id, year=y) }}" style="padding: 0.4rem 0.85rem; border-radius: 6px; font-size: 0.88rem; font-weight: 700; text-decoration: none; transition: all 0.2s; {% if y == year %}background: #0d9488; color: #ffffff; box-shadow: 0 2px 6px rgba(13, 148, 136, 0.35);{% else %}background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;{% endif %}">
+                {{ y }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- EMPLOYEE PROFILE & 4 KPI SUMMARY CARDS -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
+        <!-- Employee Details Card -->
+        <div style="grid-column: span 2; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; display: flex; align-items: center; gap: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #0d9488 0%, #115e59 100%); color: #fff; font-size: 1.6rem; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 4px 10px rgba(13, 148, 136, 0.25);">
+                {{ emp.name[:2]|upper }}
+            </div>
+            <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                    <h2 style="margin: 0; font-size: 1.3rem; font-weight: 800; color: #0f172a;">{{ emp.name }}</h2>
+                    <span style="background: #0f172a; color: #fff; font-size: 0.75rem; font-weight: 800; padding: 0.2rem 0.55rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace;">
+                        ID: {{ emp.employee_id }}
+                    </span>
+                    <span style="background: #ecfdf5; color: #059669; font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 6px; border: 1px solid #a7f3d0;">
+                        Active Staff
+                    </span>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; margin-top: 0.65rem; font-size: 0.85rem; color: #475569;">
+                    <div><strong>Department:</strong> {{ emp.department or 'General' }}</div>
+                    <div><strong>Designation:</strong> {{ emp.designation or 'Staff Member' }}</div>
+                    <div><strong>Organization:</strong> TBN BD LTD</div>
+                    <div><strong>Joining Date:</strong> {{ emp.joining_date.strftime('%d %b, %Y') if emp.joining_date else 'N/A' }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- KPI 1: Opening Bank -->
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.15rem; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 4px solid #3b82f6;">
+            <div style="font-size: 0.82rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">
+                Opening Leave Bank
+            </div>
+            <div style="margin: 0.5rem 0;">
+                <span style="font-size: 1.9rem; font-weight: 900; color: #1e3a8a; font-family: 'JetBrains Mono', monospace;">
+                    {{ "%.1f"|format(bank.opening_balance or 0.0) }}
+                </span>
+                <span style="font-size: 0.88rem; color: #64748b; font-weight: 600;">days</span>
+            </div>
+            <div style="font-size: 0.78rem; color: #475569; background: #eff6ff; padding: 0.25rem 0.5rem; border-radius: 4px;">
+                Initial / Carried from {{ year - 1 }}
+            </div>
+        </div>
+
+        <!-- KPI 2: Total PTO Earned -->
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.15rem; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 4px solid #0d9488;">
+            <div style="font-size: 0.82rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">
+                Total PTO Accrued
+            </div>
+            <div style="margin: 0.5rem 0;">
+                <span style="font-size: 1.9rem; font-weight: 900; color: #0f766e; font-family: 'JetBrains Mono', monospace;">
+                    {{ "%.1f"|format(total_earned) }}
+                </span>
+                <span style="font-size: 0.88rem; color: #64748b; font-weight: 600;">days</span>
+            </div>
+            <div style="font-size: 0.78rem; color: #475569; display: flex; justify-content: space-between; background: #f0fdfa; padding: 0.25rem 0.5rem; border-radius: 4px;">
+                <span>50% PTO: <strong>{{ "%.1f"|format(bank.total_general_pto or 0.0) }}</strong></span>
+                <span>Holiday: <strong>{{ "%.1f"|format(bank.total_holiday_pto or 0.0) }}</strong></span>
+            </div>
+        </div>
+
+        <!-- KPI 3: Total Leave Taken -->
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.15rem; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 4px solid #f59e0b;">
+            <div style="font-size: 0.82rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">
+                Total Leaves Taken
+            </div>
+            <div style="margin: 0.5rem 0;">
+                <span style="font-size: 1.9rem; font-weight: 900; color: #b45309; font-family: 'JetBrains Mono', monospace;">
+                    {{ "%.1f"|format(total_enjoyed) }}
+                </span>
+                <span style="font-size: 0.88rem; color: #64748b; font-weight: 600;">days</span>
+            </div>
+            <div style="font-size: 0.78rem; color: #475569; background: #fffbeb; padding: 0.25rem 0.5rem; border-radius: 4px; display: flex; justify-content: space-between;">
+                <span>Sick: <strong>{{ "%.0f"|format(bank.total_sick_leave or 0.0) }}</strong></span>
+                <span>General: <strong>{{ "%.0f"|format(bank.total_general_leave or 0.0) }}</strong></span>
+                <span>Other: <strong>{{ "%.0f"|format((bank.total_parental_leave or 0.0) + (bank.total_marriage_leave or 0.0) + (bank.total_other_leave or 0.0)) }}</strong></span>
+            </div>
+        </div>
+
+        <!-- KPI 4: Current Net Balance -->
+        <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 1.5px solid #a7f3d0; border-radius: 12px; padding: 1.15rem; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 5px rgba(5,150,105,0.1); border-left: 4px solid #059669;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 0.82rem; font-weight: 800; color: #065f46; text-transform: uppercase; letter-spacing: 0.05em;">
+                    Live Available Balance
+                </span>
+                <span style="background: #059669; color: #fff; font-size: 0.72rem; font-weight: 800; padding: 0.15rem 0.45rem; border-radius: 4px;">
+                    CURRENT
+                </span>
+            </div>
+            <div style="margin: 0.5rem 0;">
+                <span style="font-size: 2.2rem; font-weight: 900; color: #047857; font-family: 'JetBrains Mono', monospace;">
+                    {{ "%.1f"|format(bank.current_balance or 0.0) }}
+                </span>
+                <span style="font-size: 0.95rem; color: #065f46; font-weight: 700;">days</span>
+            </div>
+            <div style="font-size: 0.8rem; font-weight: 700; color: #047857; background: rgba(255,255,255,0.7); padding: 0.3rem 0.5rem; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                <span>50% Carry to {{ year + 1 }}:</span>
+                <span style="font-size: 0.95rem; font-weight: 900; color: #065f46;">{{ "%.2f"|format(bank.carried_forward_to_next_year or 0.0) }} d</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 12-MONTH LEAVE GRID TABLE -->
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); overflow: hidden; margin-bottom: 1.5rem;">
+        <div style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+            <div>
+                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 0.5rem;">
+                    📅 12-Month Leave Ledger &amp; Running Balance Grid (Jan &ndash; Dec {{ year }})
+                </h3>
+                <span style="font-size: 0.82rem; color: #64748b;">
+                    Closing Balance = Opening Leave Bank + General PTO + Holiday PTO &minus; (Sick + General + Parental + Marriage + Other) &minus; Adjustment
+                </span>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <a href="{{ url_for('download_leave_template_excel') }}" class="btn" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-size: 0.8rem; font-weight: 700; padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    📄 Download Template (.xlsx)
+                </a>
+            </div>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table class="table" style="width: 100%; border-collapse: collapse; text-align: right; font-size: 0.87rem;">
+                <thead>
+                    <tr style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #ffffff;">
+                        <th style="padding: 0.85rem 0.75rem; text-align: center; font-weight: 800; border-right: 1px solid rgba(255,255,255,0.1);">Month</th>
+                        <th style="padding: 0.85rem 0.75rem; text-align: center; font-weight: 700; border-right: 1px solid rgba(255,255,255,0.1);">Biometric Duty</th>
+                        <th style="padding: 0.85rem 0.75rem; font-weight: 800; background: rgba(59, 130, 246, 0.2); border-right: 1px solid rgba(255,255,255,0.1);">Leave Bank</th>
+                        <th style="padding: 0.85rem 0.75rem; font-weight: 800; color: #5eead4; border-right: 1px solid rgba(255,255,255,0.1);">General PTO</th>
+                        <th style="padding: 0.85rem 0.75rem; font-weight: 800; color: #fde047; border-right: 1px solid rgba(255,255,255,0.1);">Holiday PTO</th>
+                        <th style="padding: 0.85rem 0.75rem; font-weight: 700; border-right: 1px solid rgba(255,255,255,0.1);">Sick Leave</th>
+                        <th style="padding: 0.85rem 0.75rem; font-weight: 700; border-right: 1px solid rgba(255,255,255,0.1);">General Leave</th>
+                        <th style="padding: 0.85rem 0.75rem; font-weight: 700; border-right: 1px solid rgba(255,255,255,0.1);">Parental</th>
+                        <th style="padding: 0.85rem 0.75rem; font-weight: 700; border-right: 1px solid rgba(255,255,255,0.1);">Marriage</th>
+                        <th style="padding: 0.85rem 0.75rem; font-weight: 700; border-right: 1px solid rgba(255,255,255,0.1);">Adjustment</th>
+                        <th style="padding: 0.85rem 0.75rem; font-weight: 900; background: rgba(16, 185, 129, 0.25); color: #6ee7b7; border-right: 1px solid rgba(255,255,255,0.1);">Balance</th>
+                        <th style="padding: 0.85rem 0.75rem; text-align: left; font-weight: 700; border-right: 1px solid rgba(255,255,255,0.1); min-width: 140px;">Remarks</th>
+                        <th style="padding: 0.85rem 0.75rem; text-align: center; font-weight: 700;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in ledger_rows %}
+                    <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s; {% if loop.index % 2 == 0 %}background: #fafafa;{% endif %}">
+                        <!-- Month Name -->
+                        <td style="padding: 0.75rem 0.75rem; text-align: center; font-weight: 800; color: #0f172a; border-right: 1px solid #e2e8f0;">
+                            {{ row.month_name }}
+                        </td>
+
+                        <!-- Biometric Duty Days & 50% Rule Status -->
+                        <td style="padding: 0.75rem 0.75rem; text-align: center; border-right: 1px solid #e2e8f0;">
+                            <div style="font-weight: 700; color: #1e293b; font-size: 0.85rem;">
+                                {{ row.duty_days_count|int }} / {{ row.total_working_days }}
+                            </div>
+                            {% if row.is_eligible_pto %}
+                            <span style="display: inline-block; background: #ecfdf5; color: #047857; font-size: 0.72rem; font-weight: 800; padding: 0.15rem 0.45rem; border-radius: 4px; border: 1px solid #a7f3d0;">
+                                ✔ &ge;50% Duty (1.5)
+                            </span>
+                            {% else %}
+                            <span style="display: inline-block; background: #fef2f2; color: #b91c1c; font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 4px; border: 1px solid #fecaca;">
+                                ✖ &lt;50% Duty (0)
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Opening Leave Bank -->
+                        <td style="padding: 0.75rem 0.75rem; font-weight: 700; color: #1e40af; background: #f8fafc; border-right: 1px solid #e2e8f0; font-family: 'JetBrains Mono', monospace;">
+                            {{ "%.1f"|format(row.opening_balance or 0.0) }}
+                        </td>
+
+                        <!-- General PTO (1.5) -->
+                        <td style="padding: 0.75rem 0.75rem; font-weight: 800; color: #0d9488; border-right: 1px solid #e2e8f0; font-family: 'JetBrains Mono', monospace;">
+                            {% if row.general_pto and row.general_pto > 0 %}
+                            +{{ "%.1f"|format(row.general_pto) }}
+                            {% else %}
+                            <span style="color: #cbd5e1;">0.0</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Holiday PTO -->
+                        <td style="padding: 0.75rem 0.75rem; font-weight: 800; color: #d97706; border-right: 1px solid #e2e8f0; font-family: 'JetBrains Mono', monospace;">
+                            {% if row.holiday_pto and row.holiday_pto > 0 %}
+                            +{{ "%.1f"|format(row.holiday_pto) }}
+                            {% else %}
+                            <span style="color: #cbd5e1;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Sick Leave -->
+                        <td style="padding: 0.75rem 0.75rem; font-weight: 600; color: #e11d48; border-right: 1px solid #e2e8f0; font-family: 'JetBrains Mono', monospace;">
+                            {% if row.sick_leave and row.sick_leave > 0 %}
+                            {{ "%.1f"|format(row.sick_leave) }}
+                            {% else %}
+                            <span style="color: #cbd5e1;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- General Leave -->
+                        <td style="padding: 0.75rem 0.75rem; font-weight: 600; color: #e11d48; border-right: 1px solid #e2e8f0; font-family: 'JetBrains Mono', monospace;">
+                            {% if row.general_leave and row.general_leave > 0 %}
+                            {{ "%.1f"|format(row.general_leave) }}
+                            {% else %}
+                            <span style="color: #cbd5e1;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Parental Leave -->
+                        <td style="padding: 0.75rem 0.75rem; font-weight: 600; color: #e11d48; border-right: 1px solid #e2e8f0; font-family: 'JetBrains Mono', monospace;">
+                            {% if row.parental_leave and row.parental_leave > 0 %}
+                            {{ "%.1f"|format(row.parental_leave) }}
+                            {% else %}
+                            <span style="color: #cbd5e1;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Marriage Leave -->
+                        <td style="padding: 0.75rem 0.75rem; font-weight: 600; color: #e11d48; border-right: 1px solid #e2e8f0; font-family: 'JetBrains Mono', monospace;">
+                            {% if row.marriage_leave and row.marriage_leave > 0 %}
+                            {{ "%.1f"|format(row.marriage_leave) }}
+                            {% else %}
+                            <span style="color: #cbd5e1;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Adjustment -->
+                        <td style="padding: 0.75rem 0.75rem; font-weight: 600; color: #475569; border-right: 1px solid #e2e8f0; font-family: 'JetBrains Mono', monospace;">
+                            {% if row.adjustment and row.adjustment != 0 %}
+                            {{ "%.1f"|format(row.adjustment) }}
+                            {% else %}
+                            <span style="color: #cbd5e1;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Net Closing Balance -->
+                        <td style="padding: 0.75rem 0.75rem; font-weight: 900; background: #f0fdf4; color: #047857; border-right: 1px solid #e2e8f0; font-size: 0.95rem; font-family: 'JetBrains Mono', monospace;">
+                            {{ "%.1f"|format(row.closing_balance or 0.0) }}
+                        </td>
+
+                        <!-- Remarks -->
+                        <td style="padding: 0.75rem 0.75rem; text-align: left; font-size: 0.8rem; color: #64748b; border-right: 1px solid #e2e8f0;">
+                            {% if row.remarks %}
+                            <span title="{{ row.remarks }}" style="display: block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                {{ row.remarks }}
+                            </span>
+                            {% elif row.is_manually_locked %}
+                            <span style="color: #d97706; font-size: 0.75rem; font-weight: 600;">🔒 Manual Override</span>
+                            {% else %}
+                            <span style="color: #cbd5e1;">&mdash;</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Action -->
+                        <td style="padding: 0.5rem 0.5rem; text-align: center;">
+                            <button type="button" class="btn" onclick="openMonthAdjustmentModal({{ row.month }}, '{{ row.month_name }}', {{ row.general_pto or 0 }}, {{ row.holiday_pto or 0 }}, {{ row.sick_leave or 0 }}, {{ row.general_leave or 0 }}, {{ row.parental_leave or 0 }}, {{ row.marriage_leave or 0 }}, {{ row.adjustment or 0 }}, '{{ row.remarks or ''|replace("'", "\\'") }}')" style="background: #f1f5f9; color: #0f172a; border: 1px solid #cbd5e1; padding: 0.25rem 0.55rem; border-radius: 5px; font-size: 0.75rem; font-weight: 700; cursor: pointer;">
+                                ⚙️ Adjust
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+
+                <!-- Annual Totals Row -->
+                <tfoot>
+                    <tr style="background: #0f172a; color: #ffffff; font-weight: 800; font-size: 0.92rem;">
+                        <td style="padding: 0.85rem 0.75rem; text-align: center;">TOTAL</td>
+                        <td style="padding: 0.85rem 0.75rem; text-align: center; color: #94a3b8;">&mdash;</td>
+                        <td style="padding: 0.85rem 0.75rem; color: #93c5fd; font-family: 'JetBrains Mono', monospace;">
+                            {{ "%.1f"|format(bank.opening_balance or 0.0) }} (Init)
+                        </td>
+                        <td style="padding: 0.85rem 0.75rem; color: #5eead4; font-family: 'JetBrains Mono', monospace;">
+                            +{{ "%.1f"|format(bank.total_general_pto or 0.0) }}
+                        </td>
+                        <td style="padding: 0.85rem 0.75rem; color: #fde047; font-family: 'JetBrains Mono', monospace;">
+                            +{{ "%.1f"|format(bank.total_holiday_pto or 0.0) }}
+                        </td>
+                        <td style="padding: 0.85rem 0.75rem; color: #fda4af; font-family: 'JetBrains Mono', monospace;">
+                            {{ "%.1f"|format(bank.total_sick_leave or 0.0) }}
+                        </td>
+                        <td style="padding: 0.85rem 0.75rem; color: #fda4af; font-family: 'JetBrains Mono', monospace;">
+                            {{ "%.1f"|format(bank.total_general_leave or 0.0) }}
+                        </td>
+                        <td style="padding: 0.85rem 0.75rem; color: #fda4af; font-family: 'JetBrains Mono', monospace;">
+                            {{ "%.1f"|format(bank.total_parental_leave or 0.0) }}
+                        </td>
+                        <td style="padding: 0.85rem 0.75rem; color: #fda4af; font-family: 'JetBrains Mono', monospace;">
+                            {{ "%.1f"|format(bank.total_marriage_leave or 0.0) }}
+                        </td>
+                        <td style="padding: 0.85rem 0.75rem; color: #cbd5e1; font-family: 'JetBrains Mono', monospace;">
+                            {{ "%.1f"|format(bank.total_adjustments or 0.0) }}
+                        </td>
+                        <td style="padding: 0.85rem 0.75rem; color: #6ee7b7; font-size: 1.05rem; font-family: 'JetBrains Mono', monospace;">
+                            {{ "%.1f"|format(bank.current_balance or 0.0) }}
+                        </td>
+                        <td style="padding: 0.85rem 0.75rem; text-align: left; color: #94a3b8; font-size: 0.78rem;">
+                            Live Balance
+                        </td>
+                        <td style="padding: 0.85rem 0.75rem; text-align: center;">&mdash;</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- DECEMBER YEAR CLOSING & 50% CARRY FORWARD BANNER -->
+    <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1.5px solid #fcd34d; border-radius: 12px; padding: 1.25rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; box-shadow: 0 4px 12px rgba(217, 119, 6, 0.15);">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: #d97706; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;">
+                🏆
+            </div>
+            <div>
+                <div style="font-size: 0.85rem; font-weight: 800; color: #92400e; text-transform: uppercase; letter-spacing: 0.05em;">
+                    Year {{ year }} Closing &amp; 50% Carry-Forward Rule
+                </div>
+                <div style="font-size: 1.15rem; font-weight: 800; color: #78350f; margin-top: 0.2rem;">
+                    Dec Closing Net Balance: <strong>{{ "%.2f"|format(ledger_rows[-1].closing_balance if ledger_rows else 0.0) }} days</strong>
+                    &rarr; Carried Forward to {{ year + 1 }} (50%): <strong style="color: #047857; font-size: 1.3rem;">{{ "%.2f"|format(bank.carried_forward_to_next_year or 0.0) }} days</strong>
+                </div>
+                <div style="font-size: 0.8rem; color: #92400e; margin-top: 0.2rem;">
+                    As per company policy, exactly half (50%) of the December closing balance becomes the opening bank for {{ year + 1 }}.
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <form method="POST" action="{{ url_for('close_leave_year_route', emp_id=emp.id) }}" onsubmit="return confirm('Close leave year {{ year }} for {{ emp.name }}? Exactly 50% ({{ "%.2f"|format(bank.carried_forward_to_next_year or 0.0) }} days) will be set as the Opening Leave Bank of {{ year + 1 }}.');">
+                <input type="hidden" name="year" value="{{ year }}">
+                <button type="submit" class="btn" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #fff; font-weight: 800; border: none; padding: 0.65rem 1.3rem; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.45rem; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);">
+                    🔒 Close Year &amp; Roll Over 50% to {{ year + 1 }}
+                </button>
+            </form>
+        </div>
+    </div>
+
+</div>
+
+<!-- MODAL: QUICK MONTH ADJUSTMENT -->
+<div class="modal-backdrop" id="monthAdjustmentModal" onclick="if(event.target === this) closeMonthAdjustmentModal()" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); z-index: 9999; align-items: center; justify-content: center;">
+    <div class="modal-dialog" style="background: #ffffff; border-radius: 12px; width: 100%; max-width: 540px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3); overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #fff; padding: 1.1rem 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                ⚙️ Adjust Leave Row: <span id="adjMonthNameTitle" style="color: #5eead4;">-</span> {{ year }}
+            </h3>
+            <button type="button" onclick="closeMonthAdjustmentModal()" style="background: transparent; border: none; color: #fff; font-size: 1.25rem; cursor: pointer;">✕</button>
+        </div>
+
+        <form method="POST" action="{{ url_for('adjust_month_leave_ledger') }}" style="padding: 1.25rem;">
+            <input type="hidden" name="employee_id" value="{{ emp.id }}">
+            <input type="hidden" name="year" value="{{ year }}">
+            <input type="hidden" name="month" id="adjMonthInput">
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.85rem;">
+                <div class="form-group">
+                    <label style="font-size: 0.82rem; font-weight: 700; color: #334155;">General PTO (50% Duty):</label>
+                    <input type="number" step="0.5" name="general_pto" id="adjGenPTO" class="ctrl-input" style="width: 100%; padding: 0.45rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                </div>
+                <div class="form-group">
+                    <label style="font-size: 0.82rem; font-weight: 700; color: #334155;">Holiday PTO (Govt Duty):</label>
+                    <input type="number" step="1.0" name="holiday_pto" id="adjHolPTO" class="ctrl-input" style="width: 100%; padding: 0.45rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.85rem;">
+                <div class="form-group">
+                    <label style="font-size: 0.82rem; font-weight: 700; color: #334155;">Sick Leave Taken:</label>
+                    <input type="number" step="0.5" name="sick_leave" id="adjSick" class="ctrl-input" style="width: 100%; padding: 0.45rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                </div>
+                <div class="form-group">
+                    <label style="font-size: 0.82rem; font-weight: 700; color: #334155;">General/Casual Leave:</label>
+                    <input type="number" step="0.5" name="general_leave" id="adjGeneral" class="ctrl-input" style="width: 100%; padding: 0.45rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.85rem;">
+                <div class="form-group">
+                    <label style="font-size: 0.82rem; font-weight: 700; color: #334155;">Parental Leave:</label>
+                    <input type="number" step="0.5" name="parental_leave" id="adjParental" class="ctrl-input" style="width: 100%; padding: 0.45rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                </div>
+                <div class="form-group">
+                    <label style="font-size: 0.82rem; font-weight: 700; color: #334155;">Marriage Leave:</label>
+                    <input type="number" step="0.5" name="marriage_leave" id="adjMarriage" class="ctrl-input" style="width: 100%; padding: 0.45rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0.85rem;">
+                <label style="font-size: 0.82rem; font-weight: 700; color: #334155;">Special Adjustment (+ / &minus;):</label>
+                <input type="number" step="0.5" name="adjustment" id="adjAdjustment" class="ctrl-input" style="width: 100%; padding: 0.45rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+                <small style="color: #64748b; font-size: 0.75rem;">Positive value deducts from balance, negative adds.</small>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label style="font-size: 0.82rem; font-weight: 700; color: #334155;">Remarks / Notes:</label>
+                <input type="text" name="remarks" id="adjRemarks" placeholder="e.g. Approved medical certification waiver" class="ctrl-input" style="width: 100%; padding: 0.45rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.65rem; border-top: 1px solid #e2e8f0; padding-top: 0.85rem;">
+                <button type="button" onclick="closeMonthAdjustmentModal()" class="btn" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 0.45rem 1rem; border-radius: 6px;">Cancel</button>
+                <button type="submit" class="btn" style="background: #0d9488; color: #fff; font-weight: 700; border: none; padding: 0.45rem 1.25rem; border-radius: 6px;">
+                    💾 Save &amp; Recalculate
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: IMPORT BLOCK-FORMAT EXCEL FILE -->
+<div class="modal-backdrop" id="importExcelModal" onclick="if(event.target === this) closeImportExcelModal()" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); z-index: 9999; align-items: center; justify-content: center;">
+    <div class="modal-dialog" style="background: #ffffff; border-radius: 12px; width: 100%; max-width: 560px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3); overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); color: #fff; padding: 1.1rem 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                📤 Import Historical Leave Excel Blocks
+            </h3>
+            <button type="button" onclick="closeImportExcelModal()" style="background: transparent; border: none; color: #fff; font-size: 1.25rem; cursor: pointer;">✕</button>
+        </div>
+
+        <form method="POST" action="{{ url_for('import_leave_excel_file') }}" enctype="multipart/form-data" style="padding: 1.25rem;">
+            <p style="font-size: 0.85rem; color: #475569; margin: 0 0 1rem 0; line-height: 1.45;">
+                Upload your custom block-format Excel workbook containing historical employee records, opening banks, and monthly leave grids. The parser will automatically map and load the data.
+            </p>
+
+            <div style="background: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 8px; padding: 1.25rem; text-align: center; margin-bottom: 1rem;">
+                <input type="file" name="excel_file" accept=".xlsx, .xlsm" required style="font-size: 0.88rem; width: 100%;">
+                <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.4rem;">
+                    Accepts official multi-employee block sheets (.xlsx)
+                </div>
+            </div>
+
+            <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 0.65rem 0.85rem; margin-bottom: 1.25rem; font-size: 0.82rem; color: #1e40af; display: flex; justify-content: space-between; align-items: center;">
+                <span>Need our company Excel format?</span>
+                <a href="{{ url_for('download_leave_template_excel') }}" style="font-weight: 700; color: #2563eb; text-decoration: underline;">
+                    Download Sample Template
+                </a>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.65rem; border-top: 1px solid #e2e8f0; padding-top: 0.85rem;">
+                <button type="button" onclick="closeImportExcelModal()" class="btn" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 0.45rem 1rem; border-radius: 6px;">Cancel</button>
+                <button type="submit" class="btn" style="background: #4f46e5; color: #fff; font-weight: 700; border: none; padding: 0.45rem 1.25rem; border-radius: 6px;">
+                    🚀 Upload &amp; Parse Records
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function executeQuickSearch() {
+    const val = (document.getElementById('quickEmpSearchInput').value || '').trim().toUpperCase();
+    if (!val) return;
+    const opts = document.querySelectorAll('#employeeSelectSwitcher option');
+    for (let opt of opts) {
+        const txt = opt.innerText.toUpperCase();
+        if (txt.includes(val) || opt.value === val) {
+            window.location.href = '/attendance/leave/ledger/' + opt.value + '?year={{ year }}';
+            return;
+        }
+    }
+    alert('Employee with ID "' + val + '" not found in staff list.');
+}
+
+function openMonthAdjustmentModal(monthNum, monthName, genPTO, holPTO, sick, general, parental, marriage, adj, remarks) {
+    document.getElementById('adjMonthInput').value = monthNum;
+    document.getElementById('adjMonthNameTitle').innerText = monthName;
+    document.getElementById('adjGenPTO').value = genPTO || 0;
+    document.getElementById('adjHolPTO').value = holPTO || 0;
+    document.getElementById('adjSick').value = sick || 0;
+    document.getElementById('adjGeneral').value = general || 0;
+    document.getElementById('adjParental').value = parental || 0;
+    document.getElementById('adjMarriage').value = marriage || 0;
+    document.getElementById('adjAdjustment').value = adj || 0;
+    document.getElementById('adjRemarks').value = remarks || '';
+
+    const modal = document.getElementById('monthAdjustmentModal');
+    modal.style.display = 'flex';
+}
+
+function closeMonthAdjustmentModal() {
+    document.getElementById('monthAdjustmentModal').style.display = 'none';
+}
+
+function openImportExcelModal() {
+    document.getElementById('importExcelModal').style.display = 'flex';
+}
+
+function closeImportExcelModal() {
+    document.getElementById('importExcelModal').style.display = 'none';
+}
+</script>
+
+<style>
+@media print {
+    .module-header-card .header-actions,
+    #employeeSelectSwitcher,
+    .quickEmpSearchInput,
+    .modal-backdrop,
+    .btn,
+    nav,
+    aside,
+    header,
+    footer {
+        display: none !important;
+    }
+    body {
+        background: #ffffff !important;
+        font-size: 11pt !important;
+        color: #000000 !important;
+    }
+    .attendance-container {
+        padding: 0 !important;
+        max-width: 100% !important;
+    }
+    .table th, .table td {
+        padding: 4px 6px !important;
+        font-size: 8pt !important;
+    }
+}
+</style>
+{% endblock %}

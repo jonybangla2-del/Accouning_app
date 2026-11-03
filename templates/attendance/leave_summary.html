@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}All Staff Leave Bank &amp; PTO Summary (Year {{ year }}) &bull; ZR-ERP{% endblock %}
+
+{% block content %}
+{% include "attendance/_roster_action_modals.html" %}
+
+<div class="attendance-container" style="max-width: 1400px; margin: 0 auto; padding: 1.25rem 1rem;">
+
+    <!-- TOP HEADER -->
+    <div class="module-header-card" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 14px; padding: 1.5rem 1.75rem; color: #fff; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2); margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div class="header-left">
+            <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(13, 148, 136, 0.2); border: 1px solid rgba(13, 148, 136, 0.4); padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.78rem; font-weight: 700; color: #5eead4; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.5rem;">
+                <span style="width: 8px; height: 8px; border-radius: 50%; background: #14b8a6; display: inline-block;"></span>
+                <span>COMPANY-WIDE LEAVE &amp; ACCRUAL OVERSIGHT &bull; {{ year }}</span>
+            </div>
+            <h1 style="font-size: 1.65rem; font-weight: 800; margin: 0 0 0.35rem 0; color: #ffffff; letter-spacing: -0.02em;">
+                📊 All Staff Leave Bank &amp; PTO Summary
+            </h1>
+            <p style="margin: 0; font-size: 0.9rem; color: #94a3b8; max-width: 750px; line-height: 1.4;">
+                Consolidated balance sheet of employee opening banks, 50% duty General PTO accruals, government holiday rewards, enjoyed leaves, and 50% year-end carry forward projections.
+            </p>
+        </div>
+
+        <div class="header-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+            <button type="button" class="btn" onclick="openLeavePostingModal()" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #fff; font-weight: 700; border: none; padding: 0.55rem 1.1rem; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);">
+                ➕ Post Leave
+            </button>
+            <a href="{{ url_for('export_all_staff_leave_summary_excel_route', year=year) }}" class="btn" style="background: #0d9488; color: #fff; font-weight: 700; border: none; padding: 0.55rem 1rem; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.35);">
+                📥 Export All to Excel
+            </a>
+            <button type="button" class="btn" onclick="openImportExcelModal()" style="background: #6366f1; color: #fff; font-weight: 600; border: none; padding: 0.55rem 1rem; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;">
+                📤 Import Excel Blocks
+            </a>
+            <a href="{{ url_for('attendance_dashboard') }}" class="btn" style="background: #334155; color: #f8fafc; font-weight: 600; border: 1px solid #475569; padding: 0.55rem 1rem; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem;">
+                &larr; Attendance Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- FILTER & YEAR BAR -->
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <form method="GET" action="{{ url_for('view_all_staff_leave_summary') }}" style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; flex: 1;">
+            <input type="hidden" name="year" value="{{ year }}">
+
+            <!-- Search box -->
+            <input type="text" name="q" value="{{ search_q }}" placeholder="Search ID or staff name..." style="padding: 0.5rem 0.85rem; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.88rem; width: 220px;">
+
+            <!-- Department filter -->
+            <select name="department" style="padding: 0.5rem 0.85rem; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.88rem; background: #f8fafc;">
+                <option value="">All Departments</option>
+                {% for d in all_depts %}
+                <option value="{{ d }}" {% if dept_filter == d %}selected{% endif %}>{{ d }}</option>
+                {% endfor %}
+            </select>
+
+            <button type="submit" style="padding: 0.5rem 1rem; background: #0f172a; color: #fff; font-weight: 700; border: none; border-radius: 8px; cursor: pointer;">
+                Filter
+            </button>
+            {% if search_q or dept_filter %}
+            <a href="{{ url_for('view_all_staff_leave_summary', year=year) }}" style="color: #64748b; font-size: 0.85rem; text-decoration: underline;">Clear</a>
+            {% endif %}
+        </form>
+
+        <!-- Year Switcher -->
+        <div style="display: flex; align-items: center; gap: 0.4rem;">
+            <span style="font-size: 0.82rem; font-weight: 700; color: #64748b; margin-right: 0.35rem;">YEAR:</span>
+            {% for y in [2024, 2025, 2026, 2027] %}
+            <a href="{{ url_for('view_all_staff_leave_summary', year=y, department=dept_filter, q=search_q) }}" style="padding: 0.4rem 0.85rem; border-radius: 6px; font-size: 0.88rem; font-weight: 700; text-decoration: none; transition: all 0.2s; {% if y == year %}background: #0d9488; color: #ffffff; box-shadow: 0 2px 6px rgba(13, 148, 136, 0.35);{% else %}background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;{% endif %}">
+                {{ y }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- 5 AGGREGATE KPI CARDS -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.15rem; border-left: 4px solid #3b82f6; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="font-size: 0.78rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Total Opening Bank</div>
+            <div style="font-size: 1.8rem; font-weight: 900; color: #1e40af; margin-top: 0.35rem; font-family: 'JetBrains Mono', monospace;">
+                {{ total_opening_sum }} <span style="font-size: 0.85rem; color: #64748b;">d</span>
+            </div>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.15rem; border-left: 4px solid #0d9488; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="font-size: 0.78rem; font-weight: 700; color: #64748b; text-transform: uppercase;">General PTO (50% Duty)</div>
+            <div style="font-size: 1.8rem; font-weight: 900; color: #0f766e; margin-top: 0.35rem; font-family: 'JetBrains Mono', monospace;">
+                +{{ total_pto_sum }} <span style="font-size: 0.85rem; color: #64748b;">d</span>
+            </div>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.15rem; border-left: 4px solid #d97706; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="font-size: 0.78rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Govt Holiday Reward</div>
+            <div style="font-size: 1.8rem; font-weight: 900; color: #b45309; margin-top: 0.35rem; font-family: 'JetBrains Mono', monospace;">
+                +{{ total_hol_sum }} <span style="font-size: 0.85rem; color: #64748b;">d</span>
+            </div>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.15rem; border-left: 4px solid #ef4444; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="font-size: 0.78rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Leaves Enjoyed</div>
+            <div style="font-size: 1.8rem; font-weight: 900; color: #b91c1c; margin-top: 0.35rem; font-family: 'JetBrains Mono', monospace;">
+                {{ total_enjoyed_sum }} <span style="font-size: 0.85rem; color: #64748b;">d</span>
+            </div>
+        </div>
+
+        <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 1.5px solid #a7f3d0; border-radius: 12px; padding: 1.15rem; border-left: 4px solid #059669; box-shadow: 0 2px 5px rgba(5,150,105,0.1);">
+            <div style="font-size: 0.78rem; font-weight: 800; color: #065f46; text-transform: uppercase;">Company Net Balance</div>
+            <div style="font-size: 1.8rem; font-weight: 900; color: #047857; margin-top: 0.35rem; font-family: 'JetBrains Mono', monospace;">
+                {{ total_balance_sum }} <span style="font-size: 0.85rem; color: #065f46;">d</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- SUMMARY TABLE -->
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); overflow: hidden;">
+        <div style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 0.85rem 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 0.95rem; font-weight: 800; color: #0f172a;">
+                Staff Leave Balances &bull; {{ summary_list|length }} Employees
+            </div>
+            <div style="font-size: 0.8rem; color: #64748b;">
+                Showing Year {{ year }}
+            </div>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table class="table" style="width: 100%; border-collapse: collapse; text-align: right; font-size: 0.88rem;">
+                <thead>
+                    <tr style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #fff;">
+                        <th style="padding: 0.75rem 0.5rem; text-align: center; font-weight: 800;">SL</th>
+                        <th style="padding: 0.75rem 0.75rem; text-align: center; font-weight: 800;">ID</th>
+                        <th style="padding: 0.75rem 0.75rem; text-align: left; font-weight: 800;">Employee Name</th>
+                        <th style="padding: 0.75rem 0.75rem; text-align: left; font-weight: 700;">Department</th>
+                        <th style="padding: 0.75rem 0.75rem; font-weight: 800; color: #93c5fd;">Opening Bank</th>
+                        <th style="padding: 0.75rem 0.75rem; font-weight: 800; color: #5eead4;">General PTO</th>
+                        <th style="padding: 0.75rem 0.75rem; font-weight: 800; color: #fde047;">Holiday PTO</th>
+                        <th style="padding: 0.75rem 0.75rem; font-weight: 800;">Total Earned</th>
+                        <th style="padding: 0.75rem 0.75rem; font-weight: 700; color: #fda4af;">Leaves Taken</th>
+                        <th style="padding: 0.75rem 0.75rem; font-weight: 900; color: #6ee7b7; background: rgba(16, 185, 129, 0.25);">Net Balance</th>
+                        <th style="padding: 0.75rem 0.75rem; font-weight: 800; color: #fed7aa;">50% Carry</th>
+                        <th style="padding: 0.75rem 0.75rem; text-align: center; font-weight: 700;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in summary_list %}
+                    <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s; {% if loop.index % 2 == 0 %}background: #fafafa;{% endif %}">
+                        <td style="padding: 0.7rem 0.5rem; text-align: center; color: #64748b; font-weight: 600;">{{ loop.index }}</td>
+                        <td style="padding: 0.7rem 0.75rem; text-align: center; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: #0f172a;">
+                            {{ item.employee.employee_id }}
+                        </td>
+                        <td style="padding: 0.7rem 0.75rem; text-align: left; font-weight: 700; color: #0f172a;">
+                            <a href="{{ url_for('view_employee_leave_ledger', emp_id=item.employee.id, year=year) }}" style="color: #0f172a; text-decoration: none;">
+                                {{ item.employee.name }}
+                            </a>
+                        </td>
+                        <td style="padding: 0.7rem 0.75rem; text-align: left; color: #475569; font-size: 0.82rem;">
+                            {{ item.employee.department or 'General' }}
+                        </td>
+                        <td style="padding: 0.7rem 0.75rem; font-weight: 700; color: #1e40af; font-family: 'JetBrains Mono', monospace;">
+                            {{ "%.1f"|format(item.bank.opening_balance or 0.0) }}
+                        </td>
+                        <td style="padding: 0.7rem 0.75rem; font-weight: 700; color: #0d9488; font-family: 'JetBrains Mono', monospace;">
+                            +{{ "%.1f"|format(item.bank.total_general_pto or 0.0) }}
+                        </td>
+                        <td style="padding: 0.7rem 0.75rem; font-weight: 700; color: #d97706; font-family: 'JetBrains Mono', monospace;">
+                            +{{ "%.1f"|format(item.bank.total_holiday_pto or 0.0) }}
+                        </td>
+                        <td style="padding: 0.7rem 0.75rem; font-weight: 800; color: #047857; font-family: 'JetBrains Mono', monospace;">
+                            {{ "%.1f"|format(item.total_earned) }}
+                        </td>
+                        <td style="padding: 0.7rem 0.75rem; font-weight: 700; color: #dc2626; font-family: 'JetBrains Mono', monospace;">
+                            {{ "%.1f"|format(item.total_enjoyed) }}
+                        </td>
+                        <td style="padding: 0.7rem 0.75rem; font-weight: 900; color: #047857; background: #f0fdf4; font-size: 0.95rem; font-family: 'JetBrains Mono', monospace;">
+                            {{ "%.1f"|format(item.bank.current_balance or 0.0) }}
+                        </td>
+                        <td style="padding: 0.7rem 0.75rem; font-weight: 800; color: #b45309; font-family: 'JetBrains Mono', monospace;">
+                            {{ "%.2f"|format(item.bank.carried_forward_to_next_year or 0.0) }}
+                        </td>
+                        <td style="padding: 0.7rem 0.75rem; text-align: center;">
+                            <a href="{{ url_for('view_employee_leave_ledger', emp_id=item.employee.id, year=year) }}" class="btn" style="background: #0f172a; color: #fff; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.75rem; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 0.3rem;">
+                                👁️ View Ledger
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- MODAL: IMPORT BLOCK-FORMAT EXCEL FILE -->
+<div class="modal-backdrop" id="importExcelModal" onclick="if(event.target === this) closeImportExcelModal()" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); z-index: 9999; align-items: center; justify-content: center;">
+    <div class="modal-dialog" style="background: #ffffff; border-radius: 12px; width: 100%; max-width: 560px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3); overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); color: #fff; padding: 1.1rem 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                📤 Import Historical Leave Excel Blocks
+            </h3>
+            <button type="button" onclick="closeImportExcelModal()" style="background: transparent; border: none; color: #fff; font-size: 1.25rem; cursor: pointer;">✕</button>
+        </div>
+
+        <form method="POST" action="{{ url_for('import_leave_excel_file') }}" enctype="multipart/form-data" style="padding: 1.25rem;">
+            <p style="font-size: 0.85rem; color: #475569; margin: 0 0 1rem 0; line-height: 1.45;">
+                Upload your custom block-format Excel workbook containing historical employee records, opening banks, and monthly leave grids. The parser will automatically map and load the data.
+            </p>
+
+            <div style="background: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 8px; padding: 1.25rem; text-align: center; margin-bottom: 1rem;">
+                <input type="file" name="excel_file" accept=".xlsx, .xlsm" required style="font-size: 0.88rem; width: 100%;">
+            </div>
+
+            <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 0.65rem 0.85rem; margin-bottom: 1.25rem; font-size: 0.82rem; color: #1e40af; display: flex; justify-content: space-between; align-items: center;">
+                <span>Need our company Excel format?</span>
+                <a href="{{ url_for('download_leave_template_excel') }}" style="font-weight: 700; color: #2563eb; text-decoration: underline;">
+                    Download Sample Template
+                </a>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.65rem; border-top: 1px solid #e2e8f0; padding-top: 0.85rem;">
+                <button type="button" onclick="closeImportExcelModal()" class="btn" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 0.45rem 1rem; border-radius: 6px;">Cancel</button>
+                <button type="submit" class="btn" style="background: #4f46e5; color: #fff; font-weight: 700; border: none; padding: 0.45rem 1.25rem; border-radius: 6px;">
+                    🚀 Upload &amp; Parse Records
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openImportExcelModal() {
+    document.getElementById('importExcelModal').style.display = 'flex';
+}
+function closeImportExcelModal() {
+    document.getElementById('importExcelModal').style.display = 'none';
+}
+</script>
+{% endblock %}

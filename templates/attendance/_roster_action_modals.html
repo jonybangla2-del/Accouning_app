@@ -20,12 +20,36 @@
         </div>
         <form method="POST" action="{{ url_for('post_employee_leave') }}" class="modal-form" style="padding: 1.25rem;">
             <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
-                <!-- Employee Lookup -->
+                <!-- Employee Lookup & Live Leave Bank Card -->
                 <div class="form-group">
-                    <label class="form-label" style="font-weight: 700; color: #1e293b; font-size: 0.88rem;">Employee ID *</label>
-                    <input type="text" name="employee_id" id="leaveEmpInput" list="rosterEmployeesDatalist" oninput="onRosterEmpInput(this, 'leaveEmpNameDisplay', 'leaveEmpDeptDisplay')" required placeholder="Type or select ID e.g. 127" class="ctrl-input" style="width: 100%; font-size: 0.95rem; font-weight: 700;">
-                    <div style="margin-top: 0.35rem; font-size: 0.82rem; background: #f8fafc; padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid #e2e8f0; color: #475569;">
-                        Staff: <strong id="leaveEmpNameDisplay" style="color: #0f172a;">-</strong> &bull; Dept: <span id="leaveEmpDeptDisplay">-</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                        <label class="form-label" style="font-weight: 700; color: #1e293b; font-size: 0.88rem; margin: 0;">Employee ID *</label>
+                        <a id="leaveLedgerDirectLink" href="/attendance/leave/ledger" target="_blank" style="display: none; font-size: 0.75rem; color: #0d9488; font-weight: 700; text-decoration: underline;">
+                            📊 View 12-Month Statement
+                        </a>
+                    </div>
+                    <input type="text" name="employee_id" id="leaveEmpInput" list="rosterEmployeesDatalist" oninput="onLeaveEmpInputChange(this)" required placeholder="Type or select ID e.g. 85, 127, 143" class="ctrl-input" style="width: 100%; font-size: 0.95rem; font-weight: 700;">
+                    
+                    <!-- Live Available Balance Card -->
+                    <div id="leaveBalanceCard" style="margin-top: 0.5rem; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.85rem; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
+                        <div>
+                            <div style="font-size: 0.82rem; color: #475569;">
+                                Staff: <strong id="leaveEmpNameDisplay" style="color: #0f172a;">-</strong> &bull; Dept: <span id="leaveEmpDeptDisplay">-</span>
+                            </div>
+                            <div id="leaveDesigDisplay" style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">
+                                Designation: -
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 0.72rem; font-weight: 700; color: #047857; text-transform: uppercase;">Live Leave Bank</div>
+                            <div id="leaveAvailDisplay" style="font-size: 1.25rem; font-weight: 900; color: #047857; font-family: 'JetBrains Mono', monospace;">
+                                -- d
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Projected Balance Pill -->
+                    <div id="leaveProjectedPill" style="display: none; margin-top: 0.4rem; font-size: 0.78rem; padding: 0.4rem 0.75rem; border-radius: 6px; font-weight: 700;">
                     </div>
                 </div>
 
@@ -316,6 +340,83 @@
 </div>
 
 <script>
+let currentLiveLeaveBalance = null;
+
+function onLeaveEmpInputChange(inputEl) {
+    onRosterEmpInput(inputEl, 'leaveEmpNameDisplay', 'leaveEmpDeptDisplay');
+    const rawVal = (inputEl.value || '').trim();
+    const card = document.getElementById('leaveBalanceCard');
+    const availDisp = document.getElementById('leaveAvailDisplay');
+    const desigDisp = document.getElementById('leaveDesigDisplay');
+    const link = document.getElementById('leaveLedgerDirectLink');
+
+    if (!rawVal) {
+        currentLiveLeaveBalance = null;
+        availDisp.innerText = '-- d';
+        desigDisp.innerText = 'Designation: -';
+        link.style.display = 'none';
+        updateLeaveProjection();
+        return;
+    }
+
+    fetch('/attendance/api/leave-balance/' + encodeURIComponent(rawVal))
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                currentLiveLeaveBalance = data.available_balance;
+                availDisp.innerText = data.available_balance.toFixed(1) + ' d';
+                desigDisp.innerText = 'Designation: ' + (data.employee.designation || 'Staff');
+                link.href = '/attendance/leave/ledger/' + data.employee.id;
+                link.style.display = 'inline-block';
+
+                if (data.available_balance > 0) {
+                    card.style.background = '#ecfdf5';
+                    card.style.borderColor = '#a7f3d0';
+                    availDisp.style.color = '#047857';
+                } else {
+                    card.style.background = '#fef2f2';
+                    card.style.borderColor = '#fecaca';
+                    availDisp.style.color = '#dc2626';
+                }
+                updateLeaveProjection();
+            } else {
+                currentLiveLeaveBalance = null;
+                availDisp.innerText = '0.0 d';
+                desigDisp.innerText = 'Staff not recognized';
+                link.style.display = 'none';
+                updateLeaveProjection();
+            }
+        })
+        .catch(() => {
+            currentLiveLeaveBalance = null;
+            updateLeaveProjection();
+        });
+}
+
+function updateLeaveProjection() {
+    const pill = document.getElementById('leaveProjectedPill');
+    const days = parseInt(document.getElementById('leaveTotalDaysInput').value || '1', 10);
+    if (currentLiveLeaveBalance === null || isNaN(days) || days < 1) {
+        pill.style.display = 'none';
+        return;
+    }
+
+    const remaining = currentLiveLeaveBalance - days;
+    pill.style.display = 'block';
+
+    if (remaining >= 0) {
+        pill.style.background = '#f0fdf4';
+        pill.style.color = '#166534';
+        pill.style.border = '1px solid #bbf7d0';
+        pill.innerHTML = '✔ Projected Remaining Balance after this leave: <strong>' + remaining.toFixed(1) + ' days</strong>';
+    } else {
+        pill.style.background = '#fff1f2';
+        pill.style.color = '#9f1239';
+        pill.style.border = '1px solid #fecdd3';
+        pill.innerHTML = '⚠️ Warning: Exceeds available leave bank by <strong>' + Math.abs(remaining).toFixed(1) + ' days</strong> (Will result in negative balance)';
+    }
+}
+
 // Employee Datalist / Lookup Helper
 function onRosterEmpInput(inputEl, nameElId, deptElId) {
     const rawVal = (inputEl.value || '').trim();
@@ -377,6 +478,7 @@ function calcLeaveDays() {
         dDisp.style.color = '#047857';
         dInp.value = diff;
     }
+    updateLeaveProjection();
 }
 
 // Modal Open & Close Functions
@@ -389,7 +491,7 @@ function openLeavePostingModal(prefillEmp, prefillDate) {
         if (prefillEmp) {
             const inp = document.getElementById('leaveEmpInput');
             inp.value = prefillEmp;
-            onRosterEmpInput(inp, 'leaveEmpNameDisplay', 'leaveEmpDeptDisplay');
+            onLeaveEmpInputChange(inp);
         }
         if (prefillDate) {
             document.getElementById('leaveDateFrom').value = prefillDate;
@@ -573,3 +675,4 @@ function loadRosterAuditData() {
         }).catch(() => {});
 }
 </script>
+

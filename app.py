@@ -24,6 +24,7 @@ import pypdf
 import tempfile
 import uuid
 import ipaddress
+import leave_manager
 
 # ==============================================================================
 # BANGLADESH STANDARD TIME (BST, UTC+6) CONFIGURATION
@@ -2858,12 +2859,158 @@ class AttendanceAdjustment(db.Model):
         }
 
 
+class LeaveBank(db.Model):
+    __tablename__ = 'leave_banks'
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, default=1, index=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False, index=True)
+    emp_code = db.Column(db.String(50), nullable=True, index=True)
+    emp_name = db.Column(db.String(150), nullable=True)
+    department = db.Column(db.String(100), nullable=True)
+    designation = db.Column(db.String(100), nullable=True)
+    year = db.Column(db.Integer, nullable=False, index=True)
+    opening_balance = db.Column(db.Float, default=0.0)
+    total_general_pto = db.Column(db.Float, default=0.0)
+    total_holiday_pto = db.Column(db.Float, default=0.0)
+    total_sick_leave = db.Column(db.Float, default=0.0)
+    total_general_leave = db.Column(db.Float, default=0.0)
+    total_parental_leave = db.Column(db.Float, default=0.0)
+    total_marriage_leave = db.Column(db.Float, default=0.0)
+    total_other_leave = db.Column(db.Float, default=0.0)
+    total_adjustments = db.Column(db.Float, default=0.0)
+    current_balance = db.Column(db.Float, default=0.0)
+    carried_forward_to_next_year = db.Column(db.Float, default=0.0)
+    is_year_closed = db.Column(db.Boolean, default=False)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    employee = db.relationship('Employee', backref=db.backref('leave_banks', lazy=True, cascade='all, delete-orphan'))
+
+    def __init__(self, company_id=1, employee_id=None, emp_code=None, emp_name=None,
+                 department=None, designation=None, year=2026, opening_balance=0.0, **kwargs):
+        super().__init__(**kwargs)
+        self.company_id = company_id
+        self.employee_id = employee_id
+        self.emp_code = emp_code
+        self.emp_name = emp_name
+        self.department = department
+        self.designation = designation
+        self.year = year
+        self.opening_balance = opening_balance
+        self.current_balance = opening_balance
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'employee_id': self.employee_id,
+            'emp_code': self.emp_code,
+            'emp_name': self.emp_name,
+            'department': self.department,
+            'designation': self.designation,
+            'year': self.year,
+            'opening_balance': self.opening_balance,
+            'total_general_pto': self.total_general_pto,
+            'total_holiday_pto': self.total_holiday_pto,
+            'total_sick_leave': self.total_sick_leave,
+            'total_general_leave': self.total_general_leave,
+            'total_parental_leave': self.total_parental_leave,
+            'total_marriage_leave': self.total_marriage_leave,
+            'total_other_leave': self.total_other_leave,
+            'total_adjustments': self.total_adjustments,
+            'current_balance': self.current_balance,
+            'carried_forward_to_next_year': self.carried_forward_to_next_year,
+            'is_year_closed': self.is_year_closed
+        }
+
+
+class LeaveMonthlyLedger(db.Model):
+    __tablename__ = 'leave_monthly_ledgers'
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, default=1, index=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), nullable=False, index=True)
+    emp_code = db.Column(db.String(50), nullable=True, index=True)
+    emp_name = db.Column(db.String(150), nullable=True)
+    department = db.Column(db.String(100), nullable=True)
+    year = db.Column(db.Integer, nullable=False, index=True)
+    month = db.Column(db.Integer, nullable=False, index=True)
+    month_name = db.Column(db.String(20), nullable=True)
+    opening_balance = db.Column(db.Float, default=0.0)
+    duty_days_count = db.Column(db.Float, default=0.0)
+    total_working_days = db.Column(db.Integer, default=22)
+    duty_percentage = db.Column(db.Float, default=0.0)
+    is_eligible_pto = db.Column(db.Boolean, default=False)
+    general_pto = db.Column(db.Float, default=0.0)
+    holiday_pto = db.Column(db.Float, default=0.0)
+    sick_leave = db.Column(db.Float, default=0.0)
+    general_leave = db.Column(db.Float, default=0.0)
+    parental_leave = db.Column(db.Float, default=0.0)
+    marriage_leave = db.Column(db.Float, default=0.0)
+    other_leave = db.Column(db.Float, default=0.0)
+    adjustment = db.Column(db.Float, default=0.0)
+    closing_balance = db.Column(db.Float, default=0.0)
+    remarks = db.Column(db.String(255), nullable=True)
+    is_manually_locked = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    employee = db.relationship('Employee', backref=db.backref('leave_monthly_ledgers', lazy=True, cascade='all, delete-orphan'))
+
+    def __init__(self, company_id=1, employee_id=None, emp_code=None, emp_name=None,
+                 department=None, year=2026, month=1, month_name='Jan', opening_balance=0.0,
+                 closing_balance=0.0, **kwargs):
+        super().__init__(**kwargs)
+        self.company_id = company_id
+        self.employee_id = employee_id
+        self.emp_code = emp_code
+        self.emp_name = emp_name
+        self.department = department
+        self.year = year
+        self.month = month
+        self.month_name = month_name
+        self.opening_balance = opening_balance
+        self.closing_balance = closing_balance
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'employee_id': self.employee_id,
+            'emp_code': self.emp_code,
+            'year': self.year,
+            'month': self.month,
+            'month_name': self.month_name,
+            'opening_balance': self.opening_balance,
+            'duty_days_count': self.duty_days_count,
+            'total_working_days': self.total_working_days,
+            'duty_percentage': self.duty_percentage,
+            'is_eligible_pto': self.is_eligible_pto,
+            'general_pto': self.general_pto,
+            'holiday_pto': self.holiday_pto,
+            'sick_leave': self.sick_leave,
+            'general_leave': self.general_leave,
+            'parental_leave': self.parental_leave,
+            'marriage_leave': self.marriage_leave,
+            'other_leave': self.other_leave,
+            'adjustment': self.adjustment,
+            'closing_balance': self.closing_balance,
+            'remarks': self.remarks or '',
+            'is_manually_locked': self.is_manually_locked
+        }
+
+
+# Aliases for deliverables requirement
+LeaveTransaction = LeavePosting
+DutySwap = RosterSwap
+
+
 def ensure_attendance_modules_tables():
-    """Ensures leave_postings, roster_swaps, and attendance_adjustments tables exist across all databases."""
+    """Ensures leave_postings, roster_swaps, attendance_adjustments, leave_banks, and leave_monthly_ledgers tables exist across all databases."""
     try:
         LeavePosting.__table__.create(db.engine, checkfirst=True)
         RosterSwap.__table__.create(db.engine, checkfirst=True)
         AttendanceAdjustment.__table__.create(db.engine, checkfirst=True)
+        LeaveBank.__table__.create(db.engine, checkfirst=True)
+        LeaveMonthlyLedger.__table__.create(db.engine, checkfirst=True)
     except Exception:
         pass
 
@@ -17924,6 +18071,7 @@ def attendance_dashboard():
 @login_required
 def import_attendance_notepad():
     import attendance_manager as att_mgr
+    import leave_manager
     from collections import defaultdict
     import time
 
@@ -18993,7 +19141,26 @@ def post_employee_leave():
             curr += timedelta(days=1)
 
         db.session.commit()
-        flash(f"🎉 Leave successfully posted for {emp.name} ({total_days} days: {d_from} to {d_to}) with status '{leave_type}'.", "success")
+
+        # Instantly recalculate Leave Ledger & Bank running balances
+        try:
+            leave_models = {
+                'LeaveBank': LeaveBank,
+                'LeaveMonthlyLedger': LeaveMonthlyLedger,
+                'Employee': Employee,
+                'EmployeeAttendance': EmployeeAttendance,
+                'AttendanceAdjustment': AttendanceAdjustment,
+                'GovtHoliday': GovtHoliday,
+                'LeavePosting': LeavePosting
+            }
+            updated_bank = leave_manager.recalculate_employee_leave_ledger(emp.id, d_from.year, db.session, leave_models, force_recalculate=True)
+            if d_to.year != d_from.year:
+                leave_manager.recalculate_employee_leave_ledger(emp.id, d_to.year, db.session, leave_models, force_recalculate=True)
+            avail_str = f" Remaining Available Balance: {updated_bank.current_balance:.1f} days." if updated_bank else ""
+            flash(f"🎉 Leave successfully posted for {emp.name} ({total_days} days: {d_from} to {d_to}) with status '{leave_type}'.{avail_str}", "success")
+        except Exception as l_err:
+            logger.warning(f"Leave ledger recalculation note: {l_err}")
+            flash(f"🎉 Leave successfully posted for {emp.name} ({total_days} days: {d_from} to {d_to}) with status '{leave_type}'.", "success")
     except Exception as e:
         db.session.rollback()
         flash(f"Error posting leave: {e}", "danger")
@@ -19311,6 +19478,353 @@ def delete_attendance_adjustment(adj_id):
     db.session.commit()
     flash("🗑️ Attendance adjustment record removed.", "info")
     return redirect(request.referrer or url_for('attendance_dashboard'))
+
+
+# ==============================================================================
+# ENTERPRISE LEAVE MANAGEMENT & LEDGER STATEMENT ENGINE (50% PTO & EXCEL BLOCK)
+# ==============================================================================
+
+def get_leave_models_dict():
+    return {
+        'LeaveBank': LeaveBank,
+        'LeaveMonthlyLedger': LeaveMonthlyLedger,
+        'Employee': Employee,
+        'EmployeeAttendance': EmployeeAttendance,
+        'AttendanceAdjustment': AttendanceAdjustment,
+        'GovtHoliday': GovtHoliday,
+        'LeavePosting': LeavePosting
+    }
+
+
+@app.route('/attendance/api/leave-balance/<string:emp_code>')
+@login_required
+def api_get_employee_leave_balance(emp_code):
+    """
+    API endpoint returning real-time employee profile, live available leave balance,
+    annual accruals (50% Duty General PTO + Govt Holiday PTO), deductions, and projected carry-forward.
+    """
+    code = emp_code.strip()
+    emp = Employee.query.filter((Employee.employee_id == code) | (Employee.employee_id == f"EMP-{code}")).first()
+    if not emp and code.isdigit():
+        emp = Employee.query.get(int(code))
+    if not emp:
+        return jsonify({'success': False, 'message': f'Employee with ID "{code}" not found'}), 404
+
+    year = request.args.get('year', type=int) or date.today().year
+    models = get_leave_models_dict()
+    bank = leave_manager.recalculate_employee_leave_ledger(emp.id, year, db.session, models)
+
+    total_earned = round(float(bank.total_general_pto or 0.0) + float(bank.total_holiday_pto or 0.0), 2)
+    total_enjoyed = round(
+        float(bank.total_sick_leave or 0.0) + float(bank.total_general_leave or 0.0) +
+        float(bank.total_parental_leave or 0.0) + float(bank.total_marriage_leave or 0.0) +
+        float(bank.total_other_leave or 0.0),
+        2
+    )
+
+    return jsonify({
+        'success': True,
+        'employee': {
+            'id': emp.id,
+            'emp_code': emp.employee_id,
+            'name': emp.name,
+            'department': emp.department or 'General',
+            'designation': emp.designation or 'Staff Member'
+        },
+        'year': year,
+        'opening_balance': round(float(bank.opening_balance or 0.0), 2),
+        'general_pto': round(float(bank.total_general_pto or 0.0), 2),
+        'holiday_pto': round(float(bank.total_holiday_pto or 0.0), 2),
+        'total_earned': total_earned,
+        'total_enjoyed': total_enjoyed,
+        'total_adjustments': round(float(bank.total_adjustments or 0.0), 2),
+        'current_balance': round(float(bank.current_balance or 0.0), 2),
+        'available_balance': round(float(bank.current_balance or 0.0), 2),
+        'carried_forward_to_next_year': round(float(bank.carried_forward_to_next_year or 0.0), 2),
+        'is_year_closed': bank.is_year_closed
+    })
+
+
+@app.route('/attendance/leave/ledger')
+@app.route('/attendance/leave/ledger/<int:emp_id>')
+@login_required
+def view_employee_leave_ledger(emp_id=None):
+    """
+    Individual Employee 12-Month Leave Ledger & Statement View.
+    Matches exact Excel layout (Opening, Earned General PTO, Holiday PTO, Enjoyed Leaves, Closing Balance).
+    Allows manual adjustments, Excel export, and print preview.
+    """
+    year = request.args.get('year', type=int) or date.today().year
+
+    # If emp_id not provided, resolve from query param or pick first active employee
+    if not emp_id:
+        req_emp_id = request.args.get('emp_id')
+        if req_emp_id and req_emp_id.isdigit():
+            emp_id = int(req_emp_id)
+        else:
+            first_emp = Employee.query.filter_by(status='Active').order_by(Employee.employee_id.asc()).first()
+            if not first_emp:
+                first_emp = Employee.query.order_by(Employee.id.asc()).first()
+            if not first_emp:
+                flash("No employees found in system. Please add employees first.", "warning")
+                return redirect(url_for('attendance_dashboard'))
+            emp_id = first_emp.id
+
+    emp = Employee.query.get_or_404(emp_id)
+    models = get_leave_models_dict()
+
+    # Recalculate ledger to ensure 50% duty PTO and biometric punches are up-to-date
+    bank = leave_manager.recalculate_employee_leave_ledger(emp.id, year, db.session, models)
+    ledger_rows = LeaveMonthlyLedger.query.filter_by(
+        employee_id=emp.id,
+        year=year
+    ).order_by(LeaveMonthlyLedger.month.asc()).all()
+
+    all_employees = Employee.query.filter_by(status='Active').order_by(Employee.employee_id.asc()).all()
+    holidays_count = GovtHoliday.query.filter_by(year=year).count()
+
+    total_earned = round(float(bank.total_general_pto or 0.0) + float(bank.total_holiday_pto or 0.0), 2)
+    total_enjoyed = round(
+        float(bank.total_sick_leave or 0.0) + float(bank.total_general_leave or 0.0) +
+        float(bank.total_parental_leave or 0.0) + float(bank.total_marriage_leave or 0.0) +
+        float(bank.total_other_leave or 0.0),
+        2
+    )
+
+    return render_template(
+        'attendance/leave_ledger.html',
+        emp=emp,
+        bank=bank,
+        ledger_rows=ledger_rows,
+        year=year,
+        all_employees=all_employees,
+        holidays_count=holidays_count,
+        total_earned=total_earned,
+        total_enjoyed=total_enjoyed
+    )
+
+
+@app.route('/attendance/leave/ledger/<int:emp_id>/export-excel')
+@login_required
+def export_employee_leave_ledger_excel(emp_id):
+    """Exports individual employee 12-month leave statement matching the exact Excel block format."""
+    emp = Employee.query.get_or_404(emp_id)
+    year = request.args.get('year', type=int) or date.today().year
+    models = get_leave_models_dict()
+
+    excel_io = leave_manager.export_employee_leave_statement_excel(emp.id, year, db.session, models)
+    if not excel_io:
+        flash("Failed to generate Excel export.", "danger")
+        return redirect(url_for('view_employee_leave_ledger', emp_id=emp.id, year=year))
+
+    filename = f"Leave_Statement_{emp.employee_id}_{year}.xlsx"
+    return safe_excel_response(excel_io, filename)
+
+
+@app.route('/attendance/leave/ledger/<int:emp_id>/sync')
+@login_required
+def sync_employee_leave_ledger(emp_id):
+    """Forces full biometric punch sync, 50% duty re-evaluation, and holiday PTO re-computation."""
+    emp = Employee.query.get_or_404(emp_id)
+    year = request.args.get('year', type=int) or date.today().year
+    models = get_leave_models_dict()
+
+    leave_manager.recalculate_employee_leave_ledger(emp.id, year, db.session, models, force_recalculate=True)
+    flash(f"🔄 Biometric attendance punches, 50% duty PTO, and government holiday rewards re-synchronized for {emp.name} ({year}).", "success")
+    return redirect(url_for('view_employee_leave_ledger', emp_id=emp.id, year=year))
+
+
+@app.route('/attendance/leave/ledger/adjust-month', methods=['POST'])
+@login_required
+def adjust_month_leave_ledger():
+    """Allows admin to manually adjust or lock a specific month's PTO, enjoyed leaves, or notes."""
+    emp_id = request.form.get('employee_id', type=int)
+    year = request.form.get('year', type=int) or date.today().year
+    month = request.form.get('month', type=int)
+
+    if not emp_id or not month or not (1 <= month <= 12):
+        flash("Invalid employee or month specified.", "danger")
+        return redirect(request.referrer or url_for('view_employee_leave_ledger'))
+
+    row = LeaveMonthlyLedger.query.filter_by(employee_id=emp_id, year=year, month=month).first()
+    if not row:
+        flash("Monthly ledger row not found.", "danger")
+        return redirect(request.referrer or url_for('view_employee_leave_ledger', emp_id=emp_id, year=year))
+
+    try:
+        if 'general_pto' in request.form:
+            row.general_pto = float(request.form.get('general_pto') or 0.0)
+        if 'holiday_pto' in request.form:
+            row.holiday_pto = float(request.form.get('holiday_pto') or 0.0)
+        if 'sick_leave' in request.form:
+            row.sick_leave = float(request.form.get('sick_leave') or 0.0)
+        if 'general_leave' in request.form:
+            row.general_leave = float(request.form.get('general_leave') or 0.0)
+        if 'parental_leave' in request.form:
+            row.parental_leave = float(request.form.get('parental_leave') or 0.0)
+        if 'marriage_leave' in request.form:
+            row.marriage_leave = float(request.form.get('marriage_leave') or 0.0)
+        if 'adjustment' in request.form:
+            row.adjustment = float(request.form.get('adjustment') or 0.0)
+        if 'remarks' in request.form:
+            row.remarks = request.form.get('remarks', '').strip()
+
+        # Mark as locked so standard biometric auto-sync does not overwrite manual override
+        row.is_manually_locked = True
+        db.session.commit()
+
+        # Re-cascade balances across remaining months and compute 50% year-end carry forward
+        models = get_leave_models_dict()
+        leave_manager.recalculate_employee_leave_ledger(emp_id, year, db.session, models, force_recalculate=False)
+
+        flash(f"✅ Month {row.month_name} ({year}) successfully updated. Running balances recalculated.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error updating month: {e}", "danger")
+
+    return redirect(url_for('view_employee_leave_ledger', emp_id=emp_id, year=year))
+
+
+@app.route('/attendance/leave/summary')
+@login_required
+def view_all_staff_leave_summary():
+    """Master Company Summary View of all staff leave banks, annual PTO accruals, and 50% carry-forwards."""
+    year = request.args.get('year', type=int) or date.today().year
+    dept_filter = request.args.get('department', '').strip()
+    search_q = request.args.get('q', '').strip().lower()
+
+    models = get_leave_models_dict()
+    query = Employee.query.filter_by(status='Active')
+
+    if dept_filter:
+        query = query.filter(Employee.department == dept_filter)
+    if search_q:
+        query = query.filter(
+            (Employee.employee_id.ilike(f"%{search_q}%")) |
+            (Employee.name.ilike(f"%{search_q}%"))
+        )
+
+    employees = query.order_by(Employee.employee_id.asc()).all()
+
+    summary_list = []
+    total_opening_sum = 0.0
+    total_pto_sum = 0.0
+    total_hol_sum = 0.0
+    total_enjoyed_sum = 0.0
+    total_balance_sum = 0.0
+    total_carry_forward_sum = 0.0
+
+    existing_banks = LeaveBank.query.filter_by(year=year).all()
+    bank_map = {b.employee_id: b for b in existing_banks}
+
+    for emp in employees:
+        bank = bank_map.get(emp.id)
+        if not bank:
+            bank = leave_manager.recalculate_employee_leave_ledger(emp.id, year, db.session, models)
+        if not bank:
+            continue
+        tot_earned = (bank.total_general_pto or 0.0) + (bank.total_holiday_pto or 0.0)
+        tot_enjoyed = (
+            (bank.total_sick_leave or 0.0) + (bank.total_general_leave or 0.0) +
+            (bank.total_parental_leave or 0.0) + (bank.total_marriage_leave or 0.0) +
+            (bank.total_other_leave or 0.0)
+        )
+        summary_list.append({
+            'employee': emp,
+            'bank': bank,
+            'total_earned': tot_earned,
+            'total_enjoyed': tot_enjoyed
+        })
+
+        total_opening_sum += (bank.opening_balance or 0.0)
+        total_pto_sum += (bank.total_general_pto or 0.0)
+        total_hol_sum += (bank.total_holiday_pto or 0.0)
+        total_enjoyed_sum += tot_enjoyed
+        total_balance_sum += (bank.current_balance or 0.0)
+        total_carry_forward_sum += (bank.carried_forward_to_next_year or 0.0)
+
+    # All distinct departments for filter
+    all_depts = [d[0] for d in db.session.query(Employee.department).distinct() if d[0]]
+
+    return render_template(
+        'attendance/leave_summary.html',
+        summary_list=summary_list,
+        year=year,
+        dept_filter=dept_filter,
+        search_q=search_q,
+        all_depts=all_depts,
+        total_opening_sum=round(total_opening_sum, 1),
+        total_pto_sum=round(total_pto_sum, 1),
+        total_hol_sum=round(total_hol_sum, 1),
+        total_enjoyed_sum=round(total_enjoyed_sum, 1),
+        total_balance_sum=round(total_balance_sum, 1),
+        total_carry_forward_sum=round(total_carry_forward_sum, 1)
+    )
+
+
+@app.route('/attendance/leave/summary/export-excel')
+@login_required
+def export_all_staff_leave_summary_excel_route():
+    """Exports all staff leave summary into an executive Excel spreadsheet."""
+    year = request.args.get('year', type=int) or date.today().year
+    models = get_leave_models_dict()
+
+    excel_io = leave_manager.export_all_staff_leave_summary_excel(year, db.session, models)
+    filename = f"All_Staff_Leave_Summary_{year}.xlsx"
+    return safe_excel_response(excel_io, filename)
+
+
+@app.route('/attendance/leave/template/download')
+@login_required
+def download_leave_template_excel():
+    """Downloads the custom block-format Excel template with pre-built formulas and sample employee blocks."""
+    excel_io = leave_manager.generate_sample_leave_excel_template()
+    return safe_excel_response(excel_io, "Leave_Ledger_Import_Template.xlsx")
+
+
+@app.route('/attendance/leave/import-excel', methods=['POST'])
+@login_required
+def import_leave_excel_file():
+    """Parses custom block-format Excel files and loads historical records and opening balances into DB."""
+    file = request.files.get('excel_file')
+    if not file or not file.filename:
+        flash("⚠️ Please select an Excel file (.xlsx) to import.", "warning")
+        return redirect(request.referrer or url_for('view_all_staff_leave_summary'))
+
+    if not file.filename.lower().endswith(('.xlsx', '.xlsm')):
+        flash("⚠️ Unsupported format. Please upload an Excel workbook (.xlsx).", "danger")
+        return redirect(request.referrer or url_for('view_all_staff_leave_summary'))
+
+    cid = session.get('active_company_id', 1)
+    models = get_leave_models_dict()
+
+    try:
+        res = leave_manager.parse_custom_block_leave_excel(file.stream, db.session, models, company_id=cid)
+        count = res.get('total_blocks_found', 0)
+        flash(f"🎉 Successfully imported {count} employee leave blocks from '{file.filename}'! Historical records and opening balances loaded.", "success")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error importing leave Excel file: {e}", exc_info=True)
+        flash(f"❌ Error importing leave file: {str(e)}", "danger")
+
+    return redirect(url_for('view_all_staff_leave_summary'))
+
+
+@app.route('/attendance/leave/close-year/<int:emp_id>', methods=['POST'])
+@login_required
+def close_leave_year_route(emp_id):
+    """Closes the leave year for an employee and carries forward 50% of Dec balance to next year."""
+    emp = Employee.query.get_or_404(emp_id)
+    year = request.form.get('year', type=int) or date.today().year
+    models = get_leave_models_dict()
+
+    bank = leave_manager.close_leave_year(emp.id, year, db.session, models)
+    if bank:
+        flash(f"🏆 Year {year} successfully closed for {emp.name}! 50% net balance ({bank.carried_forward_to_next_year:.2f} days) carried forward to {year + 1}.", "success")
+    else:
+        flash("Failed to close year.", "danger")
+
+    return redirect(url_for('view_employee_leave_ledger', emp_id=emp.id, year=year + 1))
 
 
 @app.route('/employees/<int:emp_id>/experience-certificate')

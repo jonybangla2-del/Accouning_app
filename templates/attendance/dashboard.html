@@ -20,8 +20,11 @@
         </div>
 
         <div class="header-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <a href="{{ url_for('view_employee_leave_ledger') }}" class="btn-action" style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); color: #ffffff; font-weight: 700; border: none; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.35); text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
+                🏖️ Leave Ledgers &bull; 50% PTO
+            </a>
             <button type="button" class="btn-action" onclick="openLeavePostingModal()" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; font-weight: 700; border: none; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);">
-                🏖️ Post Leave
+                ➕ Post Leave
             </button>
             <button type="button" class="btn-action" onclick="openDutySwapModal()" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: #ffffff; font-weight: 700; border: none; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);">
                 🔄 Swap Duty
