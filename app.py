@@ -11717,14 +11717,22 @@ def employee_fund_ledger(emp_id):
 @app.route('/payroll/fund-contributions/issue-loan', methods=['POST'])
 def issue_fund_loan():
     emp_key = request.form.get('emp_key', '').strip()
-    loan_amount = float(request.form.get('loan_amount') or 0.0)
+    loan_principal = float(request.form.get('loan_amount') or 0.0)
+    try:
+        charge_pct = float(request.form.get('charge_pct', 4.0) or 4.0)
+    except (ValueError, TypeError):
+        charge_pct = 4.0
+
+    charge_amount = round(loan_principal * (charge_pct / 100.0), 2)
+    total_loan = round(loan_principal + charge_amount, 2)
+
     disbursement_month = request.form.get('disbursement_month', '').strip() # e.g. '2026-01'
     disbursement_date_str = request.form.get('disbursement_date', '').strip()
     installments_total = int(request.form.get('installments_total') or 12)
     repayment_start_month = request.form.get('repayment_start_month', '').strip()
-    remarks = request.form.get('remarks', 'Fund Loan (12-Month Installment Scheme)').strip()
+    user_remarks = request.form.get('remarks', 'Fund Loan (12-Month Installment Scheme)').strip()
 
-    if not emp_key or loan_amount <= 0 or not disbursement_month:
+    if not emp_key or loan_principal <= 0 or not disbursement_month:
         flash('Please provide valid employee ID, loan amount, and disbursement month.', 'danger')
         return redirect(request.referrer or url_for('fund_contributions_dashboard'))
 
@@ -11746,14 +11754,19 @@ def issue_fund_loan():
     if isinstance(d_date, datetime):
         d_date = d_date.date()
 
-    monthly_inst = round(loan_amount / installments_total, 2)
+    # Calculate monthly return divided by installments (Total Loan / Installments)
+    monthly_inst = round(total_loan / installments_total, 2)
+    
+    charge_label = f"{charge_pct:g}% Charge" if charge_pct > 0 else "0% Charge"
+    loan_summary_str = f"Principal: ৳{loan_principal:,.2f} + {charge_label}: ৳{charge_amount:,.2f} = Total Loan: ৳{total_loan:,.2f}"
+    full_remarks = f"{loan_summary_str} | {user_remarks}" if user_remarks else loan_summary_str
 
     # 1. Create EmployeeFundLoan record
     loan = EmployeeFundLoan(
         employee_id=emp_db_id,
         emp_code=emp_code,
         emp_name=emp_name,
-        loan_amount=loan_amount,
+        loan_amount=total_loan,
         disbursement_month=disbursement_month,
         disbursement_date=d_date,
         installments_total=installments_total,
@@ -11761,7 +11774,7 @@ def issue_fund_loan():
         installments_paid=0,
         total_repaid=0.0,
         status='Active',
-        remarks=remarks
+        remarks=full_remarks
     )
     db.session.add(loan)
 
@@ -11772,9 +11785,8 @@ def issue_fund_loan():
     ).first()
 
     if disb_rec:
-        disb_rec.loan_amount = round((disb_rec.loan_amount or 0.0) + loan_amount, 2)
-        if remarks:
-            disb_rec.remarks = f"{disb_rec.remarks} | Loan Disbursed: ৳{loan_amount:,.2f}" if disb_rec.remarks else f"Loan Disbursed: ৳{loan_amount:,.2f} ({remarks})"
+        disb_rec.loan_amount = round((disb_rec.loan_amount or 0.0) + total_loan, 2)
+        disb_rec.remarks = f"{disb_rec.remarks} | {full_remarks}" if disb_rec.remarks else full_remarks
     else:
         disb_rec = EmployeeFundContribution(
             employee_id=emp_db_id,
@@ -11788,17 +11800,17 @@ def issue_fund_loan():
             employer_share=0.0,
             welfare_fund=0.0,
             profit_interest=0.0,
-            loan_amount=loan_amount,
+            loan_amount=total_loan,
             loan_return=0.0,
-            remarks=f"Fund Loan Disbursed: ৳{loan_amount:,.2f} ({remarks})"
+            remarks=f"Fund Loan Disbursed: ৳{total_loan:,.2f} ({full_remarks})"
         )
         db.session.add(disb_rec)
 
-    # 3. Schedule the 12 installments in EmployeeFundContribution
+    # 3. Schedule the monthly return installments in EmployeeFundContribution
     for i in range(installments_total):
         inst_month = add_months_to_str(repayment_start_month, i)
         if i == installments_total - 1:
-            inst_amt = round(loan_amount - monthly_inst * (installments_total - 1), 2)
+            inst_amt = round(total_loan - monthly_inst * (installments_total - 1), 2)
         else:
             inst_amt = monthly_inst
 
@@ -11842,8 +11854,8 @@ def issue_fund_loan():
     db.session.commit()
     recalculate_employee_fund_balances(emp_code)
 
-    flash(f'Fund Loan of ৳{loan_amount:,.2f} with {installments_total} monthly installments created successfully for {emp_name}.', 'success')
-    return redirect(url_for('employee_fund_ledger', emp_id=emp_code))
+    flash(f'Fund Loan of ৳{loan_principal:,.2f} + {charge_pct:g}% charge (Total ৳{total_loan:,.2f}) with {installments_total} monthly return installments of ৳{monthly_inst:,.2f} created successfully for {emp_name}.', 'success')
+    return redirect(request.referrer or url_for('employee_fund_ledger', emp_id=emp_code))
 
 
 @app.route('/payroll/fund-contributions/loan/<int:loan_id>/delete', methods=['POST'])

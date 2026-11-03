@@ -648,13 +648,17 @@
                     </select>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div style="display: grid; grid-template-columns: 1.2fr 0.9fr 0.9fr; gap: 0.75rem; margin-bottom: 1rem;">
                     <div class="form-group" style="margin-bottom: 0;">
-                        <label class="form-label" style="font-weight: 700;">Loan Amount (৳) *</label>
+                        <label class="form-label" style="font-weight: 700;">Loan Principal (৳) *</label>
                         <input type="number" step="0.01" min="1" name="loan_amount" id="g_loan_amount_input" class="form-control" placeholder="e.g. 60000" required oninput="calcGlobalLoanInstallment()">
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
-                        <label class="form-label" style="font-weight: 700;">Total Installments</label>
+                        <label class="form-label" style="font-weight: 700; color: #b45309;">Charge (%)</label>
+                        <input type="number" step="0.1" min="0" max="100" name="charge_pct" id="g_loan_charge_pct_input" class="form-control" value="4" required oninput="calcGlobalLoanInstallment()" style="background: #fffbeb; font-weight: 700; color: #b45309; border-color: #fde68a;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700;">Installments</label>
                         <input type="number" name="installments_total" id="g_installments_total_input" class="form-control" value="12" min="1" max="60" required oninput="calcGlobalLoanInstallment()">
                     </div>
                 </div>
@@ -670,10 +674,17 @@
                     </div>
                 </div>
 
-                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 0.85rem 1rem; margin-bottom: 1rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 0.85rem; color: #166534; font-weight: 600;">Calculated Monthly Return:</span>
-                        <span id="g_installmentPreview" style="font-family: 'JetBrains Mono', monospace; font-size: 1.15rem; font-weight: 800; color: #15803d;">৳0.00 / month</span>
+                <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 8px; padding: 0.9rem 1.15rem; margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px dashed #bbf7d0; font-size: 0.82rem; color: #166534; flex-wrap: wrap; gap: 0.4rem;">
+                        <span>Principal: <strong id="g_previewPrincipal">৳0.00</strong> + <span id="g_previewChargePct">4%</span> Charge: <strong id="g_previewCharge" style="color: #b45309;">৳0.00</strong></span>
+                        <span>Total Loan: <strong id="g_previewTotalLoan" style="color: #0f172a; font-size: 0.95rem;">৳0.00</strong></span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                        <span style="font-size: 0.88rem; color: #166534; font-weight: 700;">Calculated Monthly Return:</span>
+                        <span id="g_installmentPreview" style="font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; font-weight: 900; color: #15803d;">৳0.00 / month</span>
+                    </div>
+                    <div id="g_installmentScheduleNote" style="font-size: 0.78rem; color: #15803d; margin-top: 0.35rem; font-weight: 500;">
+                        12 monthly deductions will be added to the Return column.
                     </div>
                 </div>
 
@@ -895,13 +906,40 @@ function confirmFundClear() {
     return confirm("ATTENTION: Are you sure you want to permanently clear previous Employee Contribution Fund data?\n\nThis will remove previous records and recalculate running balances for any remaining items.\n\nGeneral Accounts and Ledger calculations will NOT be affected.\n\nProceed?");
 }
 function calcGlobalLoanInstallment() {
-    const amt = parseFloat(document.getElementById('g_loan_amount_input').value) || 0;
+    const principal = parseFloat(document.getElementById('g_loan_amount_input').value) || 0;
+    const chargePct = parseFloat(document.getElementById('g_loan_charge_pct_input')?.value) || 0;
     const inst = parseInt(document.getElementById('g_installments_total_input').value) || 12;
-    if (amt > 0 && inst > 0) {
-        const monthly = (amt / inst).toFixed(2);
+
+    if (principal > 0 && inst > 0) {
+        const chargeAmt = Math.round((principal * (chargePct / 100)) * 100) / 100;
+        const totalLoan = principal + chargeAmt;
+        const monthly = (totalLoan / inst).toFixed(2);
+
+        const pEl = document.getElementById('g_previewPrincipal');
+        if (pEl) pEl.innerText = "৳" + principal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        const cpEl = document.getElementById('g_previewChargePct');
+        if (cpEl) cpEl.innerText = chargePct + "%";
+        const cEl = document.getElementById('g_previewCharge');
+        if (cEl) cEl.innerText = "৳" + chargeAmt.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        const tlEl = document.getElementById('g_previewTotalLoan');
+        if (tlEl) tlEl.innerText = "৳" + totalLoan.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
         document.getElementById('g_installmentPreview').innerText = "৳" + Number(monthly).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " / month";
+        const noteEl = document.getElementById('g_installmentScheduleNote');
+        if (noteEl) noteEl.innerText = inst + " monthly deductions of ৳" + Number(monthly).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " will be recorded in the Return column (Total: ৳" + Number(totalLoan).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ").";
     } else {
+        const pEl = document.getElementById('g_previewPrincipal');
+        if (pEl) pEl.innerText = "৳0.00";
+        const cpEl = document.getElementById('g_previewChargePct');
+        if (cpEl) cpEl.innerText = chargePct + "%";
+        const cEl = document.getElementById('g_previewCharge');
+        if (cEl) cEl.innerText = "৳0.00";
+        const tlEl = document.getElementById('g_previewTotalLoan');
+        if (tlEl) tlEl.innerText = "৳0.00";
+
         document.getElementById('g_installmentPreview').innerText = "৳0.00 / month";
+        const noteEl = document.getElementById('g_installmentScheduleNote');
+        if (noteEl) noteEl.innerText = inst + " monthly deductions will be recorded in the Return column.";
     }
 }
 function autoSetGlobalRepaymentStart() {

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Fund Statement - {{ employee.name }} ({{ employee.employee_id }}){% endblock %}
+{% block title %}Fund Statement - {{ employee.name }} (ID: {{ employee.employee_id }}){% endblock %}
 
 {% block content %}
 <div class="page-header no-print">
@@ -14,130 +14,748 @@
             💰 Individual Contribution Fund Statement
         </h1>
         <p class="page-description">
-            Provident & Welfare Fund accumulation statement for <strong>{{ employee.name }}</strong> ({{ employee.employee_id }}).
+            Provident & Welfare Fund accumulation & loan statement as per ID: <strong>{{ employee.employee_id }}</strong> ({{ employee.name }}).
         </p>
     </div>
-    <div class="header-actions">
-        <button onclick="window.print()" class="btn btn-primary">
-            🖨️ Print Fund Statement
+    <div class="header-actions" style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+        <button type="button" class="btn btn-dark" onclick="openModal('settleResignationModal')" style="display: inline-flex; align-items: center; gap: 0.4rem; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #fff; font-weight: 600; border: none; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);">
+            🏦 Resignation Settlement / Withdraw
         </button>
-        <a href="{{ url_for('export_employee_fund_excel', emp_id=employee.id) }}" class="btn btn-success">
+        <button type="button" class="btn btn-outline" onclick="openModal('addRowModal')" style="display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; background: #ffffff; border: 1.5px solid #cbd5e1;">
+            ➕ Add Month Row
+        </button>
+        <button type="button" class="btn btn-warning" onclick="openModal('issueLoanModal')" style="display: inline-flex; align-items: center; gap: 0.4rem; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #fff; font-weight: 600; border: none; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);">
+            💳 Issue Fund Loan (12-Month)
+        </button>
+        <a href="{{ url_for('export_employee_fund_excel', emp_id=employee.employee_id or employee.id) }}" class="btn btn-success" style="display: inline-flex; align-items: center; gap: 0.4rem;">
             📊 Export to Excel
         </a>
-        <button type="button" class="btn btn-danger" onclick="openModal('clearEmpFundModal')" style="display: inline-flex; align-items: center; gap: 0.4rem; background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border: none; color: #fff; font-weight: 600; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);">
-            🗑️ Clear Previous Data
+        <button onclick="window.print()" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.4rem;">
+            🖨️ Print Statement
+        </button>
+        <button type="button" class="btn btn-danger" onclick="openModal('clearEmpFundModal')" style="display: inline-flex; align-items: center; gap: 0.4rem; background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border: none; color: #fff; font-weight: 600;">
+            🗑️ Clear Data
         </button>
     </div>
 </div>
 
-<!-- Employee Header Card -->
-<div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff;">
-    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem;">
+<!-- QUICK ID SWITCHER TOOLBAR -->
+<div class="card no-print" style="margin-bottom: 1.25rem; padding: 0.85rem 1.25rem; background: #f8fafc; border: 1px solid var(--border);">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+            <label for="empIdSelect" style="font-weight: 700; font-size: 0.9rem; color: #1e293b; display: flex; align-items: center; gap: 0.4rem;">
+                🔍 View Statement as per ID:
+            </label>
+            <select id="empIdSelect" class="form-control" style="width: auto; min-width: 280px; font-weight: 600;" onchange="switchEmployee(this.value)">
+                {% for opt in all_emp_opts %}
+                <option value="{{ opt.code }}" {% if opt.code == (employee.employee_id|string) or opt.code == (employee.id|string) %}selected{% endif %}>
+                    ID: {{ opt.code }} - {{ opt.name }} {% if opt.dept %}({{ opt.dept }}){% endif %}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-size: 0.82rem; color: var(--text-muted);">Quick Search ID:</span>
+            <input type="text" id="quickIdInput" placeholder="Enter ID e.g. 334" style="width: 140px; padding: 0.35rem 0.6rem; border: 1px solid var(--border); border-radius: 4px; font-size: 0.85rem; font-weight: 600;" onkeydown="if(event.key==='Enter') quickSwitchId()">
+            <button type="button" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.85rem;" onclick="quickSwitchId()">Go</button>
+        </div>
+    </div>
+</div>
+
+<!-- RESIGNATION SETTLED NOTIFICATION BANNER (IF SETTLED) -->
+{% if settlement %}
+<div class="card no-print" style="margin-bottom: 1.25rem; border-left: 5px solid #10b981; background: #f0fdf4; padding: 1.15rem 1.35rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
         <div>
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-                <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.5rem; color: #ffffff; margin: 0;">
-                    {{ employee.name }}
-                </h2>
-                <span style="background: rgba(255, 255, 255, 0.2); color: #ffffff; font-family: 'JetBrains Mono', monospace; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.85rem; font-weight: 700;">
-                    {{ employee.employee_id }}
-                </span>
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <span style="font-size: 1.4rem;">🎓</span>
+                <strong style="color: #166534; font-size: 1.1rem;">Resignation Settlement Completed</strong>
+                <span class="badge" style="background: #bbf7d0; color: #166534; font-weight: 800; font-size: 0.82rem; padding: 0.3rem 0.6rem;">Settled</span>
             </div>
-            <div style="color: #cbd5e1; font-size: 0.9rem; margin-top: 0.35rem;">
-                {{ employee.designation }} &bull; Department of {{ employee.department }}
-            </div>
-            <div style="color: #94a3b8; font-size: 0.82rem; margin-top: 0.2rem;">
-                {% if employee.joining_date %}Joined: {{ employee.joining_date.strftime('%d-%b-%Y') }} &bull; {% endif %}Basic Pay: ৳{{ "{:,.2f}".format(employee.basic_salary) }}
+            <div style="font-size: 0.9rem; color: #15803d; margin-top: 0.45rem; line-height: 1.5;">
+                Settlement Date: <strong>{{ settlement.settlement_date.strftime('%d-%b-%Y') if settlement.settlement_date else '' }}</strong> &bull; 
+                Contribution Age: <strong>{{ settlement.contribution_months }} Months ({{ settlement.contribution_years }} Years)</strong> &bull;
+                Vesting Policy: <strong>{% if settlement.is_eligible_full %}Eligible for Full 100% Benefit (&ge; 3 Years){% else %}Employee Share Only (&lt; 3 Years){% endif %}</strong><br>
+                Net Payout Disbursed: <strong style="font-size: 1.05rem; color: #166534; font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(settlement.payable_to_employee) }}</strong>
+                {% if settlement.forfeited_company_share > 0 %}
+                &bull; Company Share Forfeited: <strong style="color: #b91c1c; font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(settlement.forfeited_company_share) }}</strong>
+                {% endif %}
+                &bull; Payment Mode: <strong>{{ settlement.payment_mode }}</strong> (Ref: {{ settlement.payment_reference or 'Direct' }})
             </div>
         </div>
+        <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+            <a href="{{ url_for('employee_resignation_clearance_by_settlement', settlement_id=settlement.id) }}" target="_blank" class="btn btn-outline" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; font-size: 0.88rem; font-weight: 700; color: #0284c7; border-color: #38bdf8; background: #f0f9ff;" title="Open editable and printable Employee Financial Settlement Clearance Declaration">
+                📜 Clearance Declaration ↗
+            </a>
+            <a href="{{ url_for('print_fund_settlement', settlement_id=settlement.id) }}" target="_blank" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; font-size: 0.88rem; font-weight: 600;">
+                🖨️ Print Settlement Certificate
+            </a>
+            <form method="POST" action="{{ url_for('delete_fund_settlement', settlement_id=settlement.id) }}" style="display: inline;" onsubmit="return confirm('Revert and undo this resignation settlement? This will restore historical active balances.');">
+                <button type="submit" class="btn btn-outline" style="color: #ef4444; border-color: #fca5a5; padding: 0.5rem 0.85rem; font-size: 0.88rem; font-weight: 600;">
+                    ↩️ Undo Settlement
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
 
-        <div style="text-align: right; background: rgba(255, 255, 255, 0.1); padding: 1rem 1.5rem; border-radius: var(--radius-sm); border: 1px solid rgba(255, 255, 255, 0.15);">
-            <div style="font-size: 0.75rem; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em; font-weight: 700;">
-                TOTAL ACCUMULATED FUND
+<!-- SPREADSHEET MODE HELPER BANNER -->
+<div class="card no-print" style="margin-bottom: 1.25rem; padding: 0.65rem 1rem; background: #eff6ff; border: 1px solid #bfdbfe; font-size: 0.84rem; color: #1e40af; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <span style="font-size: 1.1rem;">📊</span>
+        <span>
+            <strong>Spreadsheet Mode Active:</strong> Click on any numeric cell to edit directly like Excel. Press <strong>Enter</strong> to save & move down, <strong>Tab</strong> to move right, or <strong>Esc</strong> to cancel. Balances and totals recalculate in real-time.
+        </span>
+    </div>
+    <span id="saveStatusIndicator" style="font-weight: 700; font-size: 0.8rem; color: #15803d; display: none;">
+        ✓ Saved & Recalculated
+    </span>
+</div>
+
+<!-- ATTACHED SCREENSHOT HEADER BLOCK (EXACT REPLICA) -->
+<div class="card" style="margin-bottom: 1.5rem; background: #ffffff; border: 1px solid #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); padding: 1.25rem 1.5rem;">
+    <!-- Row 1: ID No. pill and Date -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+        <div style="display: inline-flex; align-items: stretch; border-radius: 6px; overflow: hidden; border: 1px solid #94a3b8;">
+            <div style="background: #d9e1f2; color: #0f172a; font-weight: 800; font-size: 1.05rem; padding: 0.4rem 1.25rem; font-family: 'Calibri', sans-serif; display: flex; align-items: center; border-right: 1px solid #94a3b8;">
+                ID No.
             </div>
-            <div style="font-family: 'JetBrains Mono', monospace; font-size: 1.85rem; font-weight: 800; color: #34d399; margin-top: 0.25rem;">
+            <div style="background: #e2e8f0; color: #1e3a8a; font-weight: 800; font-size: 1.15rem; padding: 0.4rem 1.5rem; font-family: 'JetBrains Mono', monospace; display: flex; align-items: center;">
+                {{ employee.employee_id }}
+            </div>
+        </div>
+        <div style="font-family: 'Calibri', sans-serif; font-size: 1rem; color: #334155; font-weight: 600;">
+            {{ now_date_str if now_date_str else '' }}
+        </div>
+    </div>
+
+    <!-- Row 2: Name Box and Department / Counts -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+        <div style="display: inline-flex; align-items: stretch; border: 1.5px solid #0070c0; border-radius: 4px; overflow: hidden;">
+            <div style="color: #0070c0; font-weight: 800; font-size: 0.95rem; padding: 0.35rem 0.85rem; border-right: 1px solid #0070c0; background: #f0f9ff; display: flex; align-items: center;">
+                Name:
+            </div>
+            <div style="color: #0070c0; font-weight: 800; font-size: 1.05rem; padding: 0.35rem 1.25rem; background: #ffffff; display: flex; align-items: center; font-family: 'Calibri', sans-serif;">
+                {{ employee.name }}
+            </div>
+            <div style="color: #0070c0; font-weight: 700; font-size: 0.95rem; padding: 0.35rem 0.85rem; border-left: 1px solid #0070c0; background: #f0f9ff; display: flex; align-items: center;">
+                00
+            </div>
+        </div>
+        <div style="font-family: 'Calibri', sans-serif; font-size: 0.95rem; color: #475569; font-weight: 600;">
+            {{ records|length }} Contributions Recorded &bull; Department: {{ employee.department }}
+        </div>
+    </div>
+
+    <!-- Summary KPI Badges -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px dashed #e2e8f0;">
+        <div style="background: #f8fafc; padding: 0.6rem 0.85rem; border-radius: 6px; border-left: 3px solid #3b82f6;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Emp Share</div>
+            <div id="kpi_tot_emp" style="font-size: 1.05rem; font-weight: 800; color: #1e293b; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
+                ৳{{ "{:,.2f}".format(tot_emp) }}
+            </div>
+        </div>
+        <div style="background: #f8fafc; padding: 0.6rem 0.85rem; border-radius: 6px; border-left: 3px solid #8b5cf6;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Com Share</div>
+            <div id="kpi_tot_comp" style="font-size: 1.05rem; font-weight: 800; color: #7c3aed; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
+                ৳{{ "{:,.2f}".format(tot_comp) }}
+            </div>
+        </div>
+        <div style="background: #f8fafc; padding: 0.6rem 0.85rem; border-radius: 6px; border-left: 3px solid #f59e0b;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Loan Taken</div>
+            <div id="kpi_tot_loan" style="font-size: 1.05rem; font-weight: 800; color: #d97706; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
+                ৳{{ "{:,.2f}".format(tot_loan) }}
+            </div>
+        </div>
+        <div style="background: #f8fafc; padding: 0.6rem 0.85rem; border-radius: 6px; border-left: 3px solid #06b6d4;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Loan Returned</div>
+            <div id="kpi_tot_return" style="font-size: 1.05rem; font-weight: 800; color: #0284c7; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
+                ৳{{ "{:,.2f}".format(tot_return) }}
+            </div>
+        </div>
+        {% if tot_withdrawal > 0 %}
+        <div style="background: #f8fafc; padding: 0.6rem 0.85rem; border-radius: 6px; border-left: 3px solid #9333ea;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Withdrawn</div>
+            <div id="kpi_tot_withdrawal" style="font-size: 1.05rem; font-weight: 800; color: #7e22ce; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
+                ৳{{ "{:,.2f}".format(tot_withdrawal) }}
+            </div>
+        </div>
+        {% endif %}
+        <div class="kpi-loan-card {% if outstanding_loan > 0 %}loan-active{% else %}loan-none{% endif %}" style="background: #f8fafc; padding: 0.6rem 0.85rem; border-radius: 6px;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Outstanding Loan</div>
+            <div id="kpi_outstanding_loan" style="font-size: 1.05rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
+                ৳{{ "{:,.2f}".format(outstanding_loan) }}
+            </div>
+        </div>
+        <div style="background: #f0fdf4; padding: 0.6rem 0.85rem; border-radius: 6px; border-left: 3px solid #10b981;">
+            <div style="font-size: 0.72rem; color: #065f46; font-weight: 700; text-transform: uppercase;">Total Balance</div>
+            <div id="kpi_total_balance" style="font-size: 1.15rem; font-weight: 800; color: #059669; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
                 ৳{{ "{:,.2f}".format(closing_bal) }}
             </div>
         </div>
     </div>
 </div>
 
-<!-- Fund Movement Ledger Table -->
-<div class="card">
-    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-        <h2 class="card-title">📜 Chronological Fund Contributions & Profits</h2>
-        <span class="badge" style="background-color: #d1fae5; color: #065f46;">{{ records|length }} Contributions Logged</span>
+<!-- ACTIVE FUND LOANS SECTION (IF ANY) -->
+{% if loans %}
+<div class="card no-print" style="margin-bottom: 1.5rem; border-left: 4px solid #f59e0b;">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; background: #fffbeb;">
+        <h3 class="card-title" style="color: #92400e; font-size: 1.05rem; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+            💳 Active / Scheduled Fund Loans for {{ employee.name }}
+        </h3>
+        <span class="badge" style="background: #fef3c7; color: #92400e; font-weight: 700;">{{ loans|length }} Loan Scheme(s)</span>
     </div>
-
     <div class="table-responsive">
-        <table class="table report-table">
+        <table class="table">
             <thead>
                 <tr>
-                    <th style="width: 100px;">Month</th>
-                    <th style="width: 110px;">Deposit Date</th>
-                    <th class="num-col">PF Employee (৳)</th>
-                    <th class="num-col" style="color: #7c3aed;">PF Employer (৳)</th>
-                    <th class="num-col" style="color: #0284c7;">Welfare Fund (৳)</th>
-                    <th class="num-col" style="color: #d97706;">Profit / Return (৳)</th>
-                    <th class="num-col">Monthly Inflow (৳)</th>
-                    <th class="num-col" style="width: 160px; color: #059669;">Cumulative Fund (৳)</th>
-                    <th>Narration / Remarks</th>
+                    <th>Disbursement Month</th>
+                    <th>Loan Amount</th>
+                    <th>Scheme / Installments</th>
+                    <th>Monthly Installment</th>
+                    <th>Repaid So Far</th>
+                    <th>Status</th>
+                    <th>Remarks</th>
+                    <th style="text-align: right;">Action</th>
                 </tr>
             </thead>
             <tbody>
-                {% if records %}
-                    {% for r in records %}
-                    <tr>
-                        <td style="font-weight: 700; color: var(--text-primary);">{{ r.contribution_month }}</td>
-                        <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
-                            {{ r.contribution_date.strftime('%d-%b-%Y') if r.contribution_date else '' }}
-                        </td>
-                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace;">
-                            ৳{{ "{:,.2f}".format(r.employee_share) }}
-                        </td>
-                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #7c3aed;">
-                            ৳{{ "{:,.2f}".format(r.employer_share) }}
-                        </td>
-                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #0284c7;">
-                            ৳{{ "{:,.2f}".format(r.welfare_fund or 0.0) }}
-                        </td>
-                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; color: #d97706;">
-                            ৳{{ "{:,.2f}".format(r.profit_interest) }}
-                        </td>
-                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">
-                            ৳{{ "{:,.2f}".format(r.total_monthly) }}
-                        </td>
-                        <td class="num-col" style="font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #059669; font-size: 0.95rem;">
-                            ৳{{ "{:,.2f}".format(r.cumulative_balance) }}
-                        </td>
-                        <td style="font-size: 0.82rem; color: var(--text-secondary);">
-                            {{ r.remarks or 'Regular contribution' }}
-                        </td>
-                    </tr>
+                {% for l in loans %}
+                <tr>
+                    <td style="font-weight: 700; color: #1e293b;">{{ l.disbursement_month }}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #d97706;">
+                        ৳{{ "{:,.2f}".format(l.loan_amount) }}
+                    </td>
+                    <td>
+                        <span class="badge" style="background: #e0f2fe; color: #0369a1;">
+                            {{ l.installments_total }} Months Installment
+                        </span>
+                    </td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">
+                        ৳{{ "{:,.2f}".format(l.monthly_installment) }} / mo
+                    </td>
+                    <td style="font-family: 'JetBrains Mono', monospace; color: #059669; font-weight: 700;">
+                        ৳{{ "{:,.2f}".format(l.total_repaid or 0.0) }} ({{ l.installments_paid or 0 }}/{{ l.installments_total }})
+                    </td>
+                    <td>
+                        {% if l.status == 'Repaid' %}
+                        <span class="badge badge-success">Repaid</span>
+                        {% elif l.status == 'Active' %}
+                        <span class="badge badge-warning">Active</span>
+                        {% else %}
+                        <span class="badge">{{ l.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size: 0.85rem; color: #64748b;">{{ l.remarks or 'Personal Fund Loan' }}</td>
+                    <td style="text-align: right;">
+                        <form method="POST" action="{{ url_for('delete_fund_loan', loan_id=l.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to cancel and delete this loan and its installments?');">
+                            <button type="submit" class="btn btn-outline" style="color: #ef4444; border-color: #fca5a5; padding: 0.25rem 0.5rem; font-size: 0.78rem;">
+                                🗑️ Delete Loan
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- FUND STATEMENT REPORT TABLE (SPREADSHEET EDITABLE & ANNUALLY GROUPED) -->
+<div class="card" style="padding: 0; overflow: hidden; border: 1px solid #cbd5e1;">
+    <div class="table-responsive">
+        <table class="table fund-statement-table" style="margin-bottom: 0; width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 2px solid #0f172a; background: #ffffff;">
+                    <th style="width: 90px; text-decoration: underline; font-weight: 800; color: #0f172a; padding: 0.75rem 0.85rem;">Month</th>
+                    <th class="num-col" style="text-decoration: underline; font-weight: 800; color: #0f172a; padding: 0.75rem 0.85rem;">Emp contribution</th>
+                    <th class="num-col" style="text-decoration: underline; font-weight: 800; color: #0f172a; padding: 0.75rem 0.85rem;">Com Contribution</th>
+                    <th class="num-col" style="text-decoration: underline; font-weight: 800; color: #0f172a; padding: 0.75rem 0.85rem;">Loan</th>
+                    <th class="num-col" style="text-decoration: underline; font-weight: 800; color: #0f172a; padding: 0.75rem 0.85rem;">Return</th>
+                    <th class="num-col" style="text-decoration: underline; font-weight: 800; color: #7e22ce; padding: 0.75rem 0.85rem;">Payment / Withdraw</th>
+                    <th class="num-col" style="text-decoration: underline; font-weight: 800; color: #b91c1c; padding: 0.75rem 0.85rem;">Adjustment</th>
+                    <th class="num-col" style="font-weight: 800; color: #0f172a; padding: 0.75rem 0.85rem;">Balance emp</th>
+                    <th class="num-col" style="font-weight: 800; color: #0f172a; padding: 0.75rem 0.85rem;">Balance com</th>
+                    <th class="num-col" style="font-weight: 800; color: #0f172a; padding: 0.75rem 0.85rem;">Total balance</th>
+                    <th class="no-print" style="width: 45px; text-align: center; color: #94a3b8; font-size: 0.8rem;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if year_groups %}
+                    {% set global_row_idx = namespace(val=0) %}
+                    {% for grp in year_groups %}
+                        {% for r in grp.records %}
+                        {% set global_row_idx.val = global_row_idx.val + 1 %}
+                        <tr style="border-bottom: 1px solid #f1f5f9;" id="row_{{ r.id }}">
+                            <!-- Month -->
+                            <td style="font-family: 'Calibri', sans-serif; font-weight: 600; color: #0f172a; padding: 0.45rem 0.85rem;">
+                                {{ r.month_display }}
+                            </td>
+                            <!-- Emp Contribution (Editable) -->
+                            <td class="num-col spreadsheet-cell" 
+                                data-record-id="{{ r.id }}" 
+                                data-field="employee_share" 
+                                data-row-idx="{{ global_row_idx.val }}" 
+                                data-col-idx="1" 
+                                tabindex="0" 
+                                title="Click to edit like Excel">
+                                {{ "{:,.2f}".format(r.emp_share) if r.emp_share > 0 else '0' }}
+                            </td>
+                            <!-- Com Contribution (Editable) -->
+                            <td class="num-col spreadsheet-cell" 
+                                data-record-id="{{ r.id }}" 
+                                data-field="employer_share" 
+                                data-row-idx="{{ global_row_idx.val }}" 
+                                data-col-idx="2" 
+                                tabindex="0" 
+                                title="Click to edit like Excel">
+                                {{ "{:,.2f}".format(r.comp_share) if r.comp_share > 0 else '0' }}
+                            </td>
+                            <!-- Loan (Editable) -->
+                            <td class="num-col spreadsheet-cell text-amber" 
+                                data-record-id="{{ r.id }}" 
+                                data-field="loan_amount" 
+                                data-row-idx="{{ global_row_idx.val }}" 
+                                data-col-idx="3" 
+                                tabindex="0" 
+                                title="Click to edit like Excel">
+                                {{ "{:,.2f}".format(r.loan) if r.loan > 0 else '-' }}
+                            </td>
+                            <!-- Return (Editable) -->
+                            <td class="num-col spreadsheet-cell text-blue" 
+                                data-record-id="{{ r.id }}" 
+                                data-field="loan_return" 
+                                data-row-idx="{{ global_row_idx.val }}" 
+                                data-col-idx="4" 
+                                tabindex="0" 
+                                title="Click to edit like Excel">
+                                {{ "{:,.2f}".format(r.loan_return) if r.loan_return > 0 else '-' }}
+                            </td>
+                            <!-- Payment / Withdraw (Editable) -->
+                            <td class="num-col spreadsheet-cell text-purple" 
+                                data-record-id="{{ r.id }}" 
+                                data-field="withdrawal" 
+                                data-row-idx="{{ global_row_idx.val }}" 
+                                data-col-idx="5" 
+                                tabindex="0" 
+                                title="Click to edit like Excel">
+                                {{ "{:,.2f}".format(r.withdrawal) if r.withdrawal > 0 else '-' }}
+                            </td>
+                            <!-- Adjustment (Editable) -->
+                            <td class="num-col spreadsheet-cell text-red" 
+                                data-record-id="{{ r.id }}" 
+                                data-field="adjustment" 
+                                data-row-idx="{{ global_row_idx.val }}" 
+                                data-col-idx="6" 
+                                tabindex="0" 
+                                title="Click to edit like Excel">
+                                {{ "{:,.2f}".format(r.adjustment) if r.adjustment > 0 else '-' }}
+                            </td>
+                            <!-- Balance Emp (Auto-calculated) -->
+                            <td class="num-col" id="bal_emp_{{ r.id }}" style="font-family: 'Calibri', sans-serif; color: #334155; padding: 0.45rem 0.85rem;">
+                                {{ "{:,.2f}".format(r.balance_emp) if r.balance_emp > 0 else '-' }}
+                            </td>
+                            <!-- Balance Com (Auto-calculated) -->
+                            <td class="num-col" id="bal_com_{{ r.id }}" style="font-family: 'Calibri', sans-serif; color: #334155; padding: 0.45rem 0.85rem;">
+                                {{ "{:,.2f}".format(r.balance_com) if r.balance_com > 0 else '-' }}
+                            </td>
+                            <!-- Total Balance (Auto-calculated) -->
+                            <td class="num-col {% if r.total_balance > 0 %}bal-pos{% else %}bal-zero{% endif %}" id="tot_bal_{{ r.id }}" style="font-family: 'Calibri', sans-serif; font-weight: 700; padding: 0.45rem 0.85rem;">
+                                {{ "{:,.2f}".format(r.total_balance) if r.total_balance > 0 else '-' }}
+                            </td>
+                            <!-- Action / Delete -->
+                            <td class="no-print" style="text-align: center; padding: 0.35rem 0.45rem;">
+                                <form method="POST" action="{{ url_for('delete_fund_record', record_id=r.id) }}" style="display: inline;" onsubmit="return confirm('Delete record for {{ r.month_display }}?');">
+                                    <button type="submit" class="btn-icon-subtle" title="Delete record">🗑️</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+
+                        <!-- YEARLY SUB TOTAL ROW (AS PER SCREENSHOT) -->
+                        <tr class="subtotal-row" style="background: #f8fafc; border-top: 1.5px solid #0f172a; border-bottom: 1.5px solid #0f172a; font-weight: 800;">
+                            <td style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #0f172a; padding: 0.55rem 0.85rem;">
+                                Sub Total ({{ grp.year }})
+                            </td>
+                            <td class="num-col" id="sub_emp_{{ grp.year }}" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #0f172a; padding: 0.55rem 0.85rem;">
+                                {{ "{:,.2f}".format(grp.sub_total.emp_share) if grp.sub_total.emp_share > 0 else '-' }}
+                            </td>
+                            <td class="num-col" id="sub_comp_{{ grp.year }}" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #0f172a; padding: 0.55rem 0.85rem;">
+                                {{ "{:,.2f}".format(grp.sub_total.comp_share) if grp.sub_total.comp_share > 0 else '-' }}
+                            </td>
+                            <td class="num-col" id="sub_loan_{{ grp.year }}" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #d97706; padding: 0.55rem 0.85rem;">
+                                {{ "{:,.2f}".format(grp.sub_total.loan) if grp.sub_total.loan > 0 else '-' }}
+                            </td>
+                            <td class="num-col" id="sub_return_{{ grp.year }}" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #0284c7; padding: 0.55rem 0.85rem;">
+                                {{ "{:,.2f}".format(grp.sub_total.loan_return) if grp.sub_total.loan_return > 0 else '-' }}
+                            </td>
+                            <td class="num-col" id="sub_withdrawal_{{ grp.year }}" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #7e22ce; padding: 0.55rem 0.85rem;">
+                                {{ "{:,.2f}".format(grp.sub_total.withdrawal) if grp.sub_total.withdrawal > 0 else '-' }}
+                            </td>
+                            <td class="num-col" id="sub_adjustment_{{ grp.year }}" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #b91c1c; padding: 0.55rem 0.85rem;">
+                                {{ "{:,.2f}".format(grp.sub_total.adjustment) if grp.sub_total.adjustment > 0 else '-' }}
+                            </td>
+                            <td class="num-col" id="sub_bal_emp_{{ grp.year }}" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #0f172a; padding: 0.55rem 0.85rem;">
+                                {{ "{:,.2f}".format(grp.sub_total.balance_emp) if grp.sub_total.balance_emp > 0 else '-' }}
+                            </td>
+                            <td class="num-col" id="sub_bal_com_{{ grp.year }}" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #0f172a; padding: 0.55rem 0.85rem;">
+                                {{ "{:,.2f}".format(grp.sub_total.balance_com) if grp.sub_total.balance_com > 0 else '-' }}
+                            </td>
+                            <td class="num-col" id="sub_tot_bal_{{ grp.year }}" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #059669; padding: 0.55rem 0.85rem;">
+                                {{ "{:,.2f}".format(grp.sub_total.total_balance) if grp.sub_total.total_balance > 0 else '-' }}
+                            </td>
+                            <td class="no-print"></td>
+                        </tr>
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="9" style="text-align: center; padding: 3rem; color: var(--text-muted);">
-                            No contribution entries recorded for this employee.
+                        <td colspan="11" style="text-align: center; padding: 3rem; color: #94a3b8;">
+                            No contribution or loan entries recorded for this employee.
                         </td>
                     </tr>
                 {% endif %}
             </tbody>
             <tfoot>
-                <tr class="report-grandtotal-row">
-                    <td colspan="2" style="text-align: right; font-weight: 700;">TOTALS ACCRUED:</td>
-                    <td class="num-col" style="font-weight: 700;">৳{{ "{:,.2f}".format(tot_emp) }}</td>
-                    <td class="num-col" style="font-weight: 700; color: #7c3aed;">৳{{ "{:,.2f}".format(tot_comp) }}</td>
-                    <td class="num-col" style="font-weight: 700; color: #0284c7;">৳{{ "{:,.2f}".format(tot_welfare) }}</td>
-                    <td class="num-col" style="font-weight: 700; color: #d97706;">৳{{ "{:,.2f}".format(tot_prof) }}</td>
-                    <td class="num-col" style="font-weight: 700;">৳{{ "{:,.2f}".format(tot_emp + tot_comp + tot_welfare + tot_prof) }}</td>
-                    <td class="num-col" style="font-weight: 800; color: #059669; font-size: 1.1rem;">৳{{ "{:,.2f}".format(closing_bal) }}</td>
-                    <td></td>
+                <tr style="background: #f1f5f9; border-top: 2px solid #0f172a; border-bottom: 3px double #0f172a; font-weight: 800;">
+                    <td style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #0f172a; padding: 0.65rem 0.85rem;">
+                        GRAND TOTAL
+                    </td>
+                    <td class="num-col" id="grand_emp" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #0f172a; padding: 0.65rem 0.85rem;">
+                        ৳{{ "{:,.2f}".format(tot_emp) }}
+                    </td>
+                    <td class="num-col" id="grand_comp" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #0f172a; padding: 0.65rem 0.85rem;">
+                        ৳{{ "{:,.2f}".format(tot_comp) }}
+                    </td>
+                    <td class="num-col" id="grand_loan" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #d97706; padding: 0.65rem 0.85rem;">
+                        ৳{{ "{:,.2f}".format(tot_loan) }}
+                    </td>
+                    <td class="num-col" id="grand_return" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #0284c7; padding: 0.65rem 0.85rem;">
+                        ৳{{ "{:,.2f}".format(tot_return) }}
+                    </td>
+                    <td class="num-col" id="grand_withdrawal" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #7e22ce; padding: 0.65rem 0.85rem;">
+                        ৳{{ "{:,.2f}".format(tot_withdrawal) }}
+                    </td>
+                    <td class="num-col" id="grand_adjustment" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #b91c1c; padding: 0.65rem 0.85rem;">
+                        ৳{{ "{:,.2f}".format(tot_adjustment) }}
+                    </td>
+                    <td class="num-col" id="grand_bal_emp" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #0f172a; padding: 0.65rem 0.85rem;">
+                        ৳{{ "{:,.2f}".format(closing_balance_emp) }}
+                    </td>
+                    <td class="num-col" id="grand_bal_com" style="font-family: 'Calibri', sans-serif; font-weight: 800; color: #0f172a; padding: 0.65rem 0.85rem;">
+                        ৳{{ "{:,.2f}".format(closing_balance_com) }}
+                    </td>
+                    <td class="num-col" id="grand_tot_bal" style="font-family: 'Calibri', sans-serif; font-weight: 900; color: #059669; font-size: 1.05rem; padding: 0.65rem 0.85rem;">
+                        ৳{{ "{:,.2f}".format(closing_bal) }}
+                    </td>
+                    <td class="no-print"></td>
                 </tr>
             </tfoot>
         </table>
     </div>
 </div>
+
+<!-- ============================================================================== -->
+<!-- MODAL: RESIGNATION SETTLEMENT & FUND WITHDRAWAL (3-YEAR VESTING RULE) -->
+<!-- ============================================================================== -->
+<div id="settleResignationModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 650px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #ffffff;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 1.25rem;">🏦</span>
+                <h3 style="margin: 0; font-size: 1.15rem; font-family: 'Outfit', sans-serif; color: #ffffff;">
+                    Resignation Settlement & Fund Withdrawal
+                </h3>
+            </div>
+            <button type="button" class="btn-close" onclick="closeModal('settleResignationModal')" style="color: #ffffff;">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('settle_employee_resignation') }}" onsubmit="return confirm('Confirm resignation settlement for {{ employee.name }}?\n\nThis will compute final payout, forfeit unvested funds if applicable, and bring fund balance to ৳0.00.');">
+            <input type="hidden" name="emp_key" value="{{ employee.employee_id or employee.id }}">
+
+            <div class="modal-body" style="padding: 1.25rem 1.5rem;">
+                <!-- Employee Summary Header -->
+                <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-weight: 800; font-size: 1rem; color: #1e293b;">{{ employee.name }}</div>
+                        <div style="font-size: 0.82rem; color: #64748b;">ID: {{ employee.employee_id }} &bull; Department: {{ employee.department }}</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 0.8rem; color: #64748b; font-weight: 600;">Contribution Age:</span>
+                        <div style="font-weight: 800; color: #0284c7; font-size: 1rem;">
+                            {{ contribution_months_count }} Months ({{ contribution_years }} Years)
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3-Year Vesting Status Banner -->
+                {% if is_eligible_full %}
+                <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 6px; padding: 0.85rem 1rem; margin-bottom: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="font-size: 1.25rem;">🎉</span>
+                        <strong style="color: #166534; font-size: 0.95rem;">Eligible for Full 100% Settlement (&ge; 3 Years Rule)</strong>
+                    </div>
+                    <div style="font-size: 0.82rem; color: #15803d; margin-top: 0.25rem; line-height: 1.45;">
+                        Continuous contribution age is <strong>{{ contribution_years }} years</strong> (3 years or more). The employee is entitled to withdraw <strong>both Employee Contribution (100%) and Company Contribution (100%)</strong> minus outstanding loan.
+                    </div>
+                </div>
+                {% else %}
+                <div style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 6px; padding: 0.85rem 1rem; margin-bottom: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="font-size: 1.25rem;">⚠️</span>
+                        <strong style="color: #92400e; font-size: 0.95rem;">Under 3 Years Tenure (Employee Share Only)</strong>
+                    </div>
+                    <div style="font-size: 0.82rem; color: #b45309; margin-top: 0.25rem; line-height: 1.45;">
+                        Contribution age is <strong>{{ contribution_months_count }} months ({{ contribution_years }} years)</strong>, which is under the 3-year threshold. Employee withdraws <strong>ONLY Employee Share</strong>. The Company Share of <strong>৳{{ "{:,.2f}".format(tentative_forfeited) }}</strong> is forfeited/adjusted.
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Financial Settlement Calculation Matrix -->
+                <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 0.85rem 1rem; margin-bottom: 1.25rem;">
+                    <div style="font-weight: 700; font-size: 0.85rem; color: #1e293b; margin-bottom: 0.5rem;">Settlement Calculation Breakdown:</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem 1rem; font-size: 0.85rem;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: #64748b;">Total Employee Share:</span>
+                            <strong style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(tot_emp - tot_withdrawal) }}</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: #64748b;">Total Company Share:</span>
+                            <strong style="font-family: 'JetBrains Mono', monospace;">৳{{ "{:,.2f}".format(tot_comp - tot_adjustment) }}</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: #dc2626;">Outstanding Loan (Deducted):</span>
+                            <strong style="color: #dc2626; font-family: 'JetBrains Mono', monospace;">-৳{{ "{:,.2f}".format(outstanding_loan) }}</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: #64748b;">Company Share Forfeited:</span>
+                            <strong class="{% if tentative_forfeited > 0 %}text-forfeited{% else %}text-muted{% endif %}" style="font-family: 'JetBrains Mono', monospace;">
+                                ৳{{ "{:,.2f}".format(tentative_forfeited) }}
+                            </strong>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1.5px dashed #cbd5e1; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 800; font-size: 0.95rem; color: #166534;">NET PAYABLE TO EMPLOYEE:</span>
+                        <span style="font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; font-weight: 900; color: #15803d;">
+                            ৳{{ "{:,.2f}".format(tentative_payable) }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Form Fields -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">Resignation Date *</label>
+                        <input type="date" name="resignation_date" class="form-control" value="{{ now_date_str if now_date_str else '' }}" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">Settlement Date *</label>
+                        <input type="date" name="settlement_date" class="form-control" value="{{ now_date_str if now_date_str else '' }}" required>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">Settlement Month (YYYY-MM) *</label>
+                        <input type="month" name="settlement_month" class="form-control" value="2026-09" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">Payment Mode</label>
+                        <select name="payment_mode" class="form-control">
+                            <option value="Bank Transfer" selected>Bank Transfer (EFT / RTGS)</option>
+                            <option value="Cheque">Cheque</option>
+                            <option value="Cash">Cash</option>
+                            <option value="Mobile Banking">bKash / Nagad</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">Payment Reference / Cheque No / Account</label>
+                    <input type="text" name="payment_reference" class="form-control" placeholder="e.g. Cheque #492819 / A/C: 104-XXXX-XXXX">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">Remarks / Notes</label>
+                    <input type="text" name="remarks" class="form-control" value="Resignation final settlement & fund clearance">
+                </div>
+            </div>
+
+            <div class="modal-footer" style="background: #f8fafc; border-top: 1px solid var(--border);">
+                <button type="button" class="btn btn-outline" onclick="closeModal('settleResignationModal')">Cancel</button>
+                <button type="submit" class="btn btn-dark" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #fff; font-weight: 600; border: none; padding: 0.5rem 1.25rem;">
+                    🏦 Confirm & Process Settlement
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ============================================================================== -->
+<!-- MODAL: ADD MONTH / ADJUSTMENT ROW -->
+<!-- ============================================================================== -->
+<div id="addRowModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 580px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #ffffff;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 1.25rem;">➕</span>
+                <h3 style="margin: 0; font-size: 1.15rem; font-family: 'Outfit', sans-serif; color: #ffffff;">
+                    Add Month or Adjustment Row
+                </h3>
+            </div>
+            <button type="button" class="btn-close" onclick="closeModal('addRowModal')" style="color: #ffffff;">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('add_employee_fund_row', emp_id=employee.employee_id or employee.id) }}">
+            <div class="modal-body" style="padding: 1.25rem 1.5rem;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">Contribution Month (YYYY-MM) *</label>
+                        <input type="month" name="contribution_month" class="form-control" value="2026-02" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">Date (Optional)</label>
+                        <input type="date" name="contribution_date" class="form-control">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">Emp Contribution (৳)</label>
+                        <input type="number" step="0.01" min="0" name="employee_share" class="form-control" value="0.00">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">Com Contribution (৳)</label>
+                        <input type="number" step="0.01" min="0" name="employer_share" class="form-control" value="0.00">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">Loan Disbursed (৳)</label>
+                        <input type="number" step="0.01" min="0" name="loan_amount" class="form-control" value="0.00">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">Loan Return (৳)</label>
+                        <input type="number" step="0.01" min="0" name="loan_return" class="form-control" value="0.00">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">Payment / Withdraw (৳)</label>
+                        <input type="number" step="0.01" min="0" name="withdrawal" class="form-control" value="0.00">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">Adjustment / Forfeit (৳)</label>
+                        <input type="number" step="0.01" min="0" name="adjustment" class="form-control" value="0.00">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">Remarks</label>
+                    <input type="text" name="remarks" class="form-control" placeholder="e.g. Monthly contribution / adjustment">
+                </div>
+            </div>
+
+            <div class="modal-footer" style="background: #f8fafc; border-top: 1px solid var(--border);">
+                <button type="button" class="btn btn-outline" onclick="closeModal('addRowModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="background: #2563eb; border: none; font-weight: 600; padding: 0.5rem 1.25rem; color: #fff;">
+                    ➕ Add Row
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ============================================================================== -->
+<!-- MODAL: ISSUE FUND LOAN (12-MONTH SCHEME) -->
+<!-- ============================================================================== -->
+<div id="issueLoanModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-width: 580px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 1.25rem;">💳</span>
+                <h3 style="margin: 0; font-size: 1.15rem; font-family: 'Outfit', sans-serif; color: #ffffff;">
+                    Issue Fund Loan with 12-Month Return Installments
+                </h3>
+            </div>
+            <button type="button" class="btn-close" onclick="closeModal('issueLoanModal')" style="color: #ffffff;">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('issue_fund_loan') }}">
+            <input type="hidden" name="emp_key" value="{{ employee.employee_id or employee.id }}">
+
+            <div class="modal-body" style="padding: 1.25rem 1.5rem;">
+                <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-sm); padding: 0.85rem; font-size: 0.84rem; color: #92400e; margin-bottom: 1.25rem;">
+                    <strong>ℹ️ 12-Month Installment Scheme:</strong><br>
+                    The loan will be disbursed in the selected month and automatically scheduled across <strong>12 monthly installments</strong>. The ledger and Excel report will reflect each monthly return and update the running balance.
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label" style="font-weight: 700;">Employee</label>
+                    <input type="text" class="form-control" value="ID: {{ employee.employee_id }} - {{ employee.name }} ({{ employee.department }})" readonly style="background: #f1f5f9;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1.2fr 0.9fr 0.9fr; gap: 0.75rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700;">Loan Principal (৳) *</label>
+                        <input type="number" step="0.01" min="1" name="loan_amount" id="loan_amount_input" class="form-control" placeholder="e.g. 60000" required oninput="calcLoanInstallment()">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700; color: #b45309;">Charge (%)</label>
+                        <input type="number" step="0.1" min="0" max="100" name="charge_pct" id="loan_charge_pct_input" class="form-control" value="4" required oninput="calcLoanInstallment()" style="background: #fffbeb; font-weight: 700; color: #b45309; border-color: #fde68a;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700;">Installments</label>
+                        <input type="number" name="installments_total" id="installments_total_input" class="form-control" value="12" min="1" max="60" required oninput="calcLoanInstallment()">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700;">Disbursement Month (YYYY-MM) *</label>
+                        <input type="month" name="disbursement_month" id="disbursement_month_input" class="form-control" value="2026-01" required onchange="autoSetRepaymentStart()">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 700;">Repayment Starts In</label>
+                        <input type="month" name="repayment_start_month" id="repayment_start_month_input" class="form-control" value="2026-02" required>
+                    </div>
+                </div>
+
+                <!-- Live Installment Calculation Preview -->
+                <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 8px; padding: 0.9rem 1.15rem; margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px dashed #bbf7d0; font-size: 0.82rem; color: #166534; flex-wrap: wrap; gap: 0.4rem;">
+                        <span>Principal: <strong id="previewPrincipal">৳0.00</strong> + <span id="previewChargePct">4%</span> Charge: <strong id="previewCharge" style="color: #b45309;">৳0.00</strong></span>
+                        <span>Total Loan: <strong id="previewTotalLoan" style="color: #0f172a; font-size: 0.95rem;">৳0.00</strong></span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                        <span style="font-size: 0.88rem; color: #166534; font-weight: 700;">Calculated Monthly Return:</span>
+                        <span id="installmentPreview" style="font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; font-weight: 900; color: #15803d;">৳0.00 / month</span>
+                    </div>
+                    <div id="installmentScheduleNote" style="font-size: 0.78rem; color: #15803d; margin-top: 0.35rem; font-weight: 500;">
+                        12 monthly deductions will be added to the Return column.
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" style="font-weight: 700;">Remarks / Purpose</label>
+                    <input type="text" name="remarks" class="form-control" placeholder="e.g. Employee Welfare Loan - 12 Month Scheme">
+                </div>
+            </div>
+
+            <div class="modal-footer" style="background: #f8fafc; border-top: 1px solid var(--border);">
+                <button type="button" class="btn btn-outline" onclick="closeModal('issueLoanModal')">Cancel</button>
+                <button type="submit" class="btn btn-warning" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border: none; font-weight: 600; padding: 0.5rem 1.25rem; color: #fff;">
+                    💳 Confirm & Disburse Loan
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ============================================================================== -->
 <!-- MODAL: CLEAR EMPLOYEE FUND DATA -->
+<!-- ============================================================================== -->
 <div id="clearEmpFundModal" class="modal-overlay" style="display: none;">
     <div class="modal-box" style="max-width: 550px;">
         <div class="modal-header" style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); color: #ffffff;">
@@ -150,16 +768,15 @@
             <button type="button" class="btn-close" onclick="closeModal('clearEmpFundModal')" style="color: #ffffff;">&times;</button>
         </div>
         <form method="POST" action="{{ url_for('clear_fund_contributions') }}" onsubmit="return confirmEmpClear();">
-            <input type="hidden" name="employee_id" value="{{ employee.id }}">
-            <input type="hidden" name="redirect_emp_id" value="{{ employee.id }}">
+            <input type="hidden" name="employee_id" value="{{ employee.employee_id or employee.id }}">
+            <input type="hidden" name="redirect_emp_id" value="{{ employee.employee_id or employee.id }}">
 
             <div class="modal-body" style="padding: 1.25rem 1.5rem;">
                 <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: var(--radius-sm); padding: 0.85rem; font-size: 0.82rem; color: #991b1b; margin-bottom: 1.25rem;">
                     <strong>⚠️ Caution:</strong><br>
-                    You are clearing fund contribution history for <strong>{{ employee.name }} ({{ employee.employee_id }})</strong>. This module is completely separate and will <strong>NOT</strong> touch your General Ledger or Vouchers.
+                    You are clearing fund records for <strong>{{ employee.name }} (ID: {{ employee.employee_id }})</strong>.
                 </div>
 
-                <!-- Scope Selection -->
                 <div class="form-group" style="margin-bottom: 1.25rem;">
                     <label class="form-label" style="font-weight: 700; margin-bottom: 0.5rem; display: block;">Select Clearing Option:</label>
                     <div style="display: flex; flex-direction: column; gap: 0.65rem;">
@@ -167,7 +784,7 @@
                             <input type="radio" name="clear_scope" value="all" checked onchange="toggleEmpScopeInputs('all')" style="margin-top: 0.2rem;">
                             <div>
                                 <span style="font-weight: 600; color: #b91c1c;">Clear ALL Records for this Employee</span>
-                                <div style="font-size: 0.78rem; color: var(--text-muted);">Permanently deletes all {{ records|length }} historical fund records for {{ employee.name }}.</div>
+                                <div style="font-size: 0.78rem; color: var(--text-muted);">Permanently deletes all historical fund records for this ID.</div>
                             </div>
                         </label>
 
@@ -175,13 +792,12 @@
                             <input type="radio" name="clear_scope" value="date_range" onchange="toggleEmpScopeInputs('date_range')" style="margin-top: 0.2rem;">
                             <div>
                                 <span style="font-weight: 600; color: var(--text-primary);">Clear by Date Range</span>
-                                <div style="font-size: 0.78rem; color: var(--text-muted);">Delete records strictly within specified dates and recalculate remaining balance.</div>
+                                <div style="font-size: 0.78rem; color: var(--text-muted);">Delete records within specified dates.</div>
                             </div>
                         </label>
                     </div>
                 </div>
 
-                <!-- Date Range Container -->
                 <div id="empDateRangeContainer" style="display: none; background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 0.5rem;">
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
                         <div class="form-group" style="margin-bottom: 0;">
@@ -206,6 +822,9 @@
     </div>
 </div>
 
+<!-- ============================================================================== -->
+<!-- SCRIPT: SPREADSHEET INLINE EDITING & MODALS -->
+<!-- ============================================================================== -->
 <script>
 function openModal(id) {
     document.getElementById(id).style.display = 'flex';
@@ -222,31 +841,430 @@ function toggleEmpScopeInputs(scope) {
     document.getElementById('empDateRangeContainer').style.display = (scope === 'date_range') ? 'block' : 'none';
 }
 function confirmEmpClear() {
-    return confirm("ATTENTION: Are you sure you want to permanently clear fund contribution records for {{ employee.name }}?\n\nThis cannot be undone. Accounts calculation will NOT be affected.\n\nProceed?");
+    return confirm("ATTENTION: Are you sure you want to permanently clear fund records for {{ employee.name }}?\n\nThis cannot be undone. Proceed?");
 }
+function switchEmployee(val) {
+    if (val) {
+        window.location.href = "{{ url_for('fund_contributions_dashboard') }}/employee/" + encodeURIComponent(val);
+    }
+}
+function quickSwitchId() {
+    const inp = document.getElementById('quickIdInput').value.trim();
+    if (inp) {
+        switchEmployee(inp);
+    }
+}
+function calcLoanInstallment() {
+    const principal = parseFloat(document.getElementById('loan_amount_input').value) || 0;
+    const chargePct = parseFloat(document.getElementById('loan_charge_pct_input')?.value) || 0;
+    const inst = parseInt(document.getElementById('installments_total_input').value) || 12;
+
+    if (principal > 0 && inst > 0) {
+        const chargeAmt = Math.round((principal * (chargePct / 100)) * 100) / 100;
+        const totalLoan = principal + chargeAmt;
+        const monthly = (totalLoan / inst).toFixed(2);
+
+        const pEl = document.getElementById('previewPrincipal');
+        if (pEl) pEl.innerText = "৳" + principal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        const cpEl = document.getElementById('previewChargePct');
+        if (cpEl) cpEl.innerText = chargePct + "%";
+        const cEl = document.getElementById('previewCharge');
+        if (cEl) cEl.innerText = "৳" + chargeAmt.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        const tlEl = document.getElementById('previewTotalLoan');
+        if (tlEl) tlEl.innerText = "৳" + totalLoan.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        
+        document.getElementById('installmentPreview').innerText = "৳" + Number(monthly).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " / month";
+        document.getElementById('installmentScheduleNote').innerText = inst + " monthly deductions of ৳" + Number(monthly).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " will be recorded in the Return column (Total: ৳" + Number(totalLoan).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ").";
+    } else {
+        const pEl = document.getElementById('previewPrincipal');
+        if (pEl) pEl.innerText = "৳0.00";
+        const cpEl = document.getElementById('previewChargePct');
+        if (cpEl) cpEl.innerText = chargePct + "%";
+        const cEl = document.getElementById('previewCharge');
+        if (cEl) cEl.innerText = "৳0.00";
+        const tlEl = document.getElementById('previewTotalLoan');
+        if (tlEl) tlEl.innerText = "৳0.00";
+
+        document.getElementById('installmentPreview').innerText = "৳0.00 / month";
+        document.getElementById('installmentScheduleNote').innerText = inst + " monthly deductions will be recorded in the Return column.";
+    }
+}
+function autoSetRepaymentStart() {
+    const disbMonth = document.getElementById('disbursement_month_input').value;
+    if (disbMonth) {
+        const parts = disbMonth.split('-');
+        let y = parseInt(parts[0]);
+        let m = parseInt(parts[1]) + 1;
+        if (m > 12) {
+            m = 1;
+            y += 1;
+        }
+        const nextM = y + '-' + (m < 10 ? '0' + m : m);
+        document.getElementById('repayment_start_month_input').value = nextM;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// SPREADSHEET INLINE CELL EDITING ENGINE
+// -----------------------------------------------------------------------------
+document.addEventListener('DOMContentLoaded', function() {
+    const editableCells = document.querySelectorAll('.spreadsheet-cell');
+
+    editableCells.forEach(cell => {
+        // Double-click or single-click to edit
+        cell.addEventListener('click', function(e) {
+            if (cell.classList.contains('editing')) return;
+            startEditing(cell);
+        });
+
+        // Keydown on focused cell (e.g. Enter to edit or direct number typing)
+        cell.addEventListener('keydown', function(e) {
+            if (!cell.classList.contains('editing')) {
+                if (e.key === 'Enter' || e.key === 'F2') {
+                    e.preventDefault();
+                    startEditing(cell);
+                } else if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1 && /[0-9.]/.test(e.key)) {
+                    e.preventDefault();
+                    startEditing(cell, e.key);
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    moveCellFocus(cell, 1, 0);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    moveCellFocus(cell, -1, 0);
+                } else if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    moveCellFocus(cell, 0, 1);
+                } else if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    moveCellFocus(cell, 0, -1);
+                }
+            }
+        });
+    });
+
+    function startEditing(cell, initialChar = null) {
+        cell.classList.add('editing');
+        const rawText = cell.innerText.trim();
+        const currentNum = (rawText === '-' || rawText === '0') ? '' : rawText.replace(/,/g, '');
+        cell.dataset.originalDisplay = rawText;
+        cell.dataset.originalVal = currentNum;
+
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.step = '0.01';
+        input.className = 'spreadsheet-input';
+        input.value = (initialChar !== null) ? initialChar : currentNum;
+
+        cell.innerHTML = '';
+        cell.appendChild(input);
+        input.focus();
+        if (initialChar === null) {
+            input.select();
+        }
+
+        let isSaved = false;
+
+        const commit = async (moveRow = 0, moveCol = 0) => {
+            if (isSaved) return;
+            isSaved = true;
+            const newVal = input.value.trim();
+            const recordId = cell.dataset.recordId;
+            const field = cell.dataset.field;
+
+            if (newVal !== cell.dataset.originalVal) {
+                await saveSpreadsheetCell(cell, recordId, field, newVal);
+            } else {
+                cell.innerText = cell.dataset.originalDisplay;
+                cell.classList.remove('editing');
+            }
+
+            if (moveRow !== 0 || moveCol !== 0) {
+                moveCellFocus(cell, moveRow, moveCol);
+            }
+        };
+
+        const cancel = () => {
+            if (isSaved) return;
+            isSaved = true;
+            cell.innerText = cell.dataset.originalDisplay;
+            cell.classList.remove('editing');
+            cell.focus();
+        };
+
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    commit(-1, 0); // Move Up
+                } else {
+                    commit(1, 0);  // Move Down (Excel default)
+                }
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    commit(0, -1); // Move Left
+                } else {
+                    commit(0, 1);  // Move Right (Excel default)
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancel();
+            }
+        });
+
+        input.addEventListener('blur', function() {
+            setTimeout(() => {
+                if (cell.classList.contains('editing')) {
+                    commit(0, 0);
+                }
+            }, 100);
+        });
+    }
+
+    function moveCellFocus(currentCell, rowDelta, colDelta) {
+        const rowIdx = parseInt(currentCell.dataset.rowIdx);
+        const colIdx = parseInt(currentCell.dataset.colIdx);
+        const targetRow = rowIdx + rowDelta;
+        const targetCol = colIdx + colDelta;
+
+        const nextCell = document.querySelector(`.spreadsheet-cell[data-row-idx="${targetRow}"][data-col-idx="${targetCol}"]`);
+        if (nextCell) {
+            nextCell.focus();
+        } else if (colDelta !== 0) {
+            // Wrap horizontally to next row
+            const wrapRow = targetRow + (targetCol > 6 ? 1 : (targetCol < 1 ? -1 : 0));
+            const wrapCol = targetCol > 6 ? 1 : (targetCol < 1 ? 6 : targetCol);
+            const wrappedCell = document.querySelector(`.spreadsheet-cell[data-row-idx="${wrapRow}"][data-col-idx="${wrapCol}"]`);
+            if (wrappedCell) wrappedCell.focus();
+        }
+    }
+
+    async function saveSpreadsheetCell(cell, recordId, field, rawValue) {
+        const numVal = parseFloat(rawValue) || 0.0;
+        const displayVal = numVal > 0 ? numVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (field.includes('share') ? '0' : '-');
+        cell.innerText = displayVal;
+        cell.classList.remove('editing');
+
+        showStatusIndicator('Saving...');
+
+        try {
+            const resp = await fetch(`/payroll/fund-contributions/record/${recordId}/update-inline`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ field: field, value: numVal })
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                // Flash success on updated cell
+                cell.classList.add('cell-flash');
+                setTimeout(() => cell.classList.remove('cell-flash'), 1200);
+
+                // 1. Update row balances
+                if (data.row_updates) {
+                    for (const [id, r] of Object.entries(data.row_updates)) {
+                        const elEmp = document.getElementById(`bal_emp_${id}`);
+                        const elCom = document.getElementById(`bal_com_${id}`);
+                        const elTot = document.getElementById(`tot_bal_${id}`);
+                        if (elEmp) elEmp.innerText = r.balance_emp > 0 ? formatMoney(r.balance_emp) : '-';
+                        if (elCom) elCom.innerText = r.balance_com > 0 ? formatMoney(r.balance_com) : '-';
+                        if (elTot) {
+                            elTot.innerText = r.total_balance > 0 ? formatMoney(r.total_balance) : '-';
+                            elTot.style.color = r.total_balance > 0 ? '#059669' : '#94a3b8';
+                        }
+                    }
+                }
+
+                // 2. Update year subtotals
+                if (data.year_subtotals) {
+                    for (const [y, s] of Object.entries(data.year_subtotals)) {
+                        updateElemText(`sub_emp_${y}`, s.emp_share);
+                        updateElemText(`sub_comp_${y}`, s.comp_share);
+                        updateElemText(`sub_loan_${y}`, s.loan);
+                        updateElemText(`sub_return_${y}`, s.loan_return);
+                        updateElemText(`sub_withdrawal_${y}`, s.withdrawal);
+                        updateElemText(`sub_adjustment_${y}`, s.adjustment);
+                        updateElemText(`sub_bal_emp_${y}`, s.balance_emp);
+                        updateElemText(`sub_bal_com_${y}`, s.balance_com);
+                        updateElemText(`sub_tot_bal_${y}`, s.total_balance);
+                    }
+                }
+
+                // 3. Update KPIs & Grand Totals
+                if (data.kpis) {
+                    const k = data.kpis;
+                    setKpiValue('kpi_tot_emp', k.tot_emp);
+                    setKpiValue('kpi_tot_comp', k.tot_comp);
+                    setKpiValue('kpi_tot_loan', k.tot_loan);
+                    setKpiValue('kpi_tot_return', k.tot_return);
+                    setKpiValue('kpi_tot_withdrawal', k.tot_withdrawal);
+                    setKpiValue('kpi_outstanding_loan', k.outstanding_loan);
+                    setKpiValue('kpi_total_balance', k.total_balance);
+
+                    updateElemText('grand_emp', k.tot_emp, true);
+                    updateElemText('grand_comp', k.tot_comp, true);
+                    updateElemText('grand_loan', k.tot_loan, true);
+                    updateElemText('grand_return', k.tot_return, true);
+                    updateElemText('grand_withdrawal', k.tot_withdrawal, true);
+                    updateElemText('grand_adjustment', k.tot_adjustment, true);
+                    updateElemText('grand_bal_emp', k.balance_emp, true);
+                    updateElemText('grand_bal_com', k.balance_com, true);
+                    updateElemText('grand_tot_bal', k.total_balance, true);
+                }
+
+                showStatusIndicator('✓ Saved & Recalculated');
+            } else {
+                alert('Update failed: ' + data.message);
+                cell.innerText = cell.dataset.originalDisplay;
+            }
+        } catch (err) {
+            console.error('Error saving cell:', err);
+            alert('Network error while saving changes.');
+            cell.innerText = cell.dataset.originalDisplay;
+        }
+    }
+
+    function formatMoney(val) {
+        return Number(val).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    function updateElemText(id, val, isGrand = false) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (isGrand) {
+            el.innerText = '৳' + formatMoney(val);
+        } else {
+            el.innerText = val > 0 ? formatMoney(val) : '-';
+        }
+    }
+
+    function setKpiValue(id, val) {
+        const el = document.getElementById(id);
+        if (el) el.innerText = '৳' + formatMoney(val);
+    }
+
+    function showStatusIndicator(text) {
+        const ind = document.getElementById('saveStatusIndicator');
+        if (ind) {
+            ind.innerText = text;
+            ind.style.display = 'inline-block';
+            setTimeout(() => {
+                if (ind.innerText === text) {
+                    ind.style.display = 'none';
+                }
+            }, 3000);
+        }
+    }
+});
 </script>
 
 <style>
+.kpi-loan-card.loan-active { border-left: 3px solid #ef4444; }
+.kpi-loan-card.loan-none { border-left: 3px solid #10b981; }
+.kpi-loan-card.loan-active #kpi_outstanding_loan { color: #dc2626 !important; }
+.kpi-loan-card.loan-none #kpi_outstanding_loan { color: #059669 !important; }
+.bal-pos { color: #059669 !important; }
+.bal-zero { color: #94a3b8 !important; }
+.text-forfeited { color: #b91c1c !important; }
+/* SPREADSHEET STYLING */
+.fund-statement-table {
+    border-collapse: collapse;
+}
+.fund-statement-table th, .fund-statement-table td {
+    padding: 0.45rem 0.85rem;
+    font-size: 0.95rem;
+}
+.fund-statement-table .num-col {
+    text-align: right;
+}
+.spreadsheet-cell {
+    font-family: 'Calibri', sans-serif;
+    color: #1e293b;
+    cursor: cell;
+    outline: none;
+    position: relative;
+    user-select: none;
+    transition: background 0.15s, box-shadow 0.15s;
+}
+.spreadsheet-cell:hover {
+    background-color: #f0f7ff !important;
+    box-shadow: inset 0 0 0 1.5px #3b82f6;
+}
+.spreadsheet-cell:focus {
+    background-color: #e0f2fe !important;
+    box-shadow: inset 0 0 0 2px #0284c7;
+}
+.spreadsheet-cell.editing {
+    padding: 0 !important;
+    box-shadow: inset 0 0 0 2px #2563eb !important;
+    background-color: #ffffff !important;
+}
+.spreadsheet-input {
+    width: 100%;
+    height: 100%;
+    padding: 0.45rem 0.85rem;
+    font-family: 'Calibri', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-align: right;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: #0f172a;
+    box-sizing: border-box;
+}
+.cell-flash {
+    animation: flashGreen 1.2s ease-out;
+}
+@keyframes flashGreen {
+    0% { background-color: #86efac !important; }
+    50% { background-color: #bbf7d0 !important; }
+    100% { background-color: transparent; }
+}
+
+.text-amber { color: #d97706; font-weight: 700; }
+.text-blue { color: #0284c7; font-weight: 700; }
+.text-purple { color: #7e22ce; font-weight: 700; }
+.text-red { color: #dc2626; font-weight: 700; }
+
+.subtotal-row td {
+    background-color: #f8fafc;
+}
+.btn-icon-subtle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    opacity: 0.35;
+    transition: opacity 0.2s, transform 0.2s;
+}
+.btn-icon-subtle:hover {
+    opacity: 1;
+    transform: scale(1.15);
+}
+
+/* MODAL STYLES */
 .modal-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(15, 23, 42, 0.6);
+    background: rgba(15, 23, 42, 0.65);
     display: flex; align-items: center; justify-content: center;
     z-index: 1050; backdrop-filter: blur(4px);
 }
 .modal-box {
     background: #ffffff; border-radius: var(--radius-md);
-    width: 90%; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
-    overflow: hidden;
+    width: 92%; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25);
+    overflow: hidden; max-height: 90vh; overflow-y: auto;
 }
 .modal-header {
-    padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
-    display: flex; justify-content: space-between; align-items: center; background: #f8fafc;
+    padding: 1rem 1.35rem; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
 }
-.modal-body { padding: 1.25rem; }
+.modal-body { padding: 1.35rem; }
 .modal-footer {
-    padding: 0.85rem 1.25rem; border-top: 1px solid var(--border);
-    display: flex; justify-content: flex-end; gap: 0.5rem; background: #f8fafc;
+    padding: 0.85rem 1.35rem; border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-end; gap: 0.6rem;
 }
 .btn-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); }
 </style>
