@@ -12846,36 +12846,87 @@ def update_employee_fund_summary():
     return redirect(url_for('fund_contributions_dashboard'))
 
 
+# In-memory and file-based progress tracking for background/AJAX jobs
+ATTENDANCE_IMPORT_PROGRESS = {}
+
+def update_job_progress(job_id, percent, title, subtitle='', step=''):
+    if not job_id:
+        return
+    import json, os
+    data = {
+        'progress': percent,
+        'title': title,
+        'subtitle': subtitle,
+        'step': step,
+        'timestamp': datetime.utcnow().isoformat()
+    }
+    ATTENDANCE_IMPORT_PROGRESS[job_id] = data
+    try:
+        os.makedirs('tmp', exist_ok=True)
+        with open(f'tmp/att_progress_{job_id}.json', 'w', encoding='utf-8') as pf:
+            json.dump(data, pf)
+    except Exception:
+        pass
+
+
+@app.route('/attendance/import-progress')
+def get_attendance_import_progress():
+    job_id = request.args.get('job_id', '')
+    if not job_id:
+        return jsonify({'progress': 0, 'title': 'Pending', 'subtitle': '', 'step': ''})
+    
+    if job_id in ATTENDANCE_IMPORT_PROGRESS:
+        return jsonify(ATTENDANCE_IMPORT_PROGRESS[job_id])
+    
+    # Check fallback file
+    import json, os
+    prog_file = f'tmp/att_progress_{job_id}.json'
+    if os.path.exists(prog_file):
+        try:
+            with open(prog_file, 'r', encoding='utf-8') as pf:
+                return jsonify(json.load(pf))
+        except Exception:
+            pass
+    return jsonify({'progress': 5, 'title': 'Processing...', 'subtitle': 'Preparing import worker', 'step': 'Step 1/5'})
+
+
 @app.route('/payroll/fund-contributions/export-report-excel')
 def export_fund_summary_report_excel():
     """
     Exports the comprehensive Employee-Wise Contribution & Withdrawal Report
     to Microsoft Excel (.xlsx), covering employee share, employer share,
     full withdrawal vs own contribution only status, and net balance.
+    Optimized for high performance on cPanel/LiteSpeed WSGI servers.
     """
     try:
-        all_cfs = EmployeeFundContribution.query.order_by(EmployeeFundContribution.contribution_date.asc(), EmployeeFundContribution.id.asc()).all()
-        emp_cf_map = {}
-        for c in all_cfs:
-            k = c.emp_code or (c.employee.employee_id if c.employee else str(c.employee_id or c.id))
-            if k not in emp_cf_map:
-                emp_obj = c.employee
-                emp_cf_map[k] = {
-                    'employee': {
-                        'id': emp_obj.id if emp_obj else k,
-                        'employee_id': k,
-                        'name': (emp_obj.name if emp_obj else c.emp_name) or f"Staff {k}",
-                        'department': (emp_obj.department if emp_obj else c.department) or "General",
-                        'designation': (emp_obj.designation if emp_obj else c.designation) or "Staff Member"
-                    },
-                    'records': []
-                }
-            emp_cf_map[k]['records'].append(c)
+        # 1. Preload master lookup dictionaries to eliminate slow N+1 database queries
+        all_employees = Employee.query.all()
+        emp_by_id = {e.id: e for e in all_employees}
+        emp_by_code = {str(e.employee_id).strip(): e for e in all_employees if e.employee_id}
 
         settlements = EmployeeFundSettlement.query.order_by(EmployeeFundSettlement.id.desc()).all()
         settlement_map = {str(s.emp_code or s.employee_id).strip(): s for s in settlements if s.emp_code or s.employee_id}
 
-        fund_summaries = []
+        # 2. Query contributions in chronological order
+        all_cfs = EmployeeFundContribution.query.order_by(
+            EmployeeFundContribution.contribution_date.asc(), 
+            EmployeeFundContribution.id.asc()
+        ).all()
+
+        emp_cf_map = {}
+        for c in all_cfs:
+            k = c.emp_code or (str(c.employee_id) if c.employee_id else str(c.id))
+            if k not in emp_cf_map:
+                emp_obj = emp_by_code.get(k) or (emp_by_id.get(c.employee_id) if c.employee_id else None)
+                emp_cf_map[k] = {
+                    'code': k,
+                    'name': (emp_obj.name if emp_obj else c.emp_name) or f"Staff {k}",
+                    'dept': (emp_obj.department if emp_obj else c.department) or "General",
+                    'desig': (emp_obj.designation if emp_obj else c.designation) or "Staff Member",
+                    'records': []
+                }
+            emp_cf_map[k]['records'].append(c)
+
         def fund_sort_key(x):
             s = str(x or '').strip()
             num_part = re.sub(r'^\D+', '', s)
@@ -12883,6 +12934,7 @@ def export_fund_summary_report_excel():
                 return (0, int(num_part), s)
             return (1, 0, s.lower())
 
+        fund_summaries = []
         for k in sorted(emp_cf_map.keys(), key=fund_sort_key):
             data = emp_cf_map[k]
             records = data['records']
@@ -12909,7 +12961,8 @@ def export_fund_summary_report_excel():
                         s_date_str = settle.settlement_date.strftime('%d-%b-%Y')
                     else:
                         s_date_str = str(settle.settlement_date)
-                settle_info = f"{s_date_str} ({settle.payment_mode or 'Settled'})"
+                mode = settle.payment_mode or 'Settled'
+                settle_info = f"{s_date_str} ({mode})"
             elif withdrawal_tot > 0:
                 if adjustment_tot > 0 or (withdrawal_tot <= emp_tot and adjustment_tot > 0):
                     status_label = "Own Contribution Only"
@@ -12923,10 +12976,10 @@ def export_fund_summary_report_excel():
                 settle_info = ""
 
             fund_summaries.append({
-                'code': data['employee']['employee_id'],
-                'name': data['employee']['name'],
-                'dept': data['employee']['department'],
-                'desig': data['employee']['designation'],
+                'code': data['code'],
+                'name': data['name'],
+                'dept': data['dept'],
+                'desig': data['desig'],
                 'emp_share': emp_tot,
                 'comp_share': comp_tot,
                 'welfare': welfare_tot,
@@ -12994,26 +13047,13 @@ def export_fund_summary_report_excel():
 
         curr_row = 5
         for idx, s in enumerate(fund_summaries, 1):
-            ws.cell(row=curr_row, column=1, value=idx).alignment = Alignment(horizontal="center")
-            ws.cell(row=curr_row, column=2, value=s['code']).alignment = Alignment(horizontal="center")
-            ws.cell(row=curr_row, column=3, value=s['name']).alignment = Alignment(horizontal="left")
-            ws.cell(row=curr_row, column=4, value=s['dept']).alignment = Alignment(horizontal="left")
-            ws.cell(row=curr_row, column=5, value=s['desig']).alignment = Alignment(horizontal="left")
-            ws.cell(row=curr_row, column=6, value=s['emp_share'])
-            ws.cell(row=curr_row, column=7, value=s['comp_share'])
-            ws.cell(row=curr_row, column=8, value=s['welfare'])
-            ws.cell(row=curr_row, column=9, value=s['profit'])
-            ws.cell(row=curr_row, column=10, value=s['total_deposit'])
-            ws.cell(row=curr_row, column=11, value=s['status']).alignment = Alignment(horizontal="center")
-            ws.cell(row=curr_row, column=12, value=s['withdrawal'])
-            ws.cell(row=curr_row, column=13, value=s['adjustment'])
-            ws.cell(row=curr_row, column=14, value=s['loan_taken'])
-            ws.cell(row=curr_row, column=15, value=s['loan_return'])
-            ws.cell(row=curr_row, column=16, value=s['outstanding'])
-            ws.cell(row=curr_row, column=17, value=s['balance'])
-            ws.cell(row=curr_row, column=18, value=s['settle_info']).alignment = Alignment(horizontal="left")
-            ws.cell(row=curr_row, column=19, value=s['remarks']).alignment = Alignment(horizontal="left")
-
+            row_vals = [
+                idx, s['code'], s['name'], s['dept'], s['desig'],
+                s['emp_share'], s['comp_share'], s['welfare'], s['profit'], s['total_deposit'],
+                s['status'], s['withdrawal'], s['adjustment'], s['loan_taken'], s['loan_return'], s['outstanding'], s['balance'],
+                s['settle_info'], s['remarks']
+            ]
+            ws.append(row_vals)
             for c_i in range(1, 20):
                 c_cell = ws.cell(row=curr_row, column=c_i)
                 c_cell.font = regular_font
@@ -13021,19 +13061,20 @@ def export_fund_summary_report_excel():
                 if c_i in [6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17]:
                     c_cell.number_format = ACCT_FMT
                     c_cell.alignment = Alignment(horizontal="right")
-
+                elif c_i in [1, 2, 11]:
+                    c_cell.alignment = Alignment(horizontal="center")
+                else:
+                    c_cell.alignment = Alignment(horizontal="left")
             curr_row += 1
 
         # Grand Total Row
         total_row = curr_row
-        ws.cell(row=total_row, column=1, value="").border = border_total
-        ws.cell(row=total_row, column=2, value="").border = border_total
         tot_label = ws.cell(row=total_row, column=3, value="GRAND TOTAL")
         tot_label.font = bold_font
         tot_label.border = border_total
 
-        ws.cell(row=total_row, column=4, value="").border = border_total
-        ws.cell(row=total_row, column=5, value="").border = border_total
+        for c_i in range(1, 20):
+            ws.cell(row=total_row, column=c_i).border = border_total
 
         # Numeric totals
         cols_to_sum = {6: 'F', 7: 'G', 8: 'H', 9: 'I', 10: 'J', 12: 'L', 13: 'M', 14: 'N', 15: 'O', 16: 'P', 17: 'Q'}
@@ -13044,15 +13085,15 @@ def export_fund_summary_report_excel():
             cell.alignment = Alignment(horizontal="right")
             cell.border = border_total
 
-        ws.cell(row=total_row, column=11, value="").border = border_total
-        ws.cell(row=total_row, column=18, value="").border = border_total
-        ws.cell(row=total_row, column=19, value="").border = border_total
-
-        # Auto-adjust column widths
-        for col in ws.columns:
-            max_len = max(len(str(cell.value or '')) for cell in col)
-            col_letter = get_column_letter(col[0].column)
-            ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+        # Fixed column dimensions (instant rendering, eliminates slow openpyxl generator traversal)
+        col_widths = {
+            1: 6, 2: 12, 3: 26, 4: 22, 5: 22,
+            6: 16, 7: 16, 8: 14, 9: 14, 10: 17,
+            11: 24, 12: 15, 13: 16, 14: 15, 15: 15,
+            16: 15, 17: 17, 18: 24, 19: 25
+        }
+        for c_i, w in col_widths.items():
+            ws.column_dimensions[get_column_letter(c_i)].width = w
 
         filename = f"Employee_Fund_Contribution_Report_{date.today().strftime('%Y%m%d')}.xlsx"
         return safe_excel_response(wb, filename)
@@ -16689,8 +16730,16 @@ def attendance_dashboard():
 @login_required
 def import_attendance_notepad():
     import attendance_manager as att_mgr
+    from collections import defaultdict
+    import time
+
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.form.get('is_ajax') == '1'
+    job_id = request.form.get('job_id') or f"job_{int(time.time() * 1000)}"
+
     file = request.files.get('notepad_file')
     pasted_text = request.form.get('notepad_text', '').strip()
+
+    update_job_progress(job_id, 10, "Reading raw facial attendance logs...", "Extracting biometric timestamps from input", "Step 1/5")
 
     raw_content = ""
     if file and file.filename:
@@ -16704,17 +16753,26 @@ def import_attendance_notepad():
                 except UnicodeDecodeError:
                     raw_content = raw_bytes.decode('latin1', errors='ignore')
         except Exception as e:
-            flash(f"❌ Error reading uploaded file: {str(e)}", "danger")
+            msg = f"Error reading uploaded file: {str(e)}"
+            if is_ajax:
+                return jsonify({'success': False, 'error': msg}), 400
+            flash(f"❌ {msg}", "danger")
             return redirect(url_for('attendance_dashboard'))
     elif pasted_text:
         raw_content = pasted_text
     else:
-        flash("⚠️ Please select a Notepad (.txt) file or paste face machine logs into the box.", "danger")
+        msg = "Please select a Notepad (.txt) file or paste face machine logs into the box."
+        if is_ajax:
+            return jsonify({'success': False, 'error': msg}), 400
+        flash(f"⚠️ {msg}", "danger")
         return redirect(url_for('attendance_dashboard'))
 
     parsed_punches = att_mgr.parse_notepad_punch_lines(raw_content)
     if not parsed_punches:
-        flash("⚠️ No valid biometric punch timestamps recognized from the input. Please check the log format.", "danger")
+        msg = "No valid biometric punch timestamps recognized from the input. Please check the log format."
+        if is_ajax:
+            return jsonify({'success': False, 'error': msg}), 400
+        flash(f"⚠️ {msg}", "danger")
         return redirect(url_for('attendance_dashboard'))
 
     batch_id = f"batch_{int(datetime.utcnow().timestamp())}"
@@ -16733,12 +16791,30 @@ def import_attendance_notepad():
     standard_hours = shift_settings.standard_hours if shift_settings else 8.0
     grace_mins = shift_settings.grace_period_mins if shift_settings else 15
 
+    update_job_progress(job_id, 30, f"De-duplicating {len(parsed_punches):,} punches in memory...", "Cross-referencing database without lock contention", "Step 2/5")
+
+    # In-memory Date-Bucket Lookup: prevents individual SQL queries per punch
+    all_dates = [p['punch_time'].date() for p in parsed_punches]
+    min_date = min(all_dates) - timedelta(days=1)
+    max_date = max(all_dates) + timedelta(days=1)
+
+    existing_punches_raw = BiometricPunchLog.query.filter(
+        BiometricPunchLog.punch_date >= min_date,
+        BiometricPunchLog.punch_date <= max_date
+    ).with_entities(BiometricPunchLog.device_user_id, BiometricPunchLog.punch_time).all()
+
+    existing_punch_map = defaultdict(list)
+    for dev_id, ptime in existing_punches_raw:
+        if dev_id and ptime:
+            existing_punch_map[(str(dev_id).strip(), ptime.date())].append(ptime)
+
     imported_punch_count = 0
     affected_emp_ids = set()
     dates_touched = set()
+    new_punch_objects = []
 
     for item in parsed_punches:
-        dev_uid = item['device_user_id']
+        dev_uid = str(item['device_user_id']).strip()
         p_time = item['punch_time']
         p_date = p_time.date()
         clean_uid = dev_uid.lower().replace('emp-', '').strip()
@@ -16749,15 +16825,16 @@ def import_attendance_notepad():
             affected_emp_ids.add(emp_id_val)
         dates_touched.add(p_date)
 
-        # Check for existing punch within 60 seconds for this device_user_id
-        existing = BiometricPunchLog.query.filter(
-            BiometricPunchLog.device_user_id == dev_uid,
-            BiometricPunchLog.punch_time >= (p_time - timedelta(seconds=60)),
-            BiometricPunchLog.punch_time <= (p_time + timedelta(seconds=60))
-        ).first()
+        # Ultra-fast in-memory 60s duplicate check
+        bucket = existing_punch_map.get((dev_uid, p_date), [])
+        is_duplicate = False
+        for existing_time in bucket:
+            if abs((existing_time - p_time).total_seconds()) <= 60:
+                is_duplicate = True
+                break
 
-        if not existing:
-            punch_rec = BiometricPunchLog(
+        if not is_duplicate:
+            new_punch_objects.append(BiometricPunchLog(
                 employee_id=emp_id_val,
                 device_user_id=dev_uid,
                 punch_time=p_time,
@@ -16765,27 +16842,37 @@ def import_attendance_notepad():
                 device_code=item.get('device_code', '-'),
                 raw_line=item.get('raw_line'),
                 batch_id=batch_id
-            )
-            db.session.add(punch_rec)
+            ))
+            bucket.append(p_time)
+            existing_punch_map[(dev_uid, p_date)] = bucket
             imported_punch_count += 1
 
-    db.session.commit()
+    # Chunked batch commit (avoids SQLite lock timeout and WAL overflows)
+    chunk_size = 1000
+    for i in range(0, len(new_punch_objects), chunk_size):
+        chunk = new_punch_objects[i:i + chunk_size]
+        db.session.bulk_save_objects(chunk)
+        db.session.commit()
 
-    # Run the AI Shift Analyzer for all affected employees
+    update_job_progress(job_id, 60, "AI Shift Engine Analyzing Duty Cycles...", f"Evaluating Day, Night & Double Duties for {len(affected_emp_ids)} employees", "Step 3/5")
+
+    # Run AI Shift Analyzer for all affected employees
     ai_sessions_created = 0
     night_shifts_detected = 0
     day_shifts_detected = 0
+    double_shifts_detected = 0
 
     if dates_touched:
-        min_date = min(dates_touched) - timedelta(days=1)
-        max_date = max(dates_touched) + timedelta(days=1)
+        ana_min = min(dates_touched) - timedelta(days=1)
+        ana_max = max(dates_touched) + timedelta(days=1)
 
-        for emp_id in affected_emp_ids:
-            # Query all punches for this employee in the range
+        emp_list = list(affected_emp_ids)
+        total_emps = len(emp_list)
+        for idx_e, emp_id in enumerate(emp_list, 1):
             emp_punches = BiometricPunchLog.query.filter(
                 BiometricPunchLog.employee_id == emp_id,
-                BiometricPunchLog.punch_date >= min_date,
-                BiometricPunchLog.punch_date <= max_date
+                BiometricPunchLog.punch_date >= ana_min,
+                BiometricPunchLog.punch_date <= ana_max
             ).order_by(BiometricPunchLog.punch_time.asc()).all()
 
             punch_dicts = [{'punch_time': p.punch_time} for p in emp_punches]
@@ -16803,7 +16890,7 @@ def import_attendance_notepad():
                 ).first()
 
                 if existing_att and existing_att.manual_override:
-                    continue # respect manual override
+                    continue  # respect manual override
 
                 if not existing_att:
                     existing_att = EmployeeAttendance(
@@ -16826,16 +16913,40 @@ def import_attendance_notepad():
                 existing_att.ai_analysis = s['ai_analysis']
                 existing_att.batch_id = batch_id
 
+                if s.get('is_double_duty'):
+                    double_shifts_detected += 1
                 if s['is_night_shift']:
                     night_shifts_detected += 1
                 else:
                     day_shifts_detected += 1
 
+            if idx_e % 20 == 0 or idx_e == total_emps:
+                db.session.commit()
+                pct = 60 + int((idx_e / max(1, total_emps)) * 25)
+                update_job_progress(job_id, pct, "AI Shift Engine Analyzing Duty Cycles...", f"Processed {idx_e} of {total_emps} staff members", "Step 4/5")
+
         db.session.commit()
 
+    update_job_progress(job_id, 100, "Analysis Complete! Biometric logs imported successfully.", f"Saved {imported_punch_count:,} punches across {len(affected_emp_ids)} employees", "Step 5/5")
+
     latest_date_str = max(dates_touched).strftime('%Y-%m-%d') if dates_touched else date.today().strftime('%Y-%m-%d')
+
+    if is_ajax:
+        return jsonify({
+            'success': True,
+            'job_id': job_id,
+            'imported_punch_count': imported_punch_count,
+            'total_parsed': len(parsed_punches),
+            'employees_analyzed': len(affected_emp_ids),
+            'day_shifts': day_shifts_detected,
+            'night_shifts': night_shifts_detected,
+            'double_shifts': double_shifts_detected,
+            'duty_date': latest_date_str,
+            'message': f"Imported {imported_punch_count:,} punches across {len(affected_emp_ids)} staff members."
+        })
+
     flash(
-        f"🤖 AI Attendance Analysis Complete: Imported {imported_punch_count} biometric punches. "
+        f"🤖 AI Attendance Analysis Complete: Imported {imported_punch_count:,} biometric punches. "
         f"Analyzed {len(affected_emp_ids)} employees across duty cycles: {day_shifts_detected} Day Duties, "
         f"{night_shifts_detected} Night Duties (cross-day paired).",
         "success"

@@ -311,51 +311,129 @@
             <h3>📥 Import Facial Machine Attendance Log</h3>
             <button type="button" class="btn-close-modal" onclick="closeImportModal()">✕</button>
         </div>
-        <form action="{{ url_for('import_attendance_notepad') }}" method="POST" enctype="multipart/form-data" class="modal-form">
-            <div class="modal-body">
-                <p class="modal-instruction">
-                    Upload your raw face attendance machine log file exported to Notepad (<code>.txt</code> / <code>.log</code> / <code>.dat</code>) or paste the copied text directly into the box below.
-                </p>
+        
+        <!-- SECTION 1: INPUT FORM -->
+        <div id="importInputSection">
+            <form id="attendanceImportForm" onsubmit="handleAttendanceImport(event)" enctype="multipart/form-data" class="modal-form">
+                <div class="modal-body">
+                    <p class="modal-instruction">
+                        Upload your raw face attendance machine log file exported to Notepad (<code>.txt</code> / <code>.log</code> / <code>.dat</code>) or paste the copied text directly into the box below.
+                    </p>
 
-                <!-- File Upload Box -->
-                <div class="form-group">
-                    <label class="form-label">Option 1: Choose File from Computer (.txt / .log / .dat)</label>
-                    <input type="file" name="notepad_file" accept=".txt, .log, .dat, .csv" class="file-drop-input">
-                </div>
+                    <!-- File Upload Box -->
+                    <div class="form-group">
+                        <label class="form-label">Option 1: Choose File from Computer (.txt / .log / .dat)</label>
+                        <input type="file" id="notepad_file_input" name="notepad_file" accept=".txt, .log, .dat, .csv" class="file-drop-input">
+                    </div>
 
-                <div class="or-separator">
-                    <span>— OR —</span>
-                </div>
+                    <div class="or-separator">
+                        <span>— OR —</span>
+                    </div>
 
-                <!-- Paste Area -->
-                <div class="form-group">
-                    <label class="form-label">Option 2: Paste Raw Text from Notepad Directly</label>
-                    <textarea name="notepad_text" rows="8" placeholder="Paste face machine punch rows here, e.g.:
+                    <!-- Paste Area -->
+                    <div class="form-group">
+                        <label class="form-label">Option 2: Paste Raw Text from Notepad Directly</label>
+                        <textarea id="notepad_text_input" name="notepad_text" rows="8" placeholder="Paste face machine punch rows here, e.g.:
 242    2026-09-09 18:57:13    4    1    Md Ershad Prodhan Rahat I    0    1
 98     2026-09-09 19:13:12    3    0    SHAKAWAT HOSAIN TAKUR I    0    1
 716    2026-09-09 19:27:35    4    1    716    I    0    1" class="text-paste-area"></textarea>
-                </div>
-
-                <!-- AI Shift Analysis Features Box -->
-                <div class="ai-features-callout">
-                    <div class="ai-feat-header">
-                        <span class="ai-sparkle">✨</span>
-                        <strong>What the AI Shift Engine analyzes automatically:</strong>
                     </div>
-                    <ul class="ai-feat-list">
-                        <li><strong>Cross-Day Night Duty:</strong> Detects evening punches (18:00–23:59) and correctly pairs them with next morning exits (05:00–10:00).</li>
-                        <li><strong>Day vs Night vs Double Duty:</strong> Accurately classifies shift type, handles continuous Day-to-Night and Night-to-Day double duties.</li>
-                        <li><strong>Multi-Punch De-duplication:</strong> Consolidates rapid repeated punches into single clean Check-In and Check-Out timestamps.</li>
-                        <li><strong>Overtime &amp; Late Calculations:</strong> Automatically tallies duty hours, grace-period late marks, and overtime hours.</li>
-                    </ul>
+
+                    <!-- AI Shift Analysis Features Box -->
+                    <div class="ai-features-callout">
+                        <div class="ai-feat-header">
+                            <span class="ai-sparkle">✨</span>
+                            <strong>What the AI Shift Engine analyzes automatically:</strong>
+                        </div>
+                        <ul class="ai-feat-list">
+                            <li><strong>Cross-Day Night Duty:</strong> Detects evening punches (18:00–23:59) and correctly pairs them with next morning exits (05:00–10:00).</li>
+                            <li><strong>Day vs Night vs Double Duty:</strong> Accurately classifies shift type, handles continuous Day-to-Night and Night-to-Day double duties.</li>
+                            <li><strong>Multi-Punch De-duplication:</strong> Consolidates rapid repeated punches into single clean Check-In and Check-Out timestamps.</li>
+                            <li><strong>Overtime &amp; Late Calculations:</strong> Automatically tallies duty hours, grace-period late marks, and overtime hours.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-ui btn-ui-dark" onclick="closeImportModal()">Cancel</button>
+                    <button type="submit" id="btnSubmitImport" class="btn-ui btn-ui-primary">🤖 Analyze &amp; Import Attendance</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- SECTION 2: LIVE PERCENTAGE PROGRESS TRACKER (ANIMATED) -->
+        <div id="importProgressSection" style="display: none; padding: 2.5rem 2rem; text-align: center;">
+            <div style="display: inline-flex; align-items: center; justify-content: center; width: 74px; height: 74px; border-radius: 50%; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; font-size: 2.3rem; margin-bottom: 1.25rem; box-shadow: 0 10px 25px -5px rgba(2, 132, 199, 0.4); animation: pulseGlow 1.8s infinite;">
+                🤖
+            </div>
+            <div style="font-size: 0.82rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #0284c7; margin-bottom: 0.35rem;" id="importStepBadge">
+                Step 1 of 5
+            </div>
+            <h3 id="importStatusTitle" style="font-size: 1.25rem; font-weight: 800; color: #0f172a; margin: 0 0 0.4rem 0;">
+                Reading Raw Facial Attendance Logs...
+            </h3>
+            <p id="importStatusSubtitle" style="font-size: 0.88rem; color: #64748b; margin: 0 0 1.5rem 0;">
+                Parsing biometric punch timestamps and enrolled ID profiles...
+            </p>
+
+            <!-- Progress Bar & Percentage Number -->
+            <div style="background: #f1f5f9; border-radius: 999px; height: 20px; width: 100%; overflow: hidden; padding: 3px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.08); margin-bottom: 0.75rem;">
+                <div id="importProgressBar" style="width: 0%; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #0284c7 0%, #10b981 100%); transition: width 0.35s ease-in-out; box-shadow: 0 2px 6px rgba(16, 185, 129, 0.35);"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: #475569; font-weight: 700; padding: 0 0.25rem;">
+                <span style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981; animation: blinkLive 1.2s infinite;"></span>
+                    AI Shift Engine Processing
+                </span>
+                <span style="font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; color: #0f172a; font-weight: 900;"><span id="importPctNumber">0</span>%</span>
+            </div>
+        </div>
+
+        <!-- SECTION 3: CELEBRATORY SUCCESS CONFIRMATION MODAL -->
+        <div id="importSuccessSection" style="display: none; padding: 2.2rem 1.8rem; text-align: center;">
+            <div style="display: inline-flex; align-items: center; justify-content: center; width: 76px; height: 76px; border-radius: 50%; background: #ecfdf5; border: 3px solid #10b981; color: #10b981; font-size: 2.4rem; margin-bottom: 1.2rem; box-shadow: 0 12px 24px -6px rgba(16, 185, 129, 0.25);">
+                ✓
+            </div>
+            <h3 style="font-size: 1.35rem; font-weight: 800; color: #065f46; margin: 0 0 0.4rem 0;">
+                Attendance Imported &amp; Analyzed Successfully!
+            </h3>
+            <p id="importSuccessSummary" style="font-size: 0.9rem; color: #475569; margin: 0 0 1.5rem 0;">
+                Biometric punch logs processed and synced into daily attendance register.
+            </p>
+
+            <!-- Metrics Grid -->
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1.75rem; text-align: left;">
+                <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 0.85rem 0.75rem;">
+                    <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Punches</div>
+                    <div id="statImportedPunches" style="font-size: 1.25rem; font-weight: 800; color: #0f172a; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">0</div>
+                </div>
+                <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 0.85rem 0.75rem;">
+                    <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Staff Analyzed</div>
+                    <div id="statEmployeesAnalyzed" style="font-size: 1.25rem; font-weight: 800; color: #0284c7; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">0</div>
+                </div>
+                <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 0.85rem 0.75rem;">
+                    <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Day Duties</div>
+                    <div id="statDayShifts" style="font-size: 1.25rem; font-weight: 800; color: #eab308; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">0</div>
+                </div>
+                <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 0.85rem 0.75rem;">
+                    <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Night Duties</div>
+                    <div id="statNightShifts" style="font-size: 1.25rem; font-weight: 800; color: #8b5cf6; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">0</div>
                 </div>
             </div>
 
-            <div class="modal-footer">
-                <button type="button" class="btn-ui btn-ui-dark" onclick="closeImportModal()">Cancel</button>
-                <button type="submit" class="btn-ui btn-ui-primary">🤖 Analyze &amp; Import Attendance</button>
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+                <a id="btnViewDutyDate" href="{{ url_for('attendance_dashboard') }}" class="btn-ui btn-ui-primary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.65rem 1.25rem;">
+                    📅 View Date Attendance
+                </a>
+                <a href="{{ url_for('attendance_month_matrix') }}" class="btn-ui" style="background: #0284c7; color: #ffffff; text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.65rem 1.25rem; border-radius: 8px; font-weight: 700;">
+                    📊 View Monthly Register (31-Day)
+                </a>
+                <button type="button" class="btn-ui btn-ui-dark" onclick="window.location.reload()" style="padding: 0.65rem 1.25rem;">
+                    Done / Close
+                </button>
             </div>
-        </form>
+        </div>
     </div>
 </div>
 
@@ -1132,14 +1210,156 @@
         color: #ffffff;
     }
     .btn-ui-dark:hover { background: #475569; }
+
+    @keyframes pulseGlow {
+        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.4); }
+        70% { transform: scale(1.05); box-shadow: 0 0 0 16px rgba(2, 132, 199, 0); }
+        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(2, 132, 199, 0); }
+    }
+    @keyframes blinkLive {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+    }
+
 </style>
 
 <script>
+    let importProgressPollInterval = null;
+
+    function resetImportModalViews() {
+        if (importProgressPollInterval) {
+            clearInterval(importProgressPollInterval);
+            importProgressPollInterval = null;
+        }
+        const inSec = document.getElementById('importInputSection');
+        const prgSec = document.getElementById('importProgressSection');
+        const sucSec = document.getElementById('importSuccessSection');
+        if (inSec) inSec.style.display = 'block';
+        if (prgSec) prgSec.style.display = 'none';
+        if (sucSec) sucSec.style.display = 'none';
+        const bar = document.getElementById('importProgressBar');
+        if (bar) bar.style.width = '0%';
+        const pct = document.getElementById('importPctNumber');
+        if (pct) pct.innerText = '0';
+    }
+
     function openImportModal() {
+        resetImportModalViews();
         document.getElementById('importModal').classList.add('open');
     }
+
     function closeImportModal() {
+        if (importProgressPollInterval) {
+            clearInterval(importProgressPollInterval);
+            importProgressPollInterval = null;
+        }
         document.getElementById('importModal').classList.remove('open');
+    }
+
+    async function handleAttendanceImport(event) {
+        event.preventDefault();
+        const fileInput = document.getElementById('notepad_file_input');
+        const textInput = document.getElementById('notepad_text_input');
+
+        if ((!fileInput.files || fileInput.files.length === 0) && (!textInput.value || !textInput.value.trim())) {
+            alert("⚠️ Please choose a Notepad (.txt) file or paste facial machine punches into the box.");
+            return;
+        }
+
+        const jobId = 'job_' + Date.now();
+        const inSec = document.getElementById('importInputSection');
+        const prgSec = document.getElementById('importProgressSection');
+        const sucSec = document.getElementById('importSuccessSection');
+
+        inSec.style.display = 'none';
+        prgSec.style.display = 'block';
+        sucSec.style.display = 'none';
+
+        const bar = document.getElementById('importProgressBar');
+        const pct = document.getElementById('importPctNumber');
+        const title = document.getElementById('importStatusTitle');
+        const subtitle = document.getElementById('importStatusSubtitle');
+        const badge = document.getElementById('importStepBadge');
+
+        bar.style.width = '12%';
+        pct.innerText = '12';
+        title.innerText = 'Uploading and reading log file...';
+        subtitle.innerText = 'Sending biometric records to server';
+        badge.innerText = 'Step 1 of 5';
+
+        // Start progress polling
+        importProgressPollInterval = setInterval(async () => {
+            try {
+                const resp = await fetch(`/attendance/import-progress?job_id=${encodeURIComponent(jobId)}`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.progress) {
+                        bar.style.width = data.progress + '%';
+                        pct.innerText = data.progress;
+                    }
+                    if (data.title) title.innerText = data.title;
+                    if (data.subtitle) subtitle.innerText = data.subtitle;
+                    if (data.step) badge.innerText = data.step;
+                }
+            } catch (e) {
+                console.warn('Progress poll error:', e);
+            }
+        }, 300);
+
+        const formData = new FormData(document.getElementById('attendanceImportForm'));
+        formData.append('is_ajax', '1');
+        formData.append('job_id', jobId);
+
+        try {
+            const response = await fetch("{{ url_for('import_attendance_notepad') }}", {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (importProgressPollInterval) {
+                clearInterval(importProgressPollInterval);
+                importProgressPollInterval = null;
+            }
+
+            const result = await response.json();
+            if (response.ok && result.success) {
+                bar.style.width = '100%';
+                pct.innerText = '100';
+                title.innerText = 'Finalizing analysis...';
+
+                setTimeout(() => {
+                    prgSec.style.display = 'none';
+                    sucSec.style.display = 'block';
+
+                    document.getElementById('statImportedPunches').innerText = (result.imported_punch_count || 0).toLocaleString();
+                    document.getElementById('statEmployeesAnalyzed').innerText = (result.employees_analyzed || 0).toLocaleString();
+                    document.getElementById('statDayShifts').innerText = (result.day_shifts || 0).toLocaleString();
+                    document.getElementById('statNightShifts').innerText = (result.night_shifts || 0).toLocaleString();
+
+                    if (result.duty_date) {
+                        const btnDate = document.getElementById('btnViewDutyDate');
+                        if (btnDate) {
+                            btnDate.href = `/attendance?date=${result.duty_date}`;
+                        }
+                    }
+                    document.getElementById('importSuccessSummary').innerText = 
+                        `Successfully analyzed ${result.employees_analyzed || 0} employees across ${result.imported_punch_count || 0} biometric punches.`;
+                }, 400);
+            } else {
+                alert("❌ Import failed: " + (result.error || result.message || "Unknown error occurred"));
+                resetImportModalViews();
+            }
+        } catch (err) {
+            if (importProgressPollInterval) {
+                clearInterval(importProgressPollInterval);
+                importProgressPollInterval = null;
+            }
+            alert("❌ Network or server error during import: " + err.message);
+            resetImportModalViews();
+        }
     }
 
     function openSettingsModal() {
