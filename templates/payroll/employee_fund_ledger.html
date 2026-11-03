@@ -19,7 +19,7 @@
     </div>
     <div class="header-actions" style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
         <button type="button" id="btnSaveAllChanges" class="btn btn-success" onclick="saveAllChangesToDatabase()" style="display: inline-flex; align-items: center; gap: 0.45rem; font-weight: 700; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; border: none; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">
-            💾 Save & Update All
+            💾 Save and Update
         </button>
         <button type="button" class="btn btn-dark" onclick="openModal('settleResignationModal')" style="display: inline-flex; align-items: center; gap: 0.4rem; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #fff; font-weight: 600; border: none; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);">
             🏦 Resignation Settlement / Withdraw
@@ -108,16 +108,8 @@
     <div style="display: flex; align-items: center; gap: 0.5rem;">
         <span style="font-size: 1.1rem;">📊</span>
         <span>
-            <strong>Spreadsheet Mode Active:</strong> Click on any numeric cell to edit directly like Excel. Click <strong>💾 Update</strong> on any row or <strong>💾 Save & Update All</strong> to persist edits to the main database. Balances and totals recalculate automatically.
+            <strong>Spreadsheet Mode Active:</strong> Click on any numeric cell to edit directly like Excel. Use the single <strong>💾 Save and Update</strong> button to save and recalculate in the main database.
         </span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 0.65rem;">
-        <span id="saveStatusIndicator" style="font-weight: 700; font-size: 0.85rem; color: #15803d; display: none; background: #dcfce7; padding: 0.25rem 0.65rem; border-radius: 4px; border: 1px solid #86efac;">
-            ✓ Saved & Recalculated
-        </span>
-        <button type="button" onclick="saveAllChangesToDatabase()" class="btn btn-sm btn-success" style="font-size: 0.8rem; font-weight: 700; padding: 0.25rem 0.75rem; background: #059669; border: none; color: #fff; border-radius: 4px; cursor: pointer;">
-            💾 Save All
-        </button>
     </div>
 </div>
 
@@ -272,7 +264,32 @@
 {% endif %}
 
 <!-- FUND STATEMENT REPORT TABLE (SPREADSHEET EDITABLE & ANNUALLY GROUPED) -->
-<div class="card" style="padding: 0; overflow: hidden; border: 1px solid #cbd5e1;">
+<div class="card" style="padding: 0; overflow: hidden; border: 1px solid #cbd5e1; margin-bottom: 2rem;">
+    <!-- TABLE TOOLBAR WITH SINGLE SAVE & UPDATE BUTTON -->
+    <div class="no-print" style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.25rem; background: #f8fafc; border-bottom: 1.5px solid #cbd5e1; flex-wrap: wrap; gap: 0.75rem;">
+        <div style="display: flex; align-items: center; gap: 0.65rem;">
+            <strong style="color: #0f172a; font-size: 1rem; display: flex; align-items: center; gap: 0.4rem;">
+                📋 Statement Ledger
+            </strong>
+            <span style="font-size: 0.82rem; color: #64748b;">(Click any cell to edit like Excel)</span>
+            <span id="dirtyCounterBadge" class="badge" style="display: none; background: #fef3c7; color: #b45309; font-weight: 700; border: 1px solid #fde68a;">
+                Unsaved edits
+            </span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span id="saveStatusIndicator" style="font-weight: 700; font-size: 0.85rem; color: #15803d; display: none; background: #dcfce7; padding: 0.35rem 0.75rem; border-radius: 6px; border: 1px solid #86efac;">
+                ✓ Saved & Recalculated
+            </span>
+            <!-- THE SINGLE SAVE & UPDATE BUTTON -->
+            <button type="button" 
+                    id="btnSingleSaveUpdate" 
+                    onclick="saveAllChangesToDatabase()" 
+                    class="btn btn-success" 
+                    style="display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 0.95rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; border: none; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35); padding: 0.55rem 1.4rem; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;">
+                💾 Save and Update
+            </button>
+        </div>
+    </div>
     <div class="table-responsive">
         <table class="table fund-statement-table" style="margin-bottom: 0; width: 100%; border-collapse: collapse;">
             <thead>
@@ -287,7 +304,7 @@
                     <th class="num-col" style="font-weight: 800; color: #0f172a; padding: 0.75rem 0.85rem;">Balance emp</th>
                     <th class="num-col" style="font-weight: 800; color: #0f172a; padding: 0.75rem 0.85rem;">Balance com</th>
                     <th class="num-col" style="font-weight: 800; color: #0f172a; padding: 0.75rem 0.85rem;">Total balance</th>
-                    <th class="no-print" style="width: 125px; text-align: center; color: #0f172a; font-weight: 800; font-size: 0.85rem; padding: 0.75rem 0.5rem;">Action</th>
+                    <th class="no-print" style="width: 55px; text-align: center; color: #94a3b8; font-size: 0.8rem;">Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -373,17 +390,10 @@
                             <td class="num-col {% if r.total_balance > 0 %}bal-pos{% else %}bal-zero{% endif %}" id="tot_bal_{{ r.id }}" style="font-family: 'Calibri', sans-serif; font-weight: 700; padding: 0.45rem 0.85rem;">
                                 {{ "{:,.2f}".format(r.total_balance) if r.total_balance > 0 else '-' }}
                             </td>
-                            <!-- Action / Save & Delete -->
-                            <td class="no-print" style="text-align: center; padding: 0.35rem 0.45rem; white-space: nowrap;">
-                                <button type="button" 
-                                        class="btn-row-update" 
-                                        id="btn_update_{{ r.id }}" 
-                                        onclick="saveEntireRow({{ r.id }})" 
-                                        title="Save & update this row in main database">
-                                    💾 Update
-                                </button>
+                            <!-- Action / Delete -->
+                            <td class="no-print" style="text-align: center; padding: 0.35rem 0.45rem;">
                                 <form method="POST" action="{{ url_for('delete_fund_record', record_id=r.id) }}" style="display: inline;" onsubmit="return confirm('Delete record for {{ r.month_display }}?');">
-                                    <button type="submit" class="btn-icon-subtle" title="Delete record" style="margin-left: 4px;">🗑️</button>
+                                    <button type="submit" class="btn-icon-subtle" title="Delete record">🗑️</button>
                                 </form>
                             </td>
                         </tr>
@@ -1120,11 +1130,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (row) {
             row.classList.add('is-dirty-row');
         }
-        const btn = document.getElementById(`btn_update_${recordId}`);
-        if (btn && !btn.classList.contains('is-saved-btn')) {
-            btn.classList.add('is-dirty-btn');
-            btn.innerHTML = '💾 Update*';
-        }
         updateDirtyCounter();
     };
 
@@ -1134,24 +1139,51 @@ document.addEventListener('DOMContentLoaded', function() {
         if (row) {
             row.classList.remove('is-dirty-row');
         }
-        const btn = document.getElementById(`btn_update_${recordId}`);
-        if (btn) {
-            btn.classList.remove('is-dirty-btn');
-            btn.innerHTML = '💾 Update';
-        }
         updateDirtyCounter();
     };
 
     function updateDirtyCounter() {
         const dirtyRows = document.querySelectorAll('tr[id^="row_"].is-dirty-row');
+        const count = dirtyRows.length;
         const btnAll = document.getElementById('btnSaveAllChanges');
-        if (btnAll) {
-            if (dirtyRows.length > 0) {
-                btnAll.innerHTML = `💾 Save & Update All (${dirtyRows.length})`;
+        const btnSingle = document.getElementById('btnSingleSaveUpdate');
+        const badge = document.getElementById('dirtyCounterBadge');
+        const stickyBar = document.getElementById('stickySaveBar');
+
+        if (count > 0) {
+            const label = `💾 Save and Update (${count})`;
+            if (btnAll) {
+                btnAll.innerHTML = label;
                 btnAll.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.45)';
-            } else {
-                btnAll.innerHTML = '💾 Save & Update All';
+            }
+            if (btnSingle) {
+                btnSingle.innerHTML = label;
+                btnSingle.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.45)';
+            }
+            if (badge) {
+                badge.innerText = `${count} Unsaved Edit${count > 1 ? 's' : ''}`;
+                badge.style.display = 'inline-block';
+            }
+            if (stickyBar) {
+                stickyBar.style.display = 'block';
+                const stickyBtn = stickyBar.querySelector('button');
+                if (stickyBtn) stickyBtn.innerHTML = label;
+            }
+        } else {
+            const label = '💾 Save and Update';
+            if (btnAll) {
+                btnAll.innerHTML = label;
                 btnAll.style.boxShadow = '0 4px 12px rgba(5, 150, 105, 0.3)';
+            }
+            if (btnSingle) {
+                btnSingle.innerHTML = label;
+                btnSingle.style.boxShadow = '0 4px 14px rgba(16, 185, 129, 0.35)';
+            }
+            if (badge) {
+                badge.style.display = 'none';
+            }
+            if (stickyBar) {
+                stickyBar.style.display = 'none';
             }
         }
     }
@@ -1279,7 +1311,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Save all dirty rows (or whole sheet) to database in one batch request
     window.saveAllChangesToDatabase = async function() {
-        const btn = document.getElementById('btnSaveAllChanges');
+        const btnAll = document.getElementById('btnSaveAllChanges');
+        const btnSingle = document.getElementById('btnSingleSaveUpdate');
+        const stickyBar = document.getElementById('stickySaveBar');
+        const allButtons = [btnAll, btnSingle];
+        if (stickyBar) {
+            const sb = stickyBar.querySelector('button');
+            if (sb) allButtons.push(sb);
+        }
+
         const allRows = document.querySelectorAll('tr[id^="row_"]');
         if (!allRows.length) {
             alert('No records available to save.');
@@ -1310,9 +1350,12 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        const originalBtnText = btn.innerHTML;
-        btn.innerHTML = '⏳ Saving All to DB...';
-        btn.disabled = true;
+        allButtons.forEach(b => {
+            if (b) {
+                b.innerHTML = '⏳ Saving to Main DB...';
+                b.disabled = true;
+            }
+        });
         showStatusIndicator('Saving records to main database...');
 
         try {
@@ -1327,35 +1370,54 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 applyFundUpdatesToDom(data);
 
-                // Clear dirty flags
-                document.querySelectorAll('.is-dirty-row').forEach(r => r.classList.remove('is-dirty-row'));
-                document.querySelectorAll('.btn-row-update').forEach(b => {
-                    b.classList.remove('is-dirty-btn');
-                    b.innerHTML = '💾 Update';
+                // Clear dirty flags & flash rows
+                document.querySelectorAll('.is-dirty-row').forEach(r => {
+                    r.classList.remove('is-dirty-row');
+                    r.querySelectorAll('.spreadsheet-cell').forEach(c => {
+                        c.classList.add('cell-flash');
+                        setTimeout(() => c.classList.remove('cell-flash'), 1200);
+                    });
                 });
                 updateDirtyCounter();
 
-                btn.innerHTML = '✓ All Saved to DB!';
-                btn.style.background = '#047857';
+                allButtons.forEach(b => {
+                    if (b) {
+                        b.innerHTML = '✓ Saved to Main Database!';
+                        b.style.background = '#047857';
+                    }
+                });
 
-                showFloatingNotification(`✓ Successfully saved & updated ${payloadRows.length} record(s) in main database!`, 'success');
-                showStatusIndicator('✓ All records saved & updated in main database');
+                showFloatingNotification(`✓ Successfully saved and updated ${payloadRows.length} record(s) in main database!`, 'success');
+                showStatusIndicator('✓ Saved and updated in main database');
 
                 setTimeout(() => {
-                    btn.innerHTML = '💾 Save & Update All';
-                    btn.style.background = '';
-                    btn.disabled = false;
-                }, 2500);
+                    allButtons.forEach(b => {
+                        if (b) {
+                            b.innerHTML = '💾 Save and Update';
+                            b.style.background = '';
+                            b.disabled = false;
+                        }
+                    });
+                    if (stickyBar) stickyBar.style.display = 'none';
+                }, 2200);
             } else {
                 alert('Batch save failed: ' + (data.message || 'Unknown error'));
-                btn.innerHTML = originalBtnText;
-                btn.disabled = false;
+                allButtons.forEach(b => {
+                    if (b) {
+                        b.innerHTML = '💾 Save and Update';
+                        b.disabled = false;
+                    }
+                });
             }
         } catch (err) {
             console.error('Error during batch save:', err);
             alert('Network error while saving records to database.');
-            btn.innerHTML = originalBtnText;
-            btn.disabled = false;
+            allButtons.forEach(b => {
+                if (b) {
+                    b.innerHTML = '💾 Save and Update';
+                    b.disabled = false;
+                }
+            });
         }
     };
 
@@ -1555,6 +1617,11 @@ document.addEventListener('DOMContentLoaded', function() {
     50% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15); }
 }
 
+@keyframes pulseSticky {
+    0%, 100% { transform: scale(1); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25); }
+    50% { transform: scale(1.04); box-shadow: 0 14px 30px rgba(16, 185, 129, 0.55); }
+}
+
 /* FLOATING TOAST NOTIFICATION */
 @keyframes toastSlideIn {
     from { opacity: 0; transform: translateY(20px) scale(0.95); }
@@ -1589,4 +1656,11 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 .btn-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); }
 </style>
+<!-- STICKY FLOATING SAVE AND UPDATE BUTTON -->
+<div id="stickySaveBar" class="no-print" style="position: fixed; bottom: 28px; right: 28px; z-index: 1050; display: none;">
+    <button type="button" onclick="saveAllChangesToDatabase()" class="btn btn-success" style="display: inline-flex; align-items: center; gap: 0.55rem; font-weight: 800; font-size: 0.98rem; background: linear-gradient(135deg, #10b981 0%, #047857 100%); color: #ffffff; border: 2.5px solid #ffffff; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3); padding: 0.7rem 1.6rem; border-radius: 50px; cursor: pointer; animation: pulseSticky 1.8s infinite;">
+        💾 Save and Update
+    </button>
+</div>
+
 {% endblock %}
