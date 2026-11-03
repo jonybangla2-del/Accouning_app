@@ -18,6 +18,9 @@
         </p>
     </div>
     <div class="header-actions" style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+        <button type="button" id="btnSaveAllChanges" class="btn btn-success" onclick="saveAllChangesToDatabase()" style="display: inline-flex; align-items: center; gap: 0.45rem; font-weight: 700; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; border: none; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">
+            💾 Save & Update All
+        </button>
         <button type="button" class="btn btn-dark" onclick="openModal('settleResignationModal')" style="display: inline-flex; align-items: center; gap: 0.4rem; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #fff; font-weight: 600; border: none; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);">
             🏦 Resignation Settlement / Withdraw
         </button>
@@ -105,12 +108,17 @@
     <div style="display: flex; align-items: center; gap: 0.5rem;">
         <span style="font-size: 1.1rem;">📊</span>
         <span>
-            <strong>Spreadsheet Mode Active:</strong> Click on any numeric cell to edit directly like Excel. Press <strong>Enter</strong> to save & move down, <strong>Tab</strong> to move right, or <strong>Esc</strong> to cancel. Balances and totals recalculate in real-time.
+            <strong>Spreadsheet Mode Active:</strong> Click on any numeric cell to edit directly like Excel. Click <strong>💾 Update</strong> on any row or <strong>💾 Save & Update All</strong> to persist edits to the main database. Balances and totals recalculate automatically.
         </span>
     </div>
-    <span id="saveStatusIndicator" style="font-weight: 700; font-size: 0.8rem; color: #15803d; display: none;">
-        ✓ Saved & Recalculated
-    </span>
+    <div style="display: flex; align-items: center; gap: 0.65rem;">
+        <span id="saveStatusIndicator" style="font-weight: 700; font-size: 0.85rem; color: #15803d; display: none; background: #dcfce7; padding: 0.25rem 0.65rem; border-radius: 4px; border: 1px solid #86efac;">
+            ✓ Saved & Recalculated
+        </span>
+        <button type="button" onclick="saveAllChangesToDatabase()" class="btn btn-sm btn-success" style="font-size: 0.8rem; font-weight: 700; padding: 0.25rem 0.75rem; background: #059669; border: none; color: #fff; border-radius: 4px; cursor: pointer;">
+            💾 Save All
+        </button>
+    </div>
 </div>
 
 <!-- ATTACHED SCREENSHOT HEADER BLOCK (EXACT REPLICA) -->
@@ -279,7 +287,7 @@
                     <th class="num-col" style="font-weight: 800; color: #0f172a; padding: 0.75rem 0.85rem;">Balance emp</th>
                     <th class="num-col" style="font-weight: 800; color: #0f172a; padding: 0.75rem 0.85rem;">Balance com</th>
                     <th class="num-col" style="font-weight: 800; color: #0f172a; padding: 0.75rem 0.85rem;">Total balance</th>
-                    <th class="no-print" style="width: 45px; text-align: center; color: #94a3b8; font-size: 0.8rem;">Action</th>
+                    <th class="no-print" style="width: 125px; text-align: center; color: #0f172a; font-weight: 800; font-size: 0.85rem; padding: 0.75rem 0.5rem;">Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -365,10 +373,17 @@
                             <td class="num-col {% if r.total_balance > 0 %}bal-pos{% else %}bal-zero{% endif %}" id="tot_bal_{{ r.id }}" style="font-family: 'Calibri', sans-serif; font-weight: 700; padding: 0.45rem 0.85rem;">
                                 {{ "{:,.2f}".format(r.total_balance) if r.total_balance > 0 else '-' }}
                             </td>
-                            <!-- Action / Delete -->
-                            <td class="no-print" style="text-align: center; padding: 0.35rem 0.45rem;">
+                            <!-- Action / Save & Delete -->
+                            <td class="no-print" style="text-align: center; padding: 0.35rem 0.45rem; white-space: nowrap;">
+                                <button type="button" 
+                                        class="btn-row-update" 
+                                        id="btn_update_{{ r.id }}" 
+                                        onclick="saveEntireRow({{ r.id }})" 
+                                        title="Save & update this row in main database">
+                                    💾 Update
+                                </button>
                                 <form method="POST" action="{{ url_for('delete_fund_record', record_id=r.id) }}" style="display: inline;" onsubmit="return confirm('Delete record for {{ r.month_display }}?');">
-                                    <button type="submit" class="btn-icon-subtle" title="Delete record">🗑️</button>
+                                    <button type="submit" class="btn-icon-subtle" title="Delete record" style="margin-left: 4px;">🗑️</button>
                                 </form>
                             </td>
                         </tr>
@@ -905,7 +920,7 @@ function autoSetRepaymentStart() {
 }
 
 // -----------------------------------------------------------------------------
-// SPREADSHEET INLINE CELL EDITING ENGINE
+// SPREADSHEET INLINE CELL EDITING & DATABASE PERSISTENCE ENGINE
 // -----------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', function() {
     const editableCells = document.querySelectorAll('.spreadsheet-cell');
@@ -963,6 +978,13 @@ document.addEventListener('DOMContentLoaded', function() {
             input.select();
         }
 
+        // Live input detection to mark row dirty immediately
+        input.addEventListener('input', function() {
+            if (input.value.trim() !== cell.dataset.originalVal) {
+                markRowDirty(cell.dataset.recordId);
+            }
+        });
+
         let isSaved = false;
 
         const commit = async (moveRow = 0, moveCol = 0) => {
@@ -973,6 +995,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const field = cell.dataset.field;
 
             if (newVal !== cell.dataset.originalVal) {
+                markRowDirty(recordId);
                 await saveSpreadsheetCell(cell, recordId, field, newVal);
             } else {
                 cell.innerText = cell.dataset.originalDisplay;
@@ -1018,7 +1041,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (cell.classList.contains('editing')) {
                     commit(0, 0);
                 }
-            }, 100);
+            }, 120);
         });
     }
 
@@ -1046,7 +1069,7 @@ document.addEventListener('DOMContentLoaded', function() {
         cell.innerText = displayVal;
         cell.classList.remove('editing');
 
-        showStatusIndicator('Saving...');
+        showStatusIndicator('Saving to database...');
 
         try {
             const resp = await fetch(`/payroll/fund-contributions/record/${recordId}/update-inline`, {
@@ -1057,65 +1080,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await resp.json();
 
             if (data.success) {
-                // Flash success on updated cell
                 cell.classList.add('cell-flash');
                 setTimeout(() => cell.classList.remove('cell-flash'), 1200);
 
-                // 1. Update row balances
-                if (data.row_updates) {
-                    for (const [id, r] of Object.entries(data.row_updates)) {
-                        const elEmp = document.getElementById(`bal_emp_${id}`);
-                        const elCom = document.getElementById(`bal_com_${id}`);
-                        const elTot = document.getElementById(`tot_bal_${id}`);
-                        if (elEmp) elEmp.innerText = r.balance_emp > 0 ? formatMoney(r.balance_emp) : '-';
-                        if (elCom) elCom.innerText = r.balance_com > 0 ? formatMoney(r.balance_com) : '-';
-                        if (elTot) {
-                            elTot.innerText = r.total_balance > 0 ? formatMoney(r.total_balance) : '-';
-                            elTot.style.color = r.total_balance > 0 ? '#059669' : '#94a3b8';
-                        }
-                    }
-                }
-
-                // 2. Update year subtotals
-                if (data.year_subtotals) {
-                    for (const [y, s] of Object.entries(data.year_subtotals)) {
-                        updateElemText(`sub_emp_${y}`, s.emp_share);
-                        updateElemText(`sub_comp_${y}`, s.comp_share);
-                        updateElemText(`sub_loan_${y}`, s.loan);
-                        updateElemText(`sub_return_${y}`, s.loan_return);
-                        updateElemText(`sub_withdrawal_${y}`, s.withdrawal);
-                        updateElemText(`sub_adjustment_${y}`, s.adjustment);
-                        updateElemText(`sub_bal_emp_${y}`, s.balance_emp);
-                        updateElemText(`sub_bal_com_${y}`, s.balance_com);
-                        updateElemText(`sub_tot_bal_${y}`, s.total_balance);
-                    }
-                }
-
-                // 3. Update KPIs & Grand Totals
-                if (data.kpis) {
-                    const k = data.kpis;
-                    setKpiValue('kpi_tot_emp', k.tot_emp);
-                    setKpiValue('kpi_tot_comp', k.tot_comp);
-                    setKpiValue('kpi_tot_loan', k.tot_loan);
-                    setKpiValue('kpi_tot_return', k.tot_return);
-                    setKpiValue('kpi_tot_withdrawal', k.tot_withdrawal);
-                    setKpiValue('kpi_outstanding_loan', k.outstanding_loan);
-                    setKpiValue('kpi_total_balance', k.total_balance);
-
-                    updateElemText('grand_emp', k.tot_emp, true);
-                    updateElemText('grand_comp', k.tot_comp, true);
-                    updateElemText('grand_loan', k.tot_loan, true);
-                    updateElemText('grand_return', k.tot_return, true);
-                    updateElemText('grand_withdrawal', k.tot_withdrawal, true);
-                    updateElemText('grand_adjustment', k.tot_adjustment, true);
-                    updateElemText('grand_bal_emp', k.balance_emp, true);
-                    updateElemText('grand_bal_com', k.balance_com, true);
-                    updateElemText('grand_tot_bal', k.total_balance, true);
-                }
-
+                applyFundUpdatesToDom(data);
+                clearRowDirty(recordId);
                 showStatusIndicator('✓ Saved & Recalculated');
             } else {
-                alert('Update failed: ' + data.message);
+                alert('Update failed: ' + (data.message || 'Error'));
                 cell.innerText = cell.dataset.originalDisplay;
             }
         } catch (err) {
@@ -1124,6 +1096,304 @@ document.addEventListener('DOMContentLoaded', function() {
             cell.innerText = cell.dataset.originalDisplay;
         }
     }
+
+    // Helper to extract numeric values of all 6 editable cells in a row
+    window.getRowValues = function(recordId) {
+        const row = document.getElementById(`row_${recordId}`);
+        if (!row) return null;
+        const cells = row.querySelectorAll('.spreadsheet-cell[data-field]');
+        const values = {};
+        cells.forEach(c => {
+            const field = c.dataset.field;
+            const input = c.querySelector('input');
+            let rawVal = input ? input.value : c.innerText;
+            rawVal = (rawVal || '0').replace(/,/g, '').trim();
+            if (rawVal === '-' || rawVal === '') rawVal = '0';
+            values[field] = parseFloat(rawVal) || 0.0;
+        });
+        return values;
+    };
+
+    // Mark a row as containing uncommitted edits
+    window.markRowDirty = function(recordId) {
+        const row = document.getElementById(`row_${recordId}`);
+        if (row) {
+            row.classList.add('is-dirty-row');
+        }
+        const btn = document.getElementById(`btn_update_${recordId}`);
+        if (btn && !btn.classList.contains('is-saved-btn')) {
+            btn.classList.add('is-dirty-btn');
+            btn.innerHTML = '💾 Update*';
+        }
+        updateDirtyCounter();
+    };
+
+    // Clear dirty status of a row
+    window.clearRowDirty = function(recordId) {
+        const row = document.getElementById(`row_${recordId}`);
+        if (row) {
+            row.classList.remove('is-dirty-row');
+        }
+        const btn = document.getElementById(`btn_update_${recordId}`);
+        if (btn) {
+            btn.classList.remove('is-dirty-btn');
+            btn.innerHTML = '💾 Update';
+        }
+        updateDirtyCounter();
+    };
+
+    function updateDirtyCounter() {
+        const dirtyRows = document.querySelectorAll('tr[id^="row_"].is-dirty-row');
+        const btnAll = document.getElementById('btnSaveAllChanges');
+        if (btnAll) {
+            if (dirtyRows.length > 0) {
+                btnAll.innerHTML = `💾 Save & Update All (${dirtyRows.length})`;
+                btnAll.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.45)';
+            } else {
+                btnAll.innerHTML = '💾 Save & Update All';
+                btnAll.style.boxShadow = '0 4px 12px rgba(5, 150, 105, 0.3)';
+            }
+        }
+    }
+
+    // Apply backend calculations to DOM (rows, subtotals, grand totals, KPIs)
+    window.applyFundUpdatesToDom = function(data) {
+        // 1. Update row balances
+        if (data.row_updates) {
+            for (const [id, r] of Object.entries(data.row_updates)) {
+                const elEmp = document.getElementById(`bal_emp_${id}`);
+                const elCom = document.getElementById(`bal_com_${id}`);
+                const elTot = document.getElementById(`tot_bal_${id}`);
+                if (elEmp) elEmp.innerText = r.balance_emp > 0 ? formatMoney(r.balance_emp) : '-';
+                if (elCom) elCom.innerText = r.balance_com > 0 ? formatMoney(r.balance_com) : '-';
+                if (elTot) {
+                    elTot.innerText = r.total_balance > 0 ? formatMoney(r.total_balance) : '-';
+                    elTot.style.color = r.total_balance > 0 ? '#059669' : '#94a3b8';
+                }
+            }
+        }
+
+        // 2. Update year subtotals
+        if (data.year_subtotals) {
+            for (const [y, s] of Object.entries(data.year_subtotals)) {
+                updateElemText(`sub_emp_${y}`, s.emp_share);
+                updateElemText(`sub_comp_${y}`, s.comp_share);
+                updateElemText(`sub_loan_${y}`, s.loan);
+                updateElemText(`sub_return_${y}`, s.loan_return);
+                updateElemText(`sub_withdrawal_${y}`, s.withdrawal);
+                updateElemText(`sub_adjustment_${y}`, s.adjustment);
+                updateElemText(`sub_bal_emp_${y}`, s.balance_emp);
+                updateElemText(`sub_bal_com_${y}`, s.balance_com);
+                updateElemText(`sub_tot_bal_${y}`, s.total_balance);
+            }
+        }
+
+        // 3. Update KPIs & Grand Totals
+        if (data.kpis) {
+            const k = data.kpis;
+            setKpiValue('kpi_tot_emp', k.tot_emp);
+            setKpiValue('kpi_tot_comp', k.tot_comp);
+            setKpiValue('kpi_tot_loan', k.tot_loan);
+            setKpiValue('kpi_tot_return', k.tot_return);
+            setKpiValue('kpi_tot_withdrawal', k.tot_withdrawal);
+            setKpiValue('kpi_outstanding_loan', k.outstanding_loan);
+            setKpiValue('kpi_total_balance', k.total_balance);
+
+            updateElemText('grand_emp', k.tot_emp, true);
+            updateElemText('grand_comp', k.tot_comp, true);
+            updateElemText('grand_loan', k.tot_loan, true);
+            updateElemText('grand_return', k.tot_return, true);
+            updateElemText('grand_withdrawal', k.tot_withdrawal, true);
+            updateElemText('grand_adjustment', k.tot_adjustment, true);
+            updateElemText('grand_bal_emp', k.balance_emp, true);
+            updateElemText('grand_bal_com', k.balance_com, true);
+            updateElemText('grand_tot_bal', k.total_balance, true);
+        }
+    };
+
+    // Save entire single row directly to database
+    window.saveEntireRow = async function(recordId) {
+        const btn = document.getElementById(`btn_update_${recordId}`);
+        const row = document.getElementById(`row_${recordId}`);
+        if (!btn || !row) return;
+
+        // Blur any active input inside this row
+        const activeInput = row.querySelector('.spreadsheet-input');
+        if (activeInput) {
+            activeInput.blur();
+        }
+
+        const originalBtnHtml = btn.innerHTML;
+        btn.innerHTML = '⏳ Saving...';
+        btn.disabled = true;
+
+        const values = getRowValues(recordId);
+        if (!values) {
+            btn.innerHTML = originalBtnHtml;
+            btn.disabled = false;
+            return;
+        }
+
+        showStatusIndicator('Saving row to main database...');
+
+        try {
+            const resp = await fetch(`/payroll/fund-contributions/record/${recordId}/update-inline`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(values)
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                applyFundUpdatesToDom(data);
+                clearRowDirty(recordId);
+
+                btn.innerHTML = '✓ Saved!';
+                btn.classList.add('is-saved-btn');
+
+                row.querySelectorAll('.spreadsheet-cell').forEach(c => {
+                    c.classList.add('cell-flash');
+                    setTimeout(() => c.classList.remove('cell-flash'), 1200);
+                });
+
+                showFloatingNotification('✓ Successfully saved & updated in main database!', 'success');
+                showStatusIndicator('✓ Saved to Main Database');
+
+                setTimeout(() => {
+                    btn.innerHTML = '💾 Update';
+                    btn.classList.remove('is-saved-btn');
+                    btn.disabled = false;
+                }, 1800);
+            } else {
+                alert('Save failed: ' + (data.message || 'Unknown error'));
+                btn.innerHTML = originalBtnHtml;
+                btn.disabled = false;
+            }
+        } catch (err) {
+            console.error('Error saving row:', err);
+            alert('Network error while saving to database.');
+            btn.innerHTML = originalBtnHtml;
+            btn.disabled = false;
+        }
+    };
+
+    // Save all dirty rows (or whole sheet) to database in one batch request
+    window.saveAllChangesToDatabase = async function() {
+        const btn = document.getElementById('btnSaveAllChanges');
+        const allRows = document.querySelectorAll('tr[id^="row_"]');
+        if (!allRows.length) {
+            alert('No records available to save.');
+            return;
+        }
+
+        // Blur any active input
+        const activeInput = document.querySelector('.spreadsheet-input');
+        if (activeInput) {
+            activeInput.blur();
+        }
+
+        const dirtyRows = document.querySelectorAll('tr[id^="row_"].is-dirty-row');
+        const rowsToProcess = dirtyRows.length > 0 ? dirtyRows : allRows;
+
+        const payloadRows = [];
+        rowsToProcess.forEach(row => {
+            const recId = row.id.replace('row_', '');
+            const values = getRowValues(recId);
+            if (values) {
+                values.id = parseInt(recId);
+                payloadRows.push(values);
+            }
+        });
+
+        if (payloadRows.length === 0) {
+            showFloatingNotification('All records are already up to date!', 'info');
+            return;
+        }
+
+        const originalBtnText = btn.innerHTML;
+        btn.innerHTML = '⏳ Saving All to DB...';
+        btn.disabled = true;
+        showStatusIndicator('Saving records to main database...');
+
+        try {
+            const empCode = '{{ employee.employee_id or employee.id }}';
+            const resp = await fetch(`/payroll/fund-contributions/employee/${empCode}/batch-update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rows: payloadRows })
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                applyFundUpdatesToDom(data);
+
+                // Clear dirty flags
+                document.querySelectorAll('.is-dirty-row').forEach(r => r.classList.remove('is-dirty-row'));
+                document.querySelectorAll('.btn-row-update').forEach(b => {
+                    b.classList.remove('is-dirty-btn');
+                    b.innerHTML = '💾 Update';
+                });
+                updateDirtyCounter();
+
+                btn.innerHTML = '✓ All Saved to DB!';
+                btn.style.background = '#047857';
+
+                showFloatingNotification(`✓ Successfully saved & updated ${payloadRows.length} record(s) in main database!`, 'success');
+                showStatusIndicator('✓ All records saved & updated in main database');
+
+                setTimeout(() => {
+                    btn.innerHTML = '💾 Save & Update All';
+                    btn.style.background = '';
+                    btn.disabled = false;
+                }, 2500);
+            } else {
+                alert('Batch save failed: ' + (data.message || 'Unknown error'));
+                btn.innerHTML = originalBtnText;
+                btn.disabled = false;
+            }
+        } catch (err) {
+            console.error('Error during batch save:', err);
+            alert('Network error while saving records to database.');
+            btn.innerHTML = originalBtnText;
+            btn.disabled = false;
+        }
+    };
+
+    // Floating Toast Notification
+    window.showFloatingNotification = function(msg, type = 'success') {
+        let container = document.getElementById('fundToastContainer');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'fundToastContainer';
+            container.style.cssText = 'position: fixed; bottom: 24px; right: 24px; z-index: 99999; display: flex; flex-direction: column; gap: 8px; pointer-events: none;';
+            document.body.appendChild(container);
+        }
+        const toast = document.createElement('div');
+        const isSuccess = type === 'success';
+        toast.className = 'fund-toast';
+        toast.style.cssText = `
+            background: ${isSuccess ? 'linear-gradient(135deg, #065f46 0%, #047857 100%)' : '#1e293b'};
+            color: #ffffff;
+            padding: 0.85rem 1.35rem;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.35);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.92rem;
+            font-weight: 700;
+            min-width: 300px;
+            border: 1px solid rgba(255,255,255,0.25);
+            animation: toastSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: auto;
+        `;
+        toast.innerHTML = `<span style="font-size: 1.25rem;">${isSuccess ? '✅' : 'ℹ️'}</span><span>${msg}</span>`;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.animation = 'toastFadeOut 0.4s forwards';
+            setTimeout(() => toast.remove(), 400);
+        }, 3800);
+    };
 
     function formatMoney(val) {
         return Number(val).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -1242,6 +1512,57 @@ document.addEventListener('DOMContentLoaded', function() {
 .btn-icon-subtle:hover {
     opacity: 1;
     transform: scale(1.15);
+}
+
+/* ROW UPDATE & DIRTY STATE STYLES */
+.btn-row-update {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.22rem 0.55rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #047857;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.btn-row-update:hover {
+    background: #10b981;
+    color: #ffffff;
+    border-color: #059669;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.35);
+}
+.btn-row-update.is-dirty-btn {
+    background: #fef3c7 !important;
+    color: #b45309 !important;
+    border-color: #fde68a !important;
+    animation: pulseDirty 1.5s infinite;
+}
+.btn-row-update.is-saved-btn {
+    background: #059669 !important;
+    color: #ffffff !important;
+    border-color: #047857 !important;
+}
+.is-dirty-row {
+    background-color: #fffbeb !important;
+    transition: background-color 0.2s;
+}
+@keyframes pulseDirty {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.45); }
+    50% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15); }
+}
+
+/* FLOATING TOAST NOTIFICATION */
+@keyframes toastSlideIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toastFadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(20px); }
 }
 
 /* MODAL STYLES */

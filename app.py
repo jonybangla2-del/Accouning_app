@@ -12121,130 +12121,219 @@ def export_employee_fund_excel(emp_id):
 # SPREADSHEET INLINE EDITING & RESIGNATION SETTLEMENT ROUTES
 # ------------------------------------------------------------------------------
 
+def _get_fund_records_for_emp(emp_key):
+    """Helper to fetch chronological fund records for an employee."""
+    key_str = str(emp_key).strip()
+    emp = Employee.query.filter_by(employee_id=key_str).first()
+    if not emp and key_str.isdigit():
+        emp = Employee.query.get(int(key_str))
+        
+    if emp:
+        records = EmployeeFundContribution.query.filter(
+            (EmployeeFundContribution.emp_code == emp.employee_id) | 
+            (EmployeeFundContribution.employee_id == emp.id) |
+            (EmployeeFundContribution.emp_code == key_str)
+        ).order_by(EmployeeFundContribution.contribution_date.asc(), EmployeeFundContribution.id.asc()).all()
+    else:
+        records = EmployeeFundContribution.query.filter(
+            (EmployeeFundContribution.emp_code == key_str) |
+            (EmployeeFundContribution.employee_id == int(key_str) if key_str.isdigit() else False)
+        ).order_by(EmployeeFundContribution.contribution_date.asc(), EmployeeFundContribution.id.asc()).all()
+    return records
+
+
+def _build_fund_recalc_json(records, extra=None):
+    """Helper to build consistent updated ledger json for live DOM recalculations."""
+    tot_emp = sum(r.employee_share or 0.0 for r in records)
+    tot_comp = sum(r.employer_share or 0.0 for r in records)
+    tot_loan = sum(r.loan_amount or 0.0 for r in records)
+    tot_return = sum(r.loan_return or 0.0 for r in records)
+    tot_withdrawal = sum(r.withdrawal or 0.0 for r in records)
+    tot_adjustment = sum(r.adjustment or 0.0 for r in records)
+    outstanding = max(0.0, round(tot_loan - tot_return, 2))
+    final_bal_emp = records[-1].balance_emp if records else 0.0
+    final_bal_com = records[-1].balance_com if records else 0.0
+    final_total = records[-1].cumulative_balance if records else 0.0
+    
+    row_updates = {}
+    for r in records:
+        row_updates[r.id] = {
+            'emp_share': r.employee_share or 0.0,
+            'comp_share': r.employer_share or 0.0,
+            'loan': r.loan_amount or 0.0,
+            'loan_return': r.loan_return or 0.0,
+            'withdrawal': r.withdrawal or 0.0,
+            'adjustment': r.adjustment or 0.0,
+            'balance_emp': r.balance_emp or 0.0,
+            'balance_com': r.balance_com or 0.0,
+            'total_balance': r.cumulative_balance or 0.0
+        }
+        
+    year_subtotals = {}
+    year_map = {}
+    for r in records:
+        y = extract_fund_year(r.contribution_month, r.contribution_date)
+        if y not in year_map:
+            year_map[y] = []
+        year_map[y].append(r)
+    for y, y_recs in year_map.items():
+        year_subtotals[y] = {
+            'emp_share': sum(r.employee_share or 0.0 for r in y_recs),
+            'comp_share': sum(r.employer_share or 0.0 for r in y_recs),
+            'loan': sum(r.loan_amount or 0.0 for r in y_recs),
+            'loan_return': sum(r.loan_return or 0.0 for r in y_recs),
+            'withdrawal': sum(r.withdrawal or 0.0 for r in y_recs),
+            'adjustment': sum(r.adjustment or 0.0 for r in y_recs),
+            'balance_emp': y_recs[-1].balance_emp or 0.0,
+            'balance_com': y_recs[-1].balance_com or 0.0,
+            'total_balance': y_recs[-1].cumulative_balance or 0.0
+        }
+
+    res = {
+        'success': True,
+        'row_updates': row_updates,
+        'year_subtotals': year_subtotals,
+        'kpis': {
+            'tot_emp': tot_emp,
+            'tot_comp': tot_comp,
+            'tot_loan': tot_loan,
+            'tot_return': tot_return,
+            'tot_withdrawal': tot_withdrawal,
+            'tot_adjustment': tot_adjustment,
+            'outstanding_loan': outstanding,
+            'balance_emp': final_bal_emp,
+            'balance_com': final_bal_com,
+            'total_balance': final_total
+        }
+    }
+    if extra:
+        res.update(extra)
+    return jsonify(res)
+
+
 @app.route('/payroll/fund-contributions/record/<int:record_id>/update-inline', methods=['POST'])
 def update_fund_record_inline(record_id):
     """
-    Spreadsheet-style inline cell edit endpoint.
+    Spreadsheet-style inline cell edit or full row edit endpoint.
     Recalculates balances across the ledger and returns JSON for real-time UI updates.
     """
     rec = EmployeeFundContribution.query.get_or_404(record_id)
     data = request.get_json(silent=True) or request.form
     
-    field = (data.get('field') or '').strip()
-    val_raw = data.get('value')
-    
     allowed_fields = [
         'employee_share', 'employer_share', 'loan_amount', 
         'loan_return', 'withdrawal', 'adjustment', 'remarks'
     ]
-    if field not in allowed_fields:
-        return jsonify({'success': False, 'message': f'Invalid field: {field}'}), 400
-        
+    
+    field = (data.get('field') or '').strip()
+    val_raw = data.get('value')
+    
     try:
-        if field == 'remarks':
-            setattr(rec, field, str(val_raw or '').strip())
+        if field:
+            # Single field update
+            if field not in allowed_fields:
+                return jsonify({'success': False, 'message': f'Invalid field: {field}'}), 400
+            if field == 'remarks':
+                setattr(rec, field, str(val_raw or '').strip())
+            else:
+                try:
+                    num_val = float(str(val_raw).replace(',', '').strip() or 0.0)
+                except ValueError:
+                    return jsonify({'success': False, 'message': 'Invalid numeric value'}), 400
+                if num_val < 0:
+                    return jsonify({'success': False, 'message': 'Amount cannot be negative'}), 400
+                setattr(rec, field, round(num_val, 2))
         else:
-            try:
-                num_val = float(str(val_raw).replace(',', '').strip() or 0.0)
-            except ValueError:
-                return jsonify({'success': False, 'message': 'Invalid numeric value'}), 400
-            if num_val < 0:
-                return jsonify({'success': False, 'message': 'Amount cannot be negative'}), 400
-            setattr(rec, field, round(num_val, 2))
-            
+            # Full row or multi-field update
+            values_dict = data.get('values') if isinstance(data.get('values'), dict) else data
+            updated_any = False
+            for f in allowed_fields:
+                if f in values_dict:
+                    val_item = values_dict[f]
+                    if f == 'remarks':
+                        setattr(rec, f, str(val_item or '').strip())
+                        updated_any = True
+                    else:
+                        try:
+                            num_val = float(str(val_item).replace(',', '').strip() or 0.0)
+                        except (ValueError, TypeError):
+                            continue
+                        if num_val >= 0:
+                            setattr(rec, f, round(num_val, 2))
+                            updated_any = True
+            if not updated_any:
+                return jsonify({'success': False, 'message': 'No valid fields provided to update'}), 400
+
         db.session.commit()
         
         # Recalculate balances for this employee
         emp_key = rec.emp_code or str(rec.employee_id)
         recalculate_employee_fund_balances(emp_key)
         
-        # Reload updated records to return fresh data for live UI update
-        emp = Employee.query.filter_by(employee_id=emp_key).first()
-        if not emp and emp_key.isdigit():
-            emp = Employee.query.get(int(emp_key))
-            
-        if emp:
-            records = EmployeeFundContribution.query.filter(
-                (EmployeeFundContribution.emp_code == emp.employee_id) | 
-                (EmployeeFundContribution.employee_id == emp.id) |
-                (EmployeeFundContribution.emp_code == emp_key)
-            ).order_by(EmployeeFundContribution.contribution_date.asc(), EmployeeFundContribution.id.asc()).all()
-        else:
-            records = EmployeeFundContribution.query.filter(
-                (EmployeeFundContribution.emp_code == emp_key) |
-                (EmployeeFundContribution.employee_id == int(emp_key) if emp_key.isdigit() else False)
-            ).order_by(EmployeeFundContribution.contribution_date.asc(), EmployeeFundContribution.id.asc()).all()
-            
-        tot_emp = sum(r.employee_share or 0.0 for r in records)
-        tot_comp = sum(r.employer_share or 0.0 for r in records)
-        tot_loan = sum(r.loan_amount or 0.0 for r in records)
-        tot_return = sum(r.loan_return or 0.0 for r in records)
-        tot_withdrawal = sum(r.withdrawal or 0.0 for r in records)
-        tot_adjustment = sum(r.adjustment or 0.0 for r in records)
-        outstanding = max(0.0, round(tot_loan - tot_return, 2))
-        final_bal_emp = records[-1].balance_emp if records else 0.0
-        final_bal_com = records[-1].balance_com if records else 0.0
-        final_total = records[-1].cumulative_balance if records else 0.0
-        
-        # Map of updated row balances
-        row_updates = {}
-        for r in records:
-            row_updates[r.id] = {
-                'emp_share': r.employee_share or 0.0,
-                'comp_share': r.employer_share or 0.0,
-                'loan': r.loan_amount or 0.0,
-                'loan_return': r.loan_return or 0.0,
-                'withdrawal': r.withdrawal or 0.0,
-                'adjustment': r.adjustment or 0.0,
-                'balance_emp': r.balance_emp or 0.0,
-                'balance_com': r.balance_com or 0.0,
-                'total_balance': r.cumulative_balance or 0.0
-            }
-            
-        # Recompute year subtotals
-        year_subtotals = {}
-        year_map = {}
-        for r in records:
-            y = extract_fund_year(r.contribution_month, r.contribution_date)
-            if y not in year_map:
-                year_map[y] = []
-            year_map[y].append(r)
-        for y, y_recs in year_map.items():
-            year_subtotals[y] = {
-                'emp_share': sum(r.employee_share or 0.0 for r in y_recs),
-                'comp_share': sum(r.employer_share or 0.0 for r in y_recs),
-                'loan': sum(r.loan_amount or 0.0 for r in y_recs),
-                'loan_return': sum(r.loan_return or 0.0 for r in y_recs),
-                'withdrawal': sum(r.withdrawal or 0.0 for r in y_recs),
-                'adjustment': sum(r.adjustment or 0.0 for r in y_recs),
-                'balance_emp': y_recs[-1].balance_emp or 0.0,
-                'balance_com': y_recs[-1].balance_com or 0.0,
-                'total_balance': y_recs[-1].cumulative_balance or 0.0
-            }
-
-        return jsonify({
-            'success': True,
-            'message': 'Record updated successfully',
+        records = _get_fund_records_for_emp(emp_key)
+        return _build_fund_recalc_json(records, {
             'record_id': record_id,
-            'row_updates': row_updates,
-            'year_subtotals': year_subtotals,
-            'kpis': {
-                'tot_emp': tot_emp,
-                'tot_comp': tot_comp,
-                'tot_loan': tot_loan,
-                'tot_return': tot_return,
-                'tot_withdrawal': tot_withdrawal,
-                'tot_adjustment': tot_adjustment,
-                'outstanding_loan': outstanding,
-                'balance_emp': final_bal_emp,
-                'balance_com': final_bal_com,
-                'total_balance': final_total
-            }
+            'message': '✓ Saved & updated in main database'
         })
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
 
+
+@app.route('/payroll/fund-contributions/employee/<string:emp_id>/batch-update', methods=['POST'])
+def batch_update_employee_fund_rows(emp_id):
+    """
+    Batch update multiple employee fund contribution rows at once.
+    Saves all modified rows directly to SQLite database and recalculates cumulative balances.
+    """
+    data = request.get_json(silent=True) or {}
+    rows = data.get('rows', [])
+    if not rows:
+        return jsonify({'success': False, 'message': 'No rows provided to update'}), 400
+        
+    allowed_fields = [
+        'employee_share', 'employer_share', 'loan_amount', 
+        'loan_return', 'withdrawal', 'adjustment', 'remarks'
+    ]
+    
+    try:
+        updated_count = 0
+        for row_data in rows:
+            rec_id = row_data.get('id')
+            if not rec_id:
+                continue
+            rec = EmployeeFundContribution.query.get(rec_id)
+            if not rec:
+                continue
+            
+            for f in allowed_fields:
+                if f in row_data:
+                    val_raw = row_data[f]
+                    if f == 'remarks':
+                        setattr(rec, f, str(val_raw or '').strip())
+                    else:
+                        try:
+                            num_val = float(str(val_raw).replace(',', '').strip() or 0.0)
+                            if num_val >= 0:
+                                setattr(rec, f, round(num_val, 2))
+                        except (ValueError, TypeError):
+                            pass
+            updated_count += 1
+            
+        db.session.commit()
+        
+        # Recalculate balances for this employee
+        emp_key = str(emp_id).strip()
+        recalculate_employee_fund_balances(emp_key)
+        
+        records = _get_fund_records_for_emp(emp_key)
+        return _build_fund_recalc_json(records, {
+            'updated_count': updated_count,
+            'message': f'✓ Successfully saved {updated_count} record(s) to main database'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/payroll/fund-contributions/employee/<string:emp_id>/add-row', methods=['POST'])
 def add_employee_fund_row(emp_id):
