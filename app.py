@@ -12466,11 +12466,11 @@ def update_employee_fund_summary():
     desig = emp.designation if emp else (first_cf.designation if first_cf else "Staff Member")
     emp_db_id = emp.id if emp else (first_cf.employee_id if first_cf else None)
 
-    # Current totals before adjustments
-    current_emp_share_sum = sum(r.employee_share or 0.0 for r in existing_cfs)
-    current_comp_share_sum = sum(r.employer_share or 0.0 for r in existing_cfs)
+    # Current base contribution totals
+    current_emp_share_sum = sum(r.employee_share or 0.0 for r in existing_cfs if (r.withdrawal == 0 and r.adjustment == 0))
+    current_comp_share_sum = sum(r.employer_share or 0.0 for r in existing_cfs if (r.withdrawal == 0 and r.adjustment == 0))
 
-    # 1. Deposit Adjustments or Direct Target Total
+    # 1. Deposit Adjustments or Direct Target Total (Excel Inline Editing)
     try:
         emp_share_adj = float(str(data.get('emp_share_adj', 0.0) or 0.0).replace(',', '').strip())
     except ValueError:
@@ -12682,7 +12682,7 @@ def update_employee_fund_summary():
     new_balance = updated_records[-1].cumulative_balance if updated_records else 0.0
 
     if is_ajax:
-        # Compute global summary totals across all employees
+        # Compute global summary totals across all employees for real-time live update
         all_all_cfs = EmployeeFundContribution.query.all()
         emp_last_bal_map = {}
         for c in EmployeeFundContribution.query.order_by(EmployeeFundContribution.contribution_date.asc(), EmployeeFundContribution.id.asc()).all():
@@ -12697,7 +12697,7 @@ def update_employee_fund_summary():
 
         return jsonify({
             'success': True,
-            'message': f"Fund records and settlement updated successfully for {emp_name}. Statement recalculated.",
+            'message': f"Fund records updated for {emp_name} (ID: {emp_code}). Balance: ৳{new_balance:,.2f}.",
             'emp_code': emp_code,
             'emp_tot': new_emp_tot,
             'comp_tot': new_comp_tot,

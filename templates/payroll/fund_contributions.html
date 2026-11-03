@@ -162,6 +162,14 @@
             <button type="button" class="btn btn-sm btn-fund-filter" data-status="active" onclick="setFundFilter('active', this)" style="border-radius: 20px; font-size: 0.78rem; font-weight: 600; padding: 0.25rem 0.75rem; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;">
                 🔵 Active / Unwithdrawn ({{ count_active }})
             </button>
+
+            <!-- Save All Changes Button (enabled when rows are edited) -->
+            <button type="button" class="btn btn-sm" id="btnSaveAllChanges" onclick="saveAllDirtyRows()" style="display: none; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; font-weight: 700; border: none; padding: 0.25rem 0.75rem; border-radius: 20px; box-shadow: 0 2px 6px rgba(5,150,105,0.3); cursor: pointer;">
+                💾 Save All Changes (0)
+            </button>
+            <button type="button" class="btn btn-outline btn-sm" id="btnDiscardAll" onclick="discardAllDirtyRows()" style="display: none; border-radius: 20px; font-size: 0.78rem; font-weight: 600; padding: 0.25rem 0.65rem;">
+                ✕ Discard
+            </button>
         </div>
         <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
             <div id="fundRowCount" style="font-size: 0.82rem; color: var(--text-muted); font-weight: 600;">
@@ -192,21 +200,21 @@
 
     <!-- Table -->
     <div class="table-responsive" id="fundTableScrollContainer" style="overflow-x: auto; position: relative;">
-                <table class="table" id="fundReportTable">
+                        <table class="table" id="fundReportTable">
             <thead>
                 <tr style="background: #f8fafc; border-bottom: 2px solid #cbd5e1;">
-                    <th style="width: 65px; text-align: center;">Emp ID</th>
-                    <th style="min-width: 170px;">Employee Name &amp; Dept</th>
-                    <th class="num-col" style="color: #2563eb;">Emp Joma (৳)</th>
-                    <th class="num-col" style="color: #7c3aed;">Com Joma (৳)</th>
-                    <th class="num-col">Total Joma (৳)</th>
-                    <th class="num-col" style="color: #7e22ce;">Withdrawn (৳)</th>
-                    <th class="num-col" style="color: #b91c1c;">Forfeited (৳)</th>
-                    <th class="num-col" style="color: #047857; background: #ecfdf5; font-size: 0.95rem; font-weight: 800; border-left: 1.5px solid #a7f3d0; border-right: 1.5px solid #a7f3d0; min-width: 140px;">
+                    <th style="width: 60px; text-align: center;">Emp ID</th>
+                    <th style="min-width: 160px;">Employee Name &amp; Dept</th>
+                    <th class="num-col" style="color: #2563eb; width: 125px;">Emp Joma (৳) ✏️</th>
+                    <th class="num-col" style="color: #7c3aed; width: 125px;">Com Joma (৳) ✏️</th>
+                    <th class="num-col" style="width: 115px;">Total Joma (৳)</th>
+                    <th class="num-col" style="color: #7e22ce; width: 110px;">Withdrawn (৳) ✏️</th>
+                    <th class="num-col" style="color: #b91c1c; width: 110px;">Forfeited (৳) ✏️</th>
+                    <th class="num-col" style="color: #047857; background: #ecfdf5; font-size: 0.95rem; font-weight: 800; border-left: 1.5px solid #a7f3d0; border-right: 1.5px solid #a7f3d0; width: 135px;">
                         ⭐ Net Balance (৳)
                     </th>
-                    <th style="text-align: center; width: 140px;">Withdrawal Status</th>
-                    <th style="width: 140px; text-align: center;" class="no-print sticky-action-col">Edit / Actions</th>
+                    <th style="text-align: center; width: 145px;">Withdrawal Status ✏️</th>
+                    <th style="width: 140px; text-align: center;" class="no-print sticky-action-col">Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -236,56 +244,129 @@
                                 {{ item.employee.department }} &bull; {{ item.employee.designation }}
                             </div>
                         </td>
-                        <td class="num-col font-mono" id="row_emp_{{ item.employee.employee_id }}" style="color: #2563eb; font-weight: 600;">
-                            ৳{{ "{:,.2f}".format(item.emp_share) }}
+                        
+                        <!-- Emp Joma (Direct Excel Editable) -->
+                        <td class="num-col font-mono" style="padding: 3px 5px;">
+                            <div class="excel-cell-box">
+                                <span class="excel-curr" style="color: #2563eb;">৳</span>
+                                <input type="text" 
+                                    class="excel-cell-input emp-input" 
+                                    id="cell_emp_{{ item.employee.employee_id }}" 
+                                    value="{{ '{:,.2f}'.format(item.emp_share) }}" 
+                                    data-emp="{{ item.employee.employee_id }}" 
+                                    data-field="emp" 
+                                    data-original="{{ item.emp_share }}" 
+                                    style="color: #1e40af; font-weight: 700;"
+                                    onfocus="onExcelFocus(this)" 
+                                    onblur="onExcelBlur(this, 'emp')" 
+                                    oninput="onExcelInput('{{ item.employee.employee_id }}')" 
+                                    onkeydown="onExcelKeydown(event, '{{ item.employee.employee_id }}')">
+                            </div>
                         </td>
-                        <td class="num-col font-mono" style="color: #7c3aed; font-weight: 600;" id="row_comp_{{ item.employee.employee_id }}">
-                            ৳{{ "{:,.2f}".format(item.comp_share) }}
+
+                        <!-- Com Joma (Direct Excel Editable) -->
+                        <td class="num-col font-mono" style="padding: 3px 5px;">
+                            <div class="excel-cell-box">
+                                <span class="excel-curr" style="color: #7c3aed;">৳</span>
+                                <input type="text" 
+                                    class="excel-cell-input comp-input" 
+                                    id="cell_comp_{{ item.employee.employee_id }}" 
+                                    value="{{ '{:,.2f}'.format(item.comp_share) }}" 
+                                    data-emp="{{ item.employee.employee_id }}" 
+                                    data-field="comp" 
+                                    data-original="{{ item.comp_share }}" 
+                                    style="color: #6b21a8; font-weight: 700;"
+                                    onfocus="onExcelFocus(this)" 
+                                    onblur="onExcelBlur(this, 'comp')" 
+                                    oninput="onExcelInput('{{ item.employee.employee_id }}')" 
+                                    onkeydown="onExcelKeydown(event, '{{ item.employee.employee_id }}')">
+                            </div>
                         </td>
-                        <td class="num-col font-mono" style="font-weight: 700;" id="row_tot_joma_{{ item.employee.employee_id }}">
+
+                        <!-- Total Joma (Auto Computed) -->
+                        <td class="num-col font-mono" style="font-weight: 700; color: #0f172a;" id="cell_tot_joma_{{ item.employee.employee_id }}">
                             ৳{{ "{:,.2f}".format(item.total_deposit) }}
                         </td>
-                        <td class="num-col font-mono" style="color: #7e22ce;" id="row_with_{{ item.employee.employee_id }}">
-                            {{ "৳{:,.2f}".format(item.withdrawal) if item.withdrawal > 0 else '-' }}
+
+                        <!-- Withdrawn (Direct Excel Editable) -->
+                        <td class="num-col font-mono" style="padding: 3px 5px;">
+                            <div class="excel-cell-box">
+                                <span class="excel-curr" style="color: #7e22ce;">৳</span>
+                                <input type="text" 
+                                    class="excel-cell-input with-input" 
+                                    id="cell_with_{{ item.employee.employee_id }}" 
+                                    value="{{ '{:,.2f}'.format(item.withdrawal) if item.withdrawal > 0 else '' }}" 
+                                    placeholder="0.00" 
+                                    data-emp="{{ item.employee.employee_id }}" 
+                                    data-field="with" 
+                                    data-original="{{ item.withdrawal or 0 }}" 
+                                    style="color: #7e22ce; font-weight: 600;"
+                                    onfocus="onExcelFocus(this)" 
+                                    onblur="onExcelBlur(this, 'with')" 
+                                    oninput="onExcelInput('{{ item.employee.employee_id }}')" 
+                                    onkeydown="onExcelKeydown(event, '{{ item.employee.employee_id }}')">
+                            </div>
                         </td>
-                        <td class="num-col font-mono" style="color: #b91c1c;" id="row_adj_{{ item.employee.employee_id }}">
-                            {{ "৳{:,.2f}".format(item.adjustment) if item.adjustment > 0 else '-' }}
+
+                        <!-- Forfeited Com (Direct Excel Editable) -->
+                        <td class="num-col font-mono" style="padding: 3px 5px;">
+                            <div class="excel-cell-box">
+                                <span class="excel-curr" style="color: #b91c1c;">৳</span>
+                                <input type="text" 
+                                    class="excel-cell-input adj-input" 
+                                    id="cell_adj_{{ item.employee.employee_id }}" 
+                                    value="{{ '{:,.2f}'.format(item.adjustment) if item.adjustment > 0 else '' }}" 
+                                    placeholder="0.00" 
+                                    data-emp="{{ item.employee.employee_id }}" 
+                                    data-field="adj" 
+                                    data-original="{{ item.adjustment or 0 }}" 
+                                    style="color: #b91c1c; font-weight: 600;"
+                                    onfocus="onExcelFocus(this)" 
+                                    onblur="onExcelBlur(this, 'adj')" 
+                                    oninput="onExcelInput('{{ item.employee.employee_id }}')" 
+                                    onkeydown="onExcelKeydown(event, '{{ item.employee.employee_id }}')">
+                            </div>
                         </td>
-                        <td class="num-col font-mono" style="font-weight: 900; color: #047857; font-size: 1.05rem; background: #ecfdf5; border-left: 1.5px solid #a7f3d0; border-right: 1.5px solid #a7f3d0;" id="row_bal_{{ item.employee.employee_id }}">
+
+                        <!-- Net Balance (Auto Computed Live) -->
+                        <td class="num-col font-mono" style="font-weight: 900; color: #047857; font-size: 1.05rem; background: #ecfdf5; border-left: 1.5px solid #a7f3d0; border-right: 1.5px solid #a7f3d0;" id="cell_bal_{{ item.employee.employee_id }}">
                             ৳{{ "{:,.2f}".format(item.balance) }}
                         </td>
-                        <td style="text-align: center;" id="row_badge_{{ item.employee.employee_id }}">
-                            {% if item.withdrawal_type == 'full_withdrawal' %}
-                            <span class="badge" style="background: #dcfce7; color: #15803d; font-weight: 700; font-size: 0.75rem; padding: 0.25rem 0.55rem;" title="Full withdrawal: 100% Employee + 100% Company share">
-                                🟢 Full Withdrawal
-                            </span>
-                            {% elif item.withdrawal_type == 'own_only' %}
-                            <span class="badge" style="background: #fef3c7; color: #b45309; font-weight: 700; font-size: 0.75rem; padding: 0.25rem 0.55rem;" title="Own contribution only: Company share forfeited">
-                                🟠 Own Share Only
-                            </span>
-                            {% elif item.withdrawal_type == 'partial_withdrawal' %}
-                            <span class="badge" style="background: #f3e8ff; color: #7e22ce; font-weight: 700; font-size: 0.75rem; padding: 0.25rem 0.55rem;">
-                                🟣 Partial Withdrawn
-                            </span>
-                            {% else %}
-                            <span class="badge" style="background: #e0f2fe; color: #0369a1; font-weight: 600; font-size: 0.75rem; padding: 0.25rem 0.55rem;">
-                                🔵 Active
-                            </span>
-                            {% endif %}
+
+                        <!-- Withdrawal Status (Dropdown Selector) -->
+                        <td style="text-align: center; padding: 3px 5px;">
+                            <select class="excel-status-dropdown" 
+                                id="cell_status_{{ item.employee.employee_id }}" 
+                                data-emp="{{ item.employee.employee_id }}" 
+                                data-original="{{ item.withdrawal_type }}" 
+                                onchange="onExcelStatusChange('{{ item.employee.employee_id }}', this.value)">
+                                <option value="active" {% if item.withdrawal_type == 'active' %}selected{% endif %}>🔵 Active</option>
+                                <option value="full_withdrawal" {% if item.withdrawal_type == 'full_withdrawal' %}selected{% endif %}>🟢 Full Withdrawal</option>
+                                <option value="own_only" {% if item.withdrawal_type == 'own_only' %}selected{% endif %}>🟠 Own Share Only</option>
+                                <option value="custom" {% if item.withdrawal_type in ['partial_withdrawal', 'custom'] %}selected{% endif %}>🟣 Custom</option>
+                            </select>
                         </td>
+
+                        <!-- Actions / Update Button -->
                         <td style="text-align: center;" class="no-print sticky-action-col">
                             <div style="display: inline-flex; align-items: center; gap: 0.35rem;">
-                                <button type="button" class="btn btn-sm" 
-                                    style="padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 700; color: #ffffff; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); border: none; border-radius: 4px; box-shadow: 0 1px 3px rgba(2, 132, 199, 0.3); cursor: pointer;" 
-                                    onclick='openEditSummaryModal({{ item|tojson|safe }})'
-                                    title="Edit employee deposit and withdrawal status">
-                                    ✏️ Edit
+                                <button type="button" class="btn btn-sm btn-excel-update" 
+                                    id="btn_update_{{ item.employee.employee_id }}" 
+                                    onclick="saveInlineRow('{{ item.employee.employee_id }}')" 
+                                    title="Click to save and update this row">
+                                    💾 Update
+                                </button>
+                                <button type="button" class="btn btn-outline btn-sm" 
+                                    onclick='openEditSummaryModal({{ item|tojson|safe }})' 
+                                    title="Advanced Settings & Statement" 
+                                    style="padding: 0.22rem 0.45rem; font-size: 0.76rem;">
+                                    ⚙️
                                 </button>
                                 <a href="{{ url_for('employee_fund_ledger', emp_id=item.employee.employee_id) }}" 
                                     class="btn btn-outline btn-sm" 
-                                    style="padding: 0.25rem 0.5rem; font-size: 0.78rem; font-weight: 600;"
-                                    title="Open 34-column statement with monthly spreadsheet editing">
-                                    📜 Statement ↗
+                                    style="padding: 0.22rem 0.45rem; font-size: 0.76rem;" 
+                                    title="View Statement">
+                                    📜
                                 </a>
                             </div>
                         </td>
@@ -902,6 +983,339 @@ document.addEventListener('DOMContentLoaded', function() {
         fitFundTableToScreen();
     }
 });
+
+
+// -----------------------------------------------------------------------------
+// EXCEL-LIKE DIRECT INLINE EDITING & REAL-TIME RECALCULATION
+// -----------------------------------------------------------------------------
+const dirtyRowsMap = new Set();
+
+function parseVal(val) {
+    if (!val) return 0.0;
+    const clean = String(val).replace(/,/g, '').replace(/৳/g, '').trim();
+    const num = parseFloat(clean);
+    return isNaN(num) ? 0.0 : num;
+}
+
+function fmtVal(num) {
+    return Number(num || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function onExcelFocus(input) {
+    // Select input text on focus for effortless typing like Excel
+    setTimeout(() => input.select(), 50);
+}
+
+function onExcelBlur(input, field) {
+    const val = parseVal(input.value);
+    input.value = (val > 0 || field === 'emp' || field === 'comp') ? fmtVal(val) : '';
+}
+
+function onExcelKeydown(e, empCode) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        saveInlineRow(empCode);
+    }
+}
+
+function onExcelInput(empCode) {
+    const empInput = document.getElementById(`cell_emp_${empCode}`);
+    const compInput = document.getElementById(`cell_comp_${empCode}`);
+    const withInput = document.getElementById(`cell_with_${empCode}`);
+    const adjInput = document.getElementById(`cell_adj_${empCode}`);
+    const statusSelect = document.getElementById(`cell_status_${empCode}`);
+
+    const empVal = parseVal(empInput.value);
+    const compVal = parseVal(compInput.value);
+    const withVal = parseVal(withInput.value);
+    const adjVal = parseVal(adjInput.value);
+
+    // Live Total Joma
+    const totJoma = empVal + compVal;
+    const totEl = document.getElementById(`cell_tot_joma_${empCode}`);
+    if (totEl) totEl.innerText = '৳' + fmtVal(totJoma);
+
+    // Live Net Balance
+    const balance = Math.max(0.0, totJoma - withVal - adjVal);
+    const balEl = document.getElementById(`cell_bal_${empCode}`);
+    if (balEl) balEl.innerText = '৳' + fmtVal(balance);
+
+    // Check if dirty
+    checkRowDirty(empCode);
+}
+
+function onExcelStatusChange(empCode, val) {
+    const empInput = document.getElementById(`cell_emp_${empCode}`);
+    const compInput = document.getElementById(`cell_comp_${empCode}`);
+    const withInput = document.getElementById(`cell_with_${empCode}`);
+    const adjInput = document.getElementById(`cell_adj_${empCode}`);
+
+    const empVal = parseVal(empInput.value);
+    const compVal = parseVal(compInput.value);
+    const totJoma = empVal + compVal;
+
+    if (val === 'full_withdrawal') {
+        withInput.value = fmtVal(totJoma);
+        adjInput.value = '';
+    } else if (val === 'own_only') {
+        withInput.value = fmtVal(empVal);
+        adjInput.value = fmtVal(compVal);
+    } else if (val === 'active') {
+        withInput.value = '';
+        adjInput.value = '';
+    }
+
+    onExcelInput(empCode);
+}
+
+function checkRowDirty(empCode) {
+    const rRow = document.getElementById(`fund_row_${empCode}`);
+    const empInput = document.getElementById(`cell_emp_${empCode}`);
+    const compInput = document.getElementById(`cell_comp_${empCode}`);
+    const withInput = document.getElementById(`cell_with_${empCode}`);
+    const adjInput = document.getElementById(`cell_adj_${empCode}`);
+    const statusSelect = document.getElementById(`cell_status_${empCode}`);
+    const updateBtn = document.getElementById(`btn_update_${empCode}`);
+
+    const isEmpChanged = Math.abs(parseVal(empInput.value) - parseFloat(empInput.getAttribute('data-original') || 0)) > 0.009;
+    const isCompChanged = Math.abs(parseVal(compInput.value) - parseFloat(compInput.getAttribute('data-original') || 0)) > 0.009;
+    const isWithChanged = Math.abs(parseVal(withInput.value) - parseFloat(withInput.getAttribute('data-original') || 0)) > 0.009;
+    const isAdjChanged = Math.abs(parseVal(adjInput.value) - parseFloat(adjInput.getAttribute('data-original') || 0)) > 0.009;
+    const isStatusChanged = (statusSelect.value !== statusSelect.getAttribute('data-original'));
+
+    const isDirty = isEmpChanged || isCompChanged || isWithChanged || isAdjChanged || isStatusChanged;
+
+    if (isDirty) {
+        dirtyRowsMap.add(empCode);
+        if (rRow) rRow.classList.add('is-dirty');
+        if (updateBtn) {
+            updateBtn.classList.add('has-changes');
+            updateBtn.innerText = '💾 Update *';
+        }
+    } else {
+        dirtyRowsMap.delete(empCode);
+        if (rRow) rRow.classList.remove('is-dirty');
+        if (updateBtn) {
+            updateBtn.classList.remove('has-changes');
+            updateBtn.innerText = '💾 Update';
+        }
+    }
+
+    updateSaveAllButton();
+}
+
+function updateSaveAllButton() {
+    const btnAll = document.getElementById('btnSaveAllChanges');
+    const btnDisc = document.getElementById('btnDiscardAll');
+    const cnt = dirtyRowsMap.size;
+    if (cnt > 0) {
+        if (btnAll) {
+            btnAll.style.display = 'inline-block';
+            btnAll.innerText = `💾 Save All Changes (${cnt})`;
+        }
+        if (btnDisc) btnDisc.style.display = 'inline-block';
+    } else {
+        if (btnAll) btnAll.style.display = 'none';
+        if (btnDisc) btnDisc.style.display = 'none';
+    }
+}
+
+async function saveInlineRow(empCode) {
+    const rRow = document.getElementById(`fund_row_${empCode}`);
+    const empInput = document.getElementById(`cell_emp_${empCode}`);
+    const compInput = document.getElementById(`cell_comp_${empCode}`);
+    const withInput = document.getElementById(`cell_with_${empCode}`);
+    const adjInput = document.getElementById(`cell_adj_${empCode}`);
+    const statusSelect = document.getElementById(`cell_status_${empCode}`);
+    const updateBtn = document.getElementById(`btn_update_${empCode}`);
+
+    const empVal = parseVal(empInput.value);
+    const compVal = parseVal(compInput.value);
+    const withVal = parseVal(withInput.value);
+    const adjVal = parseVal(adjInput.value);
+    const statusVal = statusSelect.value;
+
+    if (updateBtn) {
+        updateBtn.disabled = true;
+        updateBtn.innerText = '⏳ Saving...';
+    }
+    if (rRow) rRow.classList.add('is-saving');
+
+    const formData = new FormData();
+    formData.append('emp_key', empCode);
+    formData.append('target_emp_share', empVal.toFixed(2));
+    formData.append('target_comp_share', compVal.toFixed(2));
+    formData.append('withdrawal_action', statusVal);
+    formData.append('withdrawal_amount', withVal.toFixed(2));
+    formData.append('forfeited_company_share', adjVal.toFixed(2));
+    formData.append('effective_month', new Date().toISOString().slice(0, 7));
+    formData.append('effective_date', new Date().toISOString().slice(0, 10));
+
+    try {
+        const resp = await fetch('/payroll/fund-contributions/employee/update-summary', {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const res = await resp.json();
+
+        if (res.success) {
+            // Update data-original attributes to new values
+            empInput.setAttribute('data-original', res.emp_tot);
+            compInput.setAttribute('data-original', res.comp_tot);
+            withInput.setAttribute('data-original', res.withdrawal);
+            adjInput.setAttribute('data-original', res.adjustment);
+            statusSelect.setAttribute('data-original', res.withdrawal_action);
+
+            empInput.value = fmtVal(res.emp_tot);
+            compInput.value = fmtVal(res.comp_tot);
+            withInput.value = (res.withdrawal > 0) ? fmtVal(res.withdrawal) : '';
+            adjInput.value = (res.adjustment > 0) ? fmtVal(res.adjustment) : '';
+
+            const totEl = document.getElementById(`cell_tot_joma_${empCode}`);
+            if (totEl) totEl.innerText = '৳' + fmtVal(res.emp_tot + res.comp_tot);
+
+            const balEl = document.getElementById(`cell_bal_${empCode}`);
+            if (balEl) balEl.innerText = '৳' + fmtVal(res.balance);
+
+            dirtyRowsMap.delete(empCode);
+            updateSaveAllButton();
+
+            if (rRow) {
+                rRow.classList.remove('is-dirty', 'is-saving');
+                rRow.classList.add('just-saved');
+                setTimeout(() => rRow.classList.remove('just-saved'), 2000);
+            }
+
+            if (updateBtn) {
+                updateBtn.classList.remove('has-changes');
+                updateBtn.style.background = '#059669';
+                updateBtn.innerText = '✓ Updated!';
+                setTimeout(() => {
+                    updateBtn.style.background = '';
+                    updateBtn.innerText = '💾 Update';
+                    updateBtn.disabled = false;
+                }, 1500);
+            }
+
+            // Live update global banner & footer totals
+            if (res.global_totals) {
+                const gt = res.global_totals;
+                const bTot = document.getElementById('banner_total_balance');
+                if (bTot) bTot.innerText = '৳' + fmtVal(gt.total_balance);
+                const bEmp = document.getElementById('banner_emp_joma');
+                if (bEmp) bEmp.innerText = '৳' + fmtVal(gt.total_emp);
+                const bCom = document.getElementById('banner_com_joma');
+                if (bCom) bCom.innerText = '৳' + fmtVal(gt.total_comp);
+                const bWith = document.getElementById('banner_withdrawn');
+                if (bWith) bWith.innerText = '৳' + fmtVal(gt.total_with);
+                const bForf = document.getElementById('banner_forfeited');
+                if (bForf) bForf.innerText = '৳' + fmtVal(gt.total_adj);
+
+                const fTot = document.getElementById('foot_total_balance');
+                if (fTot) fTot.innerText = '৳' + fmtVal(gt.total_balance);
+                const fEmp = document.getElementById('foot_emp_share');
+                if (fEmp) fEmp.innerText = '৳' + fmtVal(gt.total_emp);
+                const fCom = document.getElementById('foot_comp_share');
+                if (fCom) fCom.innerText = '৳' + fmtVal(gt.total_comp);
+                const fWith = document.getElementById('foot_withdrawn');
+                if (fWith) fWith.innerText = '৳' + fmtVal(gt.total_with);
+                const fForf = document.getElementById('foot_forfeited');
+                if (fForf) fForf.innerText = '৳' + fmtVal(gt.total_adj);
+            }
+
+            showFloatingNotice(`✓ Saved & updated successfully for ID ${empCode}`);
+        } else {
+            alert('Error updating row: ' + (res.message || 'Unknown error'));
+            if (updateBtn) {
+                updateBtn.disabled = false;
+                updateBtn.innerText = '💾 Update *';
+            }
+            if (rRow) rRow.classList.remove('is-saving');
+        }
+    } catch (err) {
+        alert('Server communication error: ' + err.message);
+        if (updateBtn) {
+            updateBtn.disabled = false;
+            updateBtn.innerText = '💾 Update *';
+        }
+        if (rRow) rRow.classList.remove('is-saving');
+    }
+}
+
+async function saveAllDirtyRows() {
+    const list = Array.from(dirtyRowsMap);
+    if (!list.length) return;
+
+    const btnAll = document.getElementById('btnSaveAllChanges');
+    if (btnAll) {
+        btnAll.disabled = true;
+        btnAll.innerText = `⏳ Saving ${list.length} rows...`;
+    }
+
+    for (const empCode of list) {
+        await saveInlineRow(empCode);
+    }
+
+    if (btnAll) {
+        btnAll.disabled = false;
+        btnAll.innerText = `💾 Save All Changes (0)`;
+        btnAll.style.display = 'none';
+    }
+    const btnDisc = document.getElementById('btnDiscardAll');
+    if (btnDisc) btnDisc.style.display = 'none';
+
+    showFloatingNotice(`🎉 All ${list.length} employee fund updates saved successfully!`);
+}
+
+function discardAllDirtyRows() {
+    if (!confirm('Discard all unsaved edits on the sheet?')) return;
+    dirtyRowsMap.forEach(empCode => {
+        const empInput = document.getElementById(`cell_emp_${empCode}`);
+        const compInput = document.getElementById(`cell_comp_${empCode}`);
+        const withInput = document.getElementById(`cell_with_${empCode}`);
+        const adjInput = document.getElementById(`cell_adj_${empCode}`);
+        const statusSelect = document.getElementById(`cell_status_${empCode}`);
+        const rRow = document.getElementById(`fund_row_${empCode}`);
+        const updateBtn = document.getElementById(`btn_update_${empCode}`);
+
+        empInput.value = fmtVal(parseFloat(empInput.getAttribute('data-original') || 0));
+        compInput.value = fmtVal(parseFloat(compInput.getAttribute('data-original') || 0));
+        const origWith = parseFloat(withInput.getAttribute('data-original') || 0);
+        withInput.value = (origWith > 0) ? fmtVal(origWith) : '';
+        const origAdj = parseFloat(adjInput.getAttribute('data-original') || 0);
+        adjInput.value = (origAdj > 0) ? fmtVal(origAdj) : '';
+        statusSelect.value = statusSelect.getAttribute('data-original') || 'active';
+
+        onExcelInput(empCode);
+
+        if (rRow) rRow.classList.remove('is-dirty');
+        if (updateBtn) {
+            updateBtn.classList.remove('has-changes');
+            updateBtn.innerText = '💾 Update';
+        }
+    });
+    dirtyRowsMap.clear();
+    updateSaveAllButton();
+}
+
+function showFloatingNotice(msg) {
+    let el = document.getElementById('fundFloatingToast');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'fundFloatingToast';
+        el.style.cssText = 'position:fixed; bottom:24px; right:24px; background:#0f172a; color:#fff; padding:12px 20px; border-radius:8px; font-weight:700; font-size:0.88rem; box-shadow:0 10px 25px rgba(0,0,0,0.3); z-index:9999; display:flex; align-items:center; gap:8px; border-left:4px solid #10b981; transition:opacity 0.3s ease;';
+        document.body.appendChild(el);
+    }
+    el.innerHTML = msg;
+    el.style.opacity = '1';
+    el.style.display = 'flex';
+    clearTimeout(window.__toastTimer);
+    window.__toastTimer = setTimeout(() => {
+        el.style.opacity = '0';
+        setTimeout(() => el.style.display = 'none', 300);
+    }, 2500);
+}
 
 // -----------------------------------------------------------------------------
 // CLIENT-SIDE FILTERING & SEARCH FOR EMPLOYEE FUND REPORT
