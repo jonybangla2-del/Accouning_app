@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Contribution Fund Statement Report - ZR-ERP ERP{% endblock %}
+
+{% block content %}
+<div class="no-print" style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+    <div>
+        <a href="{{ url_for('fund_contributions_dashboard') }}" style="color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">
+            ← Back to Fund Portfolio
+        </a>
+        <h1 class="page-title" style="margin-top: 0.35rem;">
+            📊 Employee Contribution Fund Report (Employee-Wise)
+        </h1>
+        <p class="page-description">
+            Complete employee-by-employee fund breakdown: Staff deposits, company matching contributions, full vs own-only withdrawals, and net fund balances.
+        </p>
+    </div>
+    <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <a href="{{ url_for('export_fund_summary_report_excel') }}" class="btn btn-success" style="display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600;">
+            📊 Export to Excel
+        </a>
+        <button onclick="window.print()" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600;">
+            🖨️ Print Official Report
+        </button>
+    </div>
+</div>
+
+<!-- OFFICIAL REPORT PRINT CONTAINER -->
+<div class="fund-report-print-container" style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 2rem 2.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    
+    <!-- Header Block (Company & Report Title) -->
+    <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 1.25rem; margin-bottom: 1.5rem;">
+        <h1 style="margin: 0; font-size: 1.6rem; font-family: 'Outfit', sans-serif; font-weight: 800; color: #0f172a; letter-spacing: 0.5px;">
+            {{ company.name if company and company.name else 'TBN BD LTD.' }}
+        </h1>
+        <div style="font-size: 0.9rem; color: #475569; margin-top: 0.25rem; white-space: pre-line;">
+            {{ company.address if company and company.address else '43/2, Shyamoli, Ring Road, Dhaka-1207' }}
+        </div>
+        <div style="display: inline-block; background: #0f172a; color: #ffffff; font-weight: 800; font-size: 0.95rem; padding: 0.35rem 1.25rem; border-radius: 4px; margin-top: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">
+            EMPLOYEE CONTRIBUTION FUND (PROVIDENT &amp; WELFARE) STATEMENT REPORT
+        </div>
+        <div style="font-size: 0.85rem; color: #64748b; margin-top: 0.5rem;">
+            Generated as of: <strong>{{ now_date_str }}</strong> &bull; Total Enrolled Employees: <strong>{{ fund_summaries|length }}</strong>
+        </div>
+    </div>
+
+    <!-- Executive Summary KPI Badges -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.75rem; padding: 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+        <div style="border-left: 3px solid #059669; padding-left: 0.65rem;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Fund Portfolio</div>
+            <div style="font-size: 1.15rem; font-weight: 800; color: #059669; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
+                ৳{{ "{:,.2f}".format(total_fund_accumulated) }}
+            </div>
+        </div>
+        <div style="border-left: 3px solid #2563eb; padding-left: 0.65rem;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Employee Deposit</div>
+            <div style="font-size: 1.15rem; font-weight: 800; color: #2563eb; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
+                ৳{{ "{:,.2f}".format(total_emp_share) }}
+            </div>
+        </div>
+        <div style="border-left: 3px solid #7c3aed; padding-left: 0.65rem;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Company Matching</div>
+            <div style="font-size: 1.15rem; font-weight: 800; color: #7c3aed; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
+                ৳{{ "{:,.2f}".format(total_comp_share) }}
+            </div>
+        </div>
+        <div style="border-left: 3px solid #10b981; padding-left: 0.65rem;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Full Withdrawals</div>
+            <div style="font-size: 1.15rem; font-weight: 800; color: #15803d; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
+                {{ count_full_withdrawn }} (৳{{ "{:,.2f}".format(total_full_withdrawn_amount) }})
+            </div>
+        </div>
+        <div style="border-left: 3px solid #f59e0b; padding-left: 0.65rem;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Own Share Only</div>
+            <div style="font-size: 1.15rem; font-weight: 800; color: #b45309; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
+                {{ count_own_withdrawn }} (৳{{ "{:,.2f}".format(total_own_withdrawn_amount) }})
+            </div>
+        </div>
+        <div style="border-left: 3px solid #ef4444; padding-left: 0.65rem;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Forfeited Company Share</div>
+            <div style="font-size: 1.15rem; font-weight: 800; color: #b91c1c; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem;">
+                ৳{{ "{:,.2f}".format(total_forfeited_comp) }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <table class="table fund-print-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+        <thead>
+            <tr style="border-top: 2px solid #0f172a; border-bottom: 2px solid #0f172a; background: #f1f5f9;">
+                <th style="padding: 0.5rem 0.4rem; text-align: center; width: 35px;">SL</th>
+                <th style="padding: 0.5rem 0.5rem; text-align: center; width: 70px;">Emp ID</th>
+                <th style="padding: 0.5rem 0.6rem; text-align: left;">Employee Name &amp; Dept</th>
+                <th style="padding: 0.5rem 0.6rem; text-align: right;">Emp Deposit (৳)</th>
+                <th style="padding: 0.5rem 0.6rem; text-align: right;">Company Deposit (৳)</th>
+                <th style="padding: 0.5rem 0.6rem; text-align: right;">Total Deposit (৳)</th>
+                <th style="padding: 0.5rem 0.5rem; text-align: center; width: 130px;">Withdrawal Status</th>
+                <th style="padding: 0.5rem 0.6rem; text-align: right; color: #7e22ce;">Withdrawn (৳)</th>
+                <th style="padding: 0.5rem 0.6rem; text-align: right; color: #b91c1c;">Forfeited Com (৳)</th>
+                <th style="padding: 0.5rem 0.6rem; text-align: right; color: #059669; font-weight: 800;">Net Balance (৳)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in fund_summaries %}
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="text-align: center; color: #64748b; padding: 0.4rem 0.3rem;">{{ loop.index }}</td>
+                <td style="text-align: center; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #0f172a; padding: 0.4rem 0.5rem;">
+                    {{ item.employee.employee_id }}
+                </td>
+                <td style="padding: 0.4rem 0.6rem;">
+                    <strong style="color: #0f172a;">{{ item.employee.name }}</strong>
+                    <div style="font-size: 0.72rem; color: #64748b;">{{ item.employee.department }} &bull; {{ item.employee.designation }}</div>
+                </td>
+                <td style="text-align: right; font-family: 'JetBrains Mono', monospace; padding: 0.4rem 0.6rem;">
+                    ৳{{ "{:,.2f}".format(item.emp_share) }}
+                </td>
+                <td style="text-align: right; font-family: 'JetBrains Mono', monospace; color: #7c3aed; padding: 0.4rem 0.6rem;">
+                    ৳{{ "{:,.2f}".format(item.comp_share) }}
+                </td>
+                <td style="text-align: right; font-family: 'JetBrains Mono', monospace; font-weight: 700; padding: 0.4rem 0.6rem;">
+                    ৳{{ "{:,.2f}".format(item.total_deposit) }}
+                </td>
+                <td style="text-align: center; padding: 0.4rem 0.5rem;">
+                    {% if item.withdrawal_type == 'full_withdrawal' %}
+                    <span style="display: inline-block; background: #dcfce7; color: #15803d; font-weight: 700; font-size: 0.7rem; padding: 0.15rem 0.45rem; border-radius: 4px; border: 1px solid #bbf7d0;">
+                        🟢 Full Withdrawal
+                    </span>
+                    {% elif item.withdrawal_type == 'own_only' %}
+                    <span style="display: inline-block; background: #fef3c7; color: #b45309; font-weight: 700; font-size: 0.7rem; padding: 0.15rem 0.45rem; border-radius: 4px; border: 1px solid #fde68a;">
+                        🟠 Own Share Only
+                    </span>
+                    {% elif item.withdrawal_type == 'partial_withdrawal' %}
+                    <span style="display: inline-block; background: #f3e8ff; color: #7e22ce; font-weight: 700; font-size: 0.7rem; padding: 0.15rem 0.45rem; border-radius: 4px;">
+                        🟣 Partial Withdrawn
+                    </span>
+                    {% else %}
+                    <span style="display: inline-block; background: #e0f2fe; color: #0369a1; font-weight: 600; font-size: 0.7rem; padding: 0.15rem 0.45rem; border-radius: 4px;">
+                        🔵 Active
+                    </span>
+                    {% endif %}
+                </td>
+                <td style="text-align: right; font-family: 'JetBrains Mono', monospace; color: #7e22ce; padding: 0.4rem 0.6rem;">
+                    {{ "৳{:,.2f}".format(item.withdrawal) if item.withdrawal > 0 else '-' }}
+                </td>
+                <td style="text-align: right; font-family: 'JetBrains Mono', monospace; color: #b91c1c; padding: 0.4rem 0.6rem;">
+                    {{ "৳{:,.2f}".format(item.adjustment) if item.adjustment > 0 else '-' }}
+                </td>
+                <td style="text-align: right; font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #059669; padding: 0.4rem 0.6rem;">
+                    ৳{{ "{:,.2f}".format(item.balance) }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr style="border-top: 2px solid #0f172a; border-bottom: 3px double #0f172a; background: #f1f5f9; font-weight: 800;">
+                <td colspan="3" style="text-align: right; padding: 0.65rem 0.6rem;">GRAND TOTAL:</td>
+                <td style="text-align: right; font-family: 'JetBrains Mono', monospace; padding: 0.65rem 0.6rem;">
+                    ৳{{ "{:,.2f}".format(total_emp_share) }}
+                </td>
+                <td style="text-align: right; font-family: 'JetBrains Mono', monospace; color: #7c3aed; padding: 0.65rem 0.6rem;">
+                    ৳{{ "{:,.2f}".format(total_comp_share) }}
+                </td>
+                <td style="text-align: right; font-family: 'JetBrains Mono', monospace; padding: 0.65rem 0.6rem;">
+                    ৳{{ "{:,.2f}".format(total_emp_share + total_comp_share + total_welfare_share + total_profit_accrued) }}
+                </td>
+                <td style="text-align: center; font-size: 0.75rem; color: #475569;">
+                    {{ count_full_withdrawn }} Full &bull; {{ count_own_withdrawn }} Own
+                </td>
+                <td style="text-align: right; font-family: 'JetBrains Mono', monospace; color: #7e22ce; padding: 0.65rem 0.6rem;">
+                    ৳{{ "{:,.2f}".format(total_withdrawn_all) }}
+                </td>
+                <td style="text-align: right; font-family: 'JetBrains Mono', monospace; color: #b91c1c; padding: 0.65rem 0.6rem;">
+                    ৳{{ "{:,.2f}".format(total_forfeited_comp) }}
+                </td>
+                <td style="text-align: right; font-family: 'JetBrains Mono', monospace; font-weight: 900; color: #059669; padding: 0.65rem 0.6rem;">
+                    ৳{{ "{:,.2f}".format(total_fund_accumulated) }}
+                </td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <!-- Endorsement & Sign-Off Section -->
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-top: 3.5rem; padding-top: 1.5rem; text-align: center;">
+        <div>
+            <div style="border-top: 1.5px solid #0f172a; padding-top: 0.5rem; font-weight: 700; font-size: 0.85rem; color: #0f172a;">
+                Prepared By
+            </div>
+            <div style="font-size: 0.75rem; color: #64748b;">Fund Officer</div>
+        </div>
+        <div>
+            <div style="border-top: 1.5px solid #0f172a; padding-top: 0.5rem; font-weight: 700; font-size: 0.85rem; color: #0f172a;">
+                Checked By
+            </div>
+            <div style="font-size: 0.75rem; color: #64748b;">Internal Audit</div>
+        </div>
+        <div>
+            <div style="border-top: 1.5px solid #0f172a; padding-top: 0.5rem; font-weight: 700; font-size: 0.85rem; color: #0f172a;">
+                Head of Accounts
+            </div>
+            <div style="font-size: 0.75rem; color: #64748b;">Accounts &amp; Finance</div>
+        </div>
+        <div>
+            <div style="border-top: 1.5px solid #0f172a; padding-top: 0.5rem; font-weight: 700; font-size: 0.85rem; color: #0f172a;">
+                Managing Director
+            </div>
+            <div style="font-size: 0.75rem; color: #64748b;">Authorized Signatory</div>
+        </div>
+    </div>
+</div>
+
+<style>
+@media print {
+    body { background: #ffffff !important; }
+    .no-print { display: none !important; }
+    .fund-report-print-container {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        width: 100% !important;
+    }
+    .fund-print-table th, .fund-print-table td {
+        padding: 0.35rem 0.3rem !important;
+        font-size: 0.75rem !important;
+    }
+}
+</style>
+{% endblock %}
+

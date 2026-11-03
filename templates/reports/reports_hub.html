@@ -11,6 +11,28 @@
 </div>
 
 <div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+    <!-- Quarterly Financial Statement & Bangladesh Bank Return Card -->
+    <div class="card" style="margin-bottom: 0; border: 2px solid #0284c7; background: linear-gradient(180deg, #f0f9ff 0%, #ffffff 40%);">
+        <div class="card-body" style="display: flex; flex-direction: column; height: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="font-size: 2.2rem; margin-bottom: 0.75rem;">📊</div>
+                <span class="badge" style="background: #e0f2fe; color: #0369a1; font-weight: 700; border: 1px solid #bae6fd;">★ Bangladesh Bank Form FI</span>
+            </div>
+            <h2 class="card-title" style="margin-bottom: 0.5rem; color: #0369a1;">Quarterly Financial Statement</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; flex: 1;">
+                Automated generation of quarterly Balance Sheet, P&amp;L, Cash Flows, Notes, and Bangladesh Bank Form FI schedules from Supporting_file models.
+            </p>
+            <div style="margin-top: 1.25rem; display: flex; gap: 0.5rem;">
+                <button type="button" onclick="openQuarterlyReportModal()" class="btn btn-primary" style="flex: 1; background: #0284c7; border-color: #0284c7; font-weight: 600;">
+                    ⚡ Generate Statement
+                </button>
+                <a href="/reports/quarterly-statement" class="btn btn-outline" style="border-color: #0284c7; color: #0284c7;" title="View Statement Archive">
+                    📁 Archive
+                </a>
+            </div>
+        </div>
+    </div>
+
     <!-- Cash & Bank Book Card (Client Excel Replica) -->
     <div class="card" style="margin-bottom: 0; border: 2px solid #00b050;">
         <div class="card-body" style="display: flex; flex-direction: column; height: 100%;">
@@ -114,6 +136,28 @@
             </p>
             <div style="margin-top: 1.25rem;">
                 <a href="{{ url_for('balance_sheet') }}" class="btn btn-primary" style="width: 100%; background: #0f172a;">View Balance Sheet →</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Employee Contribution Fund Report Card -->
+    <div class="card" style="margin-bottom: 0; border: 2px solid #10b981; background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 40%);">
+        <div class="card-body" style="display: flex; flex-direction: column; height: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="font-size: 2.2rem; margin-bottom: 0.75rem;">💰</div>
+                <span class="badge" style="background: #dcfce7; color: #15803d; font-weight: 700; border: 1px solid #bbf7d0;">★ Provident &amp; Welfare</span>
+            </div>
+            <h2 class="card-title" style="margin-bottom: 0.5rem; color: #15803d;">Contribution Fund Report</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; flex: 1;">
+                Employee-wise fund statements disclosing employee deposits, company matching funds, full withdrawal vs own contribution only tracking, and live editable statements.
+            </p>
+            <div style="margin-top: 1.25rem; display: flex; gap: 0.5rem;">
+                <a href="{{ url_for('fund_contributions_dashboard') }}" class="btn btn-primary" style="flex: 1; background: #059669; border-color: #059669; font-weight: 600;">
+                    📊 Fund Hub
+                </a>
+                <a href="{{ url_for('fund_contributions_employee_report') }}" target="_blank" class="btn btn-outline" style="border-color: #059669; color: #059669;" title="Printable Statement Report">
+                    🖨️ Report
+                </a>
             </div>
         </div>
     </div>
