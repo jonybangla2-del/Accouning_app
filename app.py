@@ -16736,222 +16736,243 @@ def import_attendance_notepad():
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.form.get('is_ajax') == '1'
     job_id = request.form.get('job_id') or f"job_{int(time.time() * 1000)}"
 
-    file = request.files.get('notepad_file')
-    pasted_text = request.form.get('notepad_text', '').strip()
+    try:
+        file = request.files.get('notepad_file')
+        pasted_text = request.form.get('notepad_text', '').strip()
 
-    update_job_progress(job_id, 10, "Reading raw facial attendance logs...", "Extracting biometric timestamps from input", "Step 1/5")
+        update_job_progress(job_id, 10, "Reading raw facial attendance logs...", "Extracting biometric timestamps from input", "Step 1/5")
 
-    raw_content = ""
-    if file and file.filename:
-        try:
+        raw_content = ""
+        if file and file.filename:
             raw_bytes = file.read()
-            try:
-                raw_content = raw_bytes.decode('utf-8')
-            except UnicodeDecodeError:
+            for enc in ('utf-8', 'utf-8-sig', 'latin1', 'cp1252'):
                 try:
-                    raw_content = raw_bytes.decode('utf-8-sig')
+                    raw_content = raw_bytes.decode(enc)
+                    break
                 except UnicodeDecodeError:
-                    raw_content = raw_bytes.decode('latin1', errors='ignore')
-        except Exception as e:
-            msg = f"Error reading uploaded file: {str(e)}"
+                    continue
+        elif pasted_text:
+            raw_content = pasted_text
+        else:
+            msg = "Please select a Notepad (.txt) file or paste face machine logs into the box."
             if is_ajax:
                 return jsonify({'success': False, 'error': msg}), 400
-            flash(f"❌ {msg}", "danger")
+            flash(f"⚠️ {msg}", "danger")
             return redirect(url_for('attendance_dashboard'))
-    elif pasted_text:
-        raw_content = pasted_text
-    else:
-        msg = "Please select a Notepad (.txt) file or paste face machine logs into the box."
-        if is_ajax:
-            return jsonify({'success': False, 'error': msg}), 400
-        flash(f"⚠️ {msg}", "danger")
-        return redirect(url_for('attendance_dashboard'))
 
-    parsed_punches = att_mgr.parse_notepad_punch_lines(raw_content)
-    if not parsed_punches:
-        msg = "No valid biometric punch timestamps recognized from the input. Please check the log format."
-        if is_ajax:
-            return jsonify({'success': False, 'error': msg}), 400
-        flash(f"⚠️ {msg}", "danger")
-        return redirect(url_for('attendance_dashboard'))
+        parsed_punches = att_mgr.parse_notepad_punch_lines(raw_content)
+        if not parsed_punches:
+            msg = "No valid biometric punch timestamps recognized from the input. Please check the log format."
+            if is_ajax:
+                return jsonify({'success': False, 'error': msg}), 400
+            flash(f"⚠️ {msg}", "danger")
+            return redirect(url_for('attendance_dashboard'))
 
-    batch_id = f"batch_{int(datetime.utcnow().timestamp())}"
+        batch_id = f"batch_{int(datetime.utcnow().timestamp())}"
 
-    # Build employee lookup cache
-    emp_code_map = {}
-    for e in Employee.query.all():
-        raw_c = str(e.employee_id).strip()
-        clean_c = raw_c.replace('EMP-', '').replace('emp-', '').strip()
-        emp_code_map[raw_c.lower()] = e
-        emp_code_map[clean_c.lower()] = e
-        emp_code_map[f"emp-{clean_c}".lower()] = e
-        emp_code_map[str(e.id)] = e
+        # 1. Preload master employee cache
+        emp_code_map = {}
+        for e in Employee.query.all():
+            raw_c = str(e.employee_id).strip()
+            clean_c = raw_c.replace('EMP-', '').replace('emp-', '').strip()
+            emp_code_map[raw_c.lower()] = e
+            emp_code_map[clean_c.lower()] = e
+            emp_code_map[f"emp-{clean_c}".lower()] = e
+            emp_code_map[str(e.id)] = e
 
-    shift_settings = AttendanceShiftSetting.query.first()
-    standard_hours = shift_settings.standard_hours if shift_settings else 8.0
-    grace_mins = shift_settings.grace_period_mins if shift_settings else 15
+        shift_settings = AttendanceShiftSetting.query.first()
+        standard_hours = shift_settings.standard_hours if shift_settings else 8.0
+        grace_mins = shift_settings.grace_period_mins if shift_settings else 15
 
-    update_job_progress(job_id, 30, f"De-duplicating {len(parsed_punches):,} punches in memory...", "Cross-referencing database without lock contention", "Step 2/5")
+        update_job_progress(job_id, 30, f"De-duplicating {len(parsed_punches):,} punches in memory...", "Zero-lock RAM indexing", "Step 2/5")
 
-    # In-memory Date-Bucket Lookup: prevents individual SQL queries per punch
-    all_dates = [p['punch_time'].date() for p in parsed_punches]
-    min_date = min(all_dates) - timedelta(days=1)
-    max_date = max(all_dates) + timedelta(days=1)
+        # 2. In-memory Date-Bucket Lookup for punches
+        all_dates = [p['punch_time'].date() for p in parsed_punches]
+        min_date = min(all_dates) - timedelta(days=1)
+        max_date = max(all_dates) + timedelta(days=1)
 
-    existing_punches_raw = BiometricPunchLog.query.filter(
-        BiometricPunchLog.punch_date >= min_date,
-        BiometricPunchLog.punch_date <= max_date
-    ).with_entities(BiometricPunchLog.device_user_id, BiometricPunchLog.punch_time).all()
+        existing_punches_raw = BiometricPunchLog.query.filter(
+            BiometricPunchLog.punch_date >= min_date,
+            BiometricPunchLog.punch_date <= max_date
+        ).with_entities(BiometricPunchLog.device_user_id, BiometricPunchLog.punch_time).all()
 
-    existing_punch_map = defaultdict(list)
-    for dev_id, ptime in existing_punches_raw:
-        if dev_id and ptime:
-            existing_punch_map[(str(dev_id).strip(), ptime.date())].append(ptime)
+        existing_punch_map = defaultdict(list)
+        for dev_id, ptime in existing_punches_raw:
+            if dev_id and ptime:
+                existing_punch_map[(str(dev_id).strip(), ptime.date())].append(ptime)
 
-    imported_punch_count = 0
-    affected_emp_ids = set()
-    dates_touched = set()
-    new_punch_objects = []
+        imported_punch_count = 0
+        affected_emp_ids = set()
+        dates_touched = set()
+        new_punch_objects = []
 
-    for item in parsed_punches:
-        dev_uid = str(item['device_user_id']).strip()
-        p_time = item['punch_time']
-        p_date = p_time.date()
-        clean_uid = dev_uid.lower().replace('emp-', '').strip()
-        emp_obj = emp_code_map.get(dev_uid.lower()) or emp_code_map.get(clean_uid)
+        for item in parsed_punches:
+            dev_uid = str(item['device_user_id']).strip()
+            p_time = item['punch_time']
+            p_date = p_time.date()
+            clean_uid = dev_uid.lower().replace('emp-', '').strip()
+            emp_obj = emp_code_map.get(dev_uid.lower()) or emp_code_map.get(clean_uid)
 
-        emp_id_val = emp_obj.id if emp_obj else None
-        if emp_id_val:
-            affected_emp_ids.add(emp_id_val)
-        dates_touched.add(p_date)
+            emp_id_val = emp_obj.id if emp_obj else None
+            if emp_id_val:
+                affected_emp_ids.add(emp_id_val)
+            dates_touched.add(p_date)
 
-        # Ultra-fast in-memory 60s duplicate check
-        bucket = existing_punch_map.get((dev_uid, p_date), [])
-        is_duplicate = False
-        for existing_time in bucket:
-            if abs((existing_time - p_time).total_seconds()) <= 60:
-                is_duplicate = True
-                break
+            bucket = existing_punch_map.get((dev_uid, p_date), [])
+            is_duplicate = False
+            for existing_time in bucket:
+                if abs((existing_time - p_time).total_seconds()) <= 60:
+                    is_duplicate = True
+                    break
 
-        if not is_duplicate:
-            new_punch_objects.append(BiometricPunchLog(
-                employee_id=emp_id_val,
-                device_user_id=dev_uid,
-                punch_time=p_time,
-                punch_date=p_date,
-                device_code=item.get('device_code', '-'),
-                raw_line=item.get('raw_line'),
-                batch_id=batch_id
-            ))
-            bucket.append(p_time)
-            existing_punch_map[(dev_uid, p_date)] = bucket
-            imported_punch_count += 1
+            if not is_duplicate:
+                new_punch_objects.append(BiometricPunchLog(
+                    employee_id=emp_id_val,
+                    device_user_id=dev_uid,
+                    punch_time=p_time,
+                    punch_date=p_date,
+                    device_code=item.get('device_code', '-'),
+                    raw_line=item.get('raw_line'),
+                    batch_id=batch_id
+                ))
+                bucket.append(p_time)
+                existing_punch_map[(dev_uid, p_date)] = bucket
+                imported_punch_count += 1
 
-    # Chunked batch commit (avoids SQLite lock timeout and WAL overflows)
-    chunk_size = 1000
-    for i in range(0, len(new_punch_objects), chunk_size):
-        chunk = new_punch_objects[i:i + chunk_size]
-        db.session.bulk_save_objects(chunk)
-        db.session.commit()
+        # Bulk save new punches
+        if new_punch_objects:
+            chunk_size = 1000
+            for i in range(0, len(new_punch_objects), chunk_size):
+                chunk = new_punch_objects[i:i + chunk_size]
+                db.session.bulk_save_objects(chunk)
+                db.session.commit()
 
-    update_job_progress(job_id, 60, "AI Shift Engine Analyzing Duty Cycles...", f"Evaluating Day, Night & Double Duties for {len(affected_emp_ids)} employees", "Step 3/5")
+        update_job_progress(job_id, 60, "AI Shift Engine Analyzing Duty Cycles...", f"Evaluating Day, Night & Double Duties for {len(affected_emp_ids)} employees", "Step 3/5")
 
-    # Run AI Shift Analyzer for all affected employees
-    ai_sessions_created = 0
-    night_shifts_detected = 0
-    day_shifts_detected = 0
-    double_shifts_detected = 0
+        # 3. High-Speed Bulk Shift Analysis with NO Autoflush Locks
+        ai_sessions_created = 0
+        night_shifts_detected = 0
+        day_shifts_detected = 0
+        double_shifts_detected = 0
 
-    if dates_touched:
-        ana_min = min(dates_touched) - timedelta(days=1)
-        ana_max = max(dates_touched) + timedelta(days=1)
+        if dates_touched and affected_emp_ids:
+            ana_min = min(dates_touched) - timedelta(days=1)
+            ana_max = max(dates_touched) + timedelta(days=1)
 
-        emp_list = list(affected_emp_ids)
-        total_emps = len(emp_list)
-        for idx_e, emp_id in enumerate(emp_list, 1):
-            emp_punches = BiometricPunchLog.query.filter(
-                BiometricPunchLog.employee_id == emp_id,
+            # Single bulk query for ALL punches in range for affected employees
+            all_range_punches = BiometricPunchLog.query.filter(
+                BiometricPunchLog.employee_id.in_(affected_emp_ids),
                 BiometricPunchLog.punch_date >= ana_min,
                 BiometricPunchLog.punch_date <= ana_max
             ).order_by(BiometricPunchLog.punch_time.asc()).all()
 
-            punch_dicts = [{'punch_time': p.punch_time} for p in emp_punches]
-            analyzed_sessions = att_mgr.analyze_employee_punches(
-                punch_dicts, 
-                standard_hours=standard_hours, 
-                grace_period_mins=grace_mins
-            )
+            punches_by_emp = defaultdict(list)
+            for p in all_range_punches:
+                punches_by_emp[p.employee_id].append({'punch_time': p.punch_time})
 
-            for s in analyzed_sessions:
-                s_date = s['attendance_date']
-                existing_att = EmployeeAttendance.query.filter_by(
-                    employee_id=emp_id,
-                    attendance_date=s_date
-                ).first()
+            # Single bulk query for ALL existing attendance records in range
+            existing_atts = EmployeeAttendance.query.filter(
+                EmployeeAttendance.employee_id.in_(affected_emp_ids),
+                EmployeeAttendance.attendance_date >= ana_min,
+                EmployeeAttendance.attendance_date <= ana_max
+            ).all()
+            att_map = {(att.employee_id, att.attendance_date): att for att in existing_atts}
 
-                if existing_att and existing_att.manual_override:
-                    continue  # respect manual override
+            emp_list = list(affected_emp_ids)
+            total_emps = len(emp_list)
 
-                if not existing_att:
-                    existing_att = EmployeeAttendance(
-                        employee_id=emp_id,
-                        attendance_date=s_date,
-                        batch_id=batch_id
+            # Use no_autoflush block so ORM additions do not trigger premature flushes or database locks
+            with db.session.no_autoflush:
+                for idx_e, emp_id in enumerate(emp_list, 1):
+                    punch_dicts = punches_by_emp.get(emp_id, [])
+                    if not punch_dicts:
+                        continue
+
+                    analyzed_sessions = att_mgr.analyze_employee_punches(
+                        punch_dicts, 
+                        standard_hours=standard_hours, 
+                        grace_period_mins=grace_mins
                     )
-                    db.session.add(existing_att)
-                    ai_sessions_created += 1
 
-                existing_att.shift_type = s['shift_type']
-                existing_att.in_time = s['in_time']
-                existing_att.out_time = s['out_time']
-                existing_att.total_hours = s['duration_hours']
-                existing_att.overtime_hours = s['overtime_hours']
-                existing_att.status = s['status']
-                existing_att.is_night_shift = s['is_night_shift']
-                existing_att.is_cross_day = s['is_cross_day']
-                existing_att.punch_count = s['punch_count']
-                existing_att.ai_analysis = s['ai_analysis']
-                existing_att.batch_id = batch_id
+                    for s in analyzed_sessions:
+                        s_date = s['attendance_date']
+                        existing_att = att_map.get((emp_id, s_date))
 
-                if s.get('is_double_duty'):
-                    double_shifts_detected += 1
-                if s['is_night_shift']:
-                    night_shifts_detected += 1
-                else:
-                    day_shifts_detected += 1
+                        if existing_att and existing_att.manual_override:
+                            continue  # respect manual override
 
-            if idx_e % 20 == 0 or idx_e == total_emps:
-                db.session.commit()
-                pct = 60 + int((idx_e / max(1, total_emps)) * 25)
-                update_job_progress(job_id, pct, "AI Shift Engine Analyzing Duty Cycles...", f"Processed {idx_e} of {total_emps} staff members", "Step 4/5")
+                        if not existing_att:
+                            existing_att = EmployeeAttendance(
+                                employee_id=emp_id,
+                                attendance_date=s_date,
+                                batch_id=batch_id
+                            )
+                            db.session.add(existing_att)
+                            att_map[(emp_id, s_date)] = existing_att
+                            ai_sessions_created += 1
 
-        db.session.commit()
+                        existing_att.shift_type = s['shift_type']
+                        existing_att.in_time = s['in_time']
+                        existing_att.out_time = s['out_time']
+                        existing_att.total_hours = s['duration_hours']
+                        existing_att.overtime_hours = s['overtime_hours']
+                        existing_att.status = s['status']
+                        existing_att.is_night_shift = s['is_night_shift']
+                        existing_att.is_cross_day = s['is_cross_day']
+                        existing_att.punch_count = s['punch_count']
+                        existing_att.ai_analysis = s['ai_analysis']
+                        existing_att.batch_id = batch_id
 
-    update_job_progress(job_id, 100, "Analysis Complete! Biometric logs imported successfully.", f"Saved {imported_punch_count:,} punches across {len(affected_emp_ids)} employees", "Step 5/5")
+                        if s.get('is_double_duty'):
+                            double_shifts_detected += 1
+                        if s['is_night_shift']:
+                            night_shifts_detected += 1
+                        else:
+                            day_shifts_detected += 1
 
-    latest_date_str = max(dates_touched).strftime('%Y-%m-%d') if dates_touched else date.today().strftime('%Y-%m-%d')
+                    if idx_e % 25 == 0 or idx_e == total_emps:
+                        pct = 60 + int((idx_e / max(1, total_emps)) * 25)
+                        update_job_progress(job_id, pct, "AI Shift Engine Analyzing Duty Cycles...", f"Processed {idx_e} of {total_emps} staff members", "Step 4/5")
 
-    if is_ajax:
-        return jsonify({
-            'success': True,
-            'job_id': job_id,
-            'imported_punch_count': imported_punch_count,
-            'total_parsed': len(parsed_punches),
-            'employees_analyzed': len(affected_emp_ids),
-            'day_shifts': day_shifts_detected,
-            'night_shifts': night_shifts_detected,
-            'double_shifts': double_shifts_detected,
-            'duty_date': latest_date_str,
-            'message': f"Imported {imported_punch_count:,} punches across {len(affected_emp_ids)} staff members."
-        })
+            # Final commit after all shifts are populated
+            db.session.commit()
 
-    flash(
-        f"🤖 AI Attendance Analysis Complete: Imported {imported_punch_count:,} biometric punches. "
-        f"Analyzed {len(affected_emp_ids)} employees across duty cycles: {day_shifts_detected} Day Duties, "
-        f"{night_shifts_detected} Night Duties (cross-day paired).",
-        "success"
-    )
-    return redirect(url_for('attendance_dashboard', date=latest_date_str))
+        update_job_progress(job_id, 100, "Analysis Complete! Biometric logs imported successfully.", f"Saved {imported_punch_count:,} punches across {len(affected_emp_ids)} employees", "Step 5/5")
+
+        latest_date_str = max(dates_touched).strftime('%Y-%m-%d') if dates_touched else date.today().strftime('%Y-%m-%d')
+
+        if is_ajax:
+            return jsonify({
+                'success': True,
+                'job_id': job_id,
+                'imported_punch_count': imported_punch_count,
+                'total_parsed': len(parsed_punches),
+                'employees_analyzed': len(affected_emp_ids),
+                'day_shifts': day_shifts_detected,
+                'night_shifts': night_shifts_detected,
+                'double_shifts': double_shifts_detected,
+                'duty_date': latest_date_str,
+                'message': f"Imported {imported_punch_count:,} punches across {len(affected_emp_ids)} staff members."
+            })
+
+        flash(
+            f"🤖 AI Attendance Analysis Complete: Imported {imported_punch_count:,} biometric punches. "
+            f"Analyzed {len(affected_emp_ids)} employees across duty cycles: {day_shifts_detected} Day Duties, "
+            f"{night_shifts_detected} Night Duties (cross-day paired).",
+            "success"
+        )
+        return redirect(url_for('attendance_dashboard', date=latest_date_str))
+
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        traceback.print_exc()
+        msg = f"Import error: {str(e)}"
+        update_job_progress(job_id, 0, "Import Failed", msg, "Error")
+        if is_ajax:
+            return jsonify({'success': False, 'error': msg}), 500
+        flash(f"❌ {msg}", "danger")
+        return redirect(url_for('attendance_dashboard'))
 
 
 @app.route('/attendance/month-wise')

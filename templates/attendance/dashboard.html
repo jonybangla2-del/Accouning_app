@@ -314,7 +314,7 @@
         
         <!-- SECTION 1: INPUT FORM -->
         <div id="importInputSection">
-            <form id="attendanceImportForm" onsubmit="handleAttendanceImport(event)" enctype="multipart/form-data" class="modal-form">
+            <form id="attendanceImportForm" onsubmit="handleAttendanceImport(event); return false;" action="javascript:void(0);" method="POST" enctype="multipart/form-data" class="modal-form">
                 <div class="modal-body">
                     <p class="modal-instruction">
                         Upload your raw face attendance machine log file exported to Notepad (<code>.txt</code> / <code>.log</code> / <code>.dat</code>) or paste the copied text directly into the box below.
