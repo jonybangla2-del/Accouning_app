@@ -1,0 +1,1384 @@
+{% extends "base.html" %}
+
+{% block title %}Biometric Face Attendance &amp; AI Shift Analyzer &bull; ZR-ERP{% endblock %}
+
+{% block content %}
+<div class="attendance-container">
+
+    <!-- Header Section -->
+    <div class="module-header-card">
+        <div class="header-left">
+            <div class="header-badge">
+                <span class="pulsing-dot"></span>
+                <span>BIOMETRIC FACE RECOGNITION &bull; AI SHIFT ENGINE</span>
+            </div>
+            <h1 class="header-title">Face Machine Attendance &amp; Duty Roster</h1>
+            <p class="header-subtitle">
+                Automated facial attendance log analyzer with cross-day night shift detection, overtime pairing, and day-night duty intelligence.
+            </p>
+        </div>
+
+        <div class="header-actions">
+            <button type="button" class="btn-action btn-import" onclick="openImportModal()">
+                📥 Import Notepad Log
+            </button>
+            <button type="button" class="btn-action btn-holiday" onclick="openHolidayModal()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff; font-weight: 700; border: none; box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35);">
+                🎉 Govt Holiday List (PDF / Excel)
+            </button>
+            <a href="{{ url_for('attendance_month_matrix') }}" class="btn-action btn-matrix">
+                📊 Monthly Register (31-Day)
+            </a>
+            <button type="button" class="btn-action btn-settings" onclick="openSettingsModal()">
+                ⚙️ Shift Rules
+            </button>
+        </div>
+    </div>
+
+    {% if holiday_today %}
+    <div style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1.5px solid #fde68a; border-radius: 12px; padding: 1rem 1.4rem; margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.12);">
+        <div style="display: flex; align-items: center; gap: 0.85rem;">
+            <div style="font-size: 2rem;">🎉</div>
+            <div>
+                <div style="font-size: 1.05rem; font-weight: 800; color: #92400e; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                    Official Government Holiday: <span>{{ holiday_today.name }}</span>
+                    <span class="badge" style="background: #047857; color: #ffffff; font-size: 0.72rem; padding: 0.2rem 0.55rem; font-weight: 700; border-radius: 9999px;">{{ holiday_today.holiday_type }}</span>
+                </div>
+                <div style="font-size: 0.82rem; color: #b45309; margin-top: 0.2rem;">
+                    All enrolled employees are credited with a paid public holiday. Working shifts logged today are categorized under <strong>Holiday Duty (H*)</strong> with duty hours and overtime recorded.
+                </div>
+            </div>
+        </div>
+        <button type="button" onclick="openHolidayModal()" class="btn-ui" style="background: #d97706; color: #ffffff; border: none; font-weight: 700; font-size: 0.8rem; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; box-shadow: 0 2px 6px rgba(217, 119, 6, 0.3);">
+            📅 View Holiday List ({{ holidays_count_year|default(0) }})
+        </button>
+    </div>
+    {% endif %}
+
+    <!-- KPI Statistics Grid for Selected Date -->
+    <div class="kpi-grid">
+        <div class="kpi-card kpi-total">
+            <div class="kpi-icon">👥</div>
+            <div class="kpi-info">
+                <span class="kpi-label">Total Present</span>
+                <span class="kpi-value">{{ total_present }}</span>
+                <span class="kpi-sub">On {{ selected_date.strftime('%d %b, %Y') }}</span>
+            </div>
+        </div>
+
+        <div class="kpi-card kpi-day">
+            <div class="kpi-icon">☀️</div>
+            <div class="kpi-info">
+                <span class="kpi-label">Day Duties</span>
+                <span class="kpi-value">{{ day_shift_count }}</span>
+                <span class="kpi-sub">Standard Day / General</span>
+            </div>
+        </div>
+
+        <div class="kpi-card kpi-night">
+            <div class="kpi-icon">🌙</div>
+            <div class="kpi-info">
+                <span class="kpi-label">Night Duties</span>
+                <span class="kpi-value">{{ night_shift_count }}</span>
+                <span class="kpi-sub">Cross-day Overnight Shifts</span>
+            </div>
+        </div>
+
+        <div class="kpi-card kpi-double">
+            <div class="kpi-icon">⚡</div>
+            <div class="kpi-info">
+                <span class="kpi-label">Double Duties</span>
+                <span class="kpi-value">{{ double_shift_count }}</span>
+                <span class="kpi-sub">Continuous Day-Night Duty</span>
+            </div>
+        </div>
+
+        <div class="kpi-card kpi-late">
+            <div class="kpi-icon">⏰</div>
+            <div class="kpi-info">
+                <span class="kpi-label">Late / Irregular</span>
+                <span class="kpi-value">{{ late_count }}</span>
+                <span class="kpi-sub">{{ missing_out_count }} Missing Out-punch</span>
+            </div>
+        </div>
+
+        <div class="kpi-card kpi-hours">
+            <div class="kpi-icon">⏱️</div>
+            <div class="kpi-info">
+                <span class="kpi-label">Duty &amp; OT Hours</span>
+                <span class="kpi-value">{{ total_hours }}h</span>
+                <span class="kpi-sub">{{ total_ot }}h Overtime Accrued</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Control Toolbar (Date Selector, Filters, Search) -->
+    <div class="toolbar-card">
+        <form method="GET" action="{{ url_for('attendance_dashboard') }}" class="toolbar-form" id="filterForm">
+            <!-- Date Picker -->
+            <div class="filter-group">
+                <label for="inpDate">📅 Duty Date:</label>
+                <input type="date" id="inpDate" name="date" value="{{ selected_date_str }}" onchange="this.form.submit()" class="ctrl-input">
+            </div>
+
+            <!-- Quick Date Jump -->
+            {% if available_dates %}
+            <div class="filter-group">
+                <label for="quickDate">Recent Logs:</label>
+                <select id="quickDate" onchange="document.getElementById('inpDate').value=this.value; document.getElementById('filterForm').submit();" class="ctrl-select">
+                    <option value="">Jump to date...</option>
+                    {% for ad in available_dates %}
+                    <option value="{{ ad }}" {% if ad == selected_date_str %}selected{% endif %}>{{ ad }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <!-- Shift Filter -->
+            <div class="filter-group">
+                <label for="selShift">Shift Type:</label>
+                <select id="selShift" name="shift" onchange="this.form.submit()" class="ctrl-select">
+                    <option value="All" {% if shift_filter == 'All' %}selected{% endif %}>All Shifts</option>
+                    <option value="Day" {% if shift_filter == 'Day' %}selected{% endif %}>☀️ Day Shift Only</option>
+                    <option value="Night" {% if shift_filter == 'Night' %}selected{% endif %}>🌙 Night Shift (Cross-Day)</option>
+                    <option value="Double" {% if shift_filter == 'Double' %}selected{% endif %}>⚡ Double Duty (Day-Night)</option>
+                    <option value="Missing Out" {% if shift_filter == 'Missing Out' %}selected{% endif %}>⚠️ Missing Out Punch</option>
+                </select>
+            </div>
+
+            <!-- Department Filter -->
+            <div class="filter-group">
+                <label for="selDept">Department:</label>
+                <select id="selDept" name="department" onchange="this.form.submit()" class="ctrl-select">
+                    <option value="All" {% if dept_filter == 'All' %}selected{% endif %}>All Departments</option>
+                    {% for d in departments %}
+                    <option value="{{ d }}" {% if dept_filter == d %}selected{% endif %}>{{ d }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Search box -->
+            <div class="filter-group" style="flex: 1; min-width: 180px;">
+                <label for="inpSearch">Search Employee:</label>
+                <div class="search-box">
+                    <input type="text" id="inpSearch" name="q" value="{{ search_q }}" placeholder="Search ID or Name..." class="ctrl-input">
+                    <button type="submit" class="btn-search">🔍</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Attendance Roster Table -->
+    <div class="table-card">
+        <div class="table-header">
+            <div class="table-title">
+                <h3>Daily Attendance Log &mdash; {{ selected_date.strftime('%A, %d %B %Y') }}</h3>
+                <span class="count-pill">{{ records|length }} Records</span>
+            </div>
+            <div class="table-tools">
+                <a href="{{ url_for('attendance_month_matrix', year=selected_date.year, month=selected_date.month) }}" class="btn-subtle">
+                    📅 View Full Month ({{ selected_date.strftime('%B %Y') }})
+                </a>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="att-table">
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">Emp ID</th>
+                        <th style="width: 200px;">Employee Name</th>
+                        <th style="width: 130px;">Department</th>
+                        <th style="width: 160px;">Shift Type</th>
+                        <th style="width: 100px; text-align: center;">In Time</th>
+                        <th style="width: 100px; text-align: center;">Out Time</th>
+                        <th style="width: 110px; text-align: center;">Duty Hours</th>
+                        <th style="width: 90px; text-align: center;">OT</th>
+                        <th style="width: 120px; text-align: center;">Status</th>
+                        <th>AI Duty &amp; Shift Analysis</th>
+                        <th style="width: 80px; text-align: center;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if records %}
+                        {% for r in records %}
+                        {% set emp = r.employee %}
+                        <tr class="att-row {% if r.is_night_shift %}row-night{% elif 'Double' in r.shift_type %}row-double{% endif %}">
+                            <td class="cell-id">
+                                <strong>{{ emp.employee_id|replace('EMP-', '') if emp else 'Unknown' }}</strong>
+                            </td>
+                            <td>
+                                <div class="emp-profile-cell">
+                                    <a href="{{ url_for('employee_attendance_card', emp_id=emp.id) if emp else '#' }}" class="emp-name-link">
+                                        {{ emp.name if emp else 'Unregistered User' }}
+                                    </a>
+                                    <span class="emp-desig-sub">{{ emp.designation or 'Staff' }}</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="dept-badge">{{ emp.department or 'General' }}</span>
+                            </td>
+                            <td>
+                                {% if 'Night' in r.shift_type %}
+                                    <span class="shift-pill pill-night">🌙 {{ r.shift_type }}</span>
+                                {% elif 'Double' in r.shift_type %}
+                                    <span class="shift-pill pill-double">⚡ {{ r.shift_type }}</span>
+                                {% elif 'Evening' in r.shift_type %}
+                                    <span class="shift-pill pill-evening">🌆 {{ r.shift_type }}</span>
+                                {% else %}
+                                    <span class="shift-pill pill-day">☀️ Day Shift</span>
+                                {% endif %}
+                                {% if r.is_cross_day %}
+                                    <span class="cross-day-tag" title="Cross-day duty extending to next morning">+1 Day</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center font-mono cell-time">
+                                {{ r.in_time.strftime('%H:%M:%S') if r.in_time else '-' }}
+                            </td>
+                            <td class="text-center font-mono cell-time">
+                                {% if r.out_time %}
+                                    {{ r.out_time.strftime('%H:%M:%S') }}
+                                    {% if r.out_time.date() > r.in_time.date() %}
+                                        <small class="text-muted" style="display:block; font-size: 0.68rem; color: #6366f1;">({{ r.out_time.strftime('%d-%b') }})</small>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="missing-badge" title="No checkout punch recorded">Missing</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center font-bold">
+                                {% if r.out_time %}
+                                    {{ r.total_hours }}h
+                                {% else %}
+                                    <span style="color: #94a3b8;">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if r.overtime_hours > 0 %}
+                                    <span class="ot-badge">+{{ r.overtime_hours }}h</span>
+                                {% else %}
+                                    <span style="color: #cbd5e1;">0</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if 'Night' in r.status %}
+                                    <span class="status-pill status-night">🌙 Night Duty</span>
+                                {% elif 'Double' in r.status %}
+                                    <span class="status-pill status-double">⚡ Double Duty</span>
+                                {% elif 'Late' in r.status %}
+                                    <span class="status-pill status-late">⏰ Late Entry</span>
+                                {% elif r.status == 'Missing Out' %}
+                                    <span class="status-pill status-warning">⚠️ Missing Out</span>
+                                {% else %}
+                                    <span class="status-pill status-present">✓ Present</span>
+                                {% endif %}
+                            </td>
+                            <td class="cell-ai-note">
+                                <div class="ai-note-box">
+                                    {{ r.ai_analysis or 'Standard automated biometric pairing.' }}
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <button type="button" class="btn-row-edit" onclick="openEditModal({{ r.id }}, '{{ emp.name }}', '{{ r.shift_type }}', '{{ r.in_time.strftime('%Y-%m-%d %H:%M') if r.in_time else '' }}', '{{ r.out_time.strftime('%Y-%m-%d %H:%M') if r.out_time else '' }}', '{{ r.status }}', '{{ r.remarks or '' }}')" title="Edit Attendance Times">
+                                    ✏️
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="11" class="text-center empty-state">
+                                <div class="empty-icon">📂</div>
+                                <h4>No Biometric Attendance Records Found for {{ selected_date.strftime('%d %B %Y') }}</h4>
+                                <p>Import your face machine raw text logs exported from Notepad to automatically recognize Day &amp; Night duty shifts.</p>
+                                <button type="button" class="btn-action btn-import" onclick="openImportModal()" style="margin-top: 1rem;">
+                                    📥 Import Notepad Attendance File
+                                </button>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- =========================================================================
+     MODAL: IMPORT NOTEPAD BIOMETRIC ATTENDANCE FILE
+     ========================================================================= -->
+<div class="modal-backdrop" id="importModal" onclick="if(event.target === this) closeImportModal()">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-header">
+            <h3>📥 Import Facial Machine Attendance Log</h3>
+            <button type="button" class="btn-close-modal" onclick="closeImportModal()">✕</button>
+        </div>
+        <form action="{{ url_for('import_attendance_notepad') }}" method="POST" enctype="multipart/form-data" class="modal-form">
+            <div class="modal-body">
+                <p class="modal-instruction">
+                    Upload your raw face attendance machine log file exported to Notepad (<code>.txt</code> / <code>.log</code> / <code>.dat</code>) or paste the copied text directly into the box below.
+                </p>
+
+                <!-- File Upload Box -->
+                <div class="form-group">
+                    <label class="form-label">Option 1: Choose File from Computer (.txt / .log / .dat)</label>
+                    <input type="file" name="notepad_file" accept=".txt, .log, .dat, .csv" class="file-drop-input">
+                </div>
+
+                <div class="or-separator">
+                    <span>— OR —</span>
+                </div>
+
+                <!-- Paste Area -->
+                <div class="form-group">
+                    <label class="form-label">Option 2: Paste Raw Text from Notepad Directly</label>
+                    <textarea name="notepad_text" rows="8" placeholder="Paste face machine punch rows here, e.g.:
+242    2026-09-09 18:57:13    4    1    Md Ershad Prodhan Rahat I    0    1
+98     2026-09-09 19:13:12    3    0    SHAKAWAT HOSAIN TAKUR I    0    1
+716    2026-09-09 19:27:35    4    1    716    I    0    1" class="text-paste-area"></textarea>
+                </div>
+
+                <!-- AI Shift Analysis Features Box -->
+                <div class="ai-features-callout">
+                    <div class="ai-feat-header">
+                        <span class="ai-sparkle">✨</span>
+                        <strong>What the AI Shift Engine analyzes automatically:</strong>
+                    </div>
+                    <ul class="ai-feat-list">
+                        <li><strong>Cross-Day Night Duty:</strong> Detects evening punches (18:00–23:59) and correctly pairs them with next morning exits (05:00–10:00).</li>
+                        <li><strong>Day vs Night vs Double Duty:</strong> Accurately classifies shift type, handles continuous Day-to-Night and Night-to-Day double duties.</li>
+                        <li><strong>Multi-Punch De-duplication:</strong> Consolidates rapid repeated punches into single clean Check-In and Check-Out timestamps.</li>
+                        <li><strong>Overtime &amp; Late Calculations:</strong> Automatically tallies duty hours, grace-period late marks, and overtime hours.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn-ui btn-ui-dark" onclick="closeImportModal()">Cancel</button>
+                <button type="submit" class="btn-ui btn-ui-primary">🤖 Analyze &amp; Import Attendance</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- =========================================================================
+     MODAL: EDIT ATTENDANCE RECORD (AJAX)
+     ========================================================================= -->
+<div class="modal-backdrop" id="editModal" onclick="if(event.target === this) closeEditModal()">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h3>✏️ Edit Attendance Duty &mdash; <span id="modalEmpName"></span></h3>
+            <button type="button" class="btn-close-modal" onclick="closeEditModal()">✕</button>
+        </div>
+        <form onsubmit="saveAttendanceEdit(event)" class="modal-form">
+            <input type="hidden" id="editAttId">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Shift Type</label>
+                    <select id="editShiftType" class="ctrl-select" style="width: 100%;">
+                        <option value="Day Shift">☀️ Day Shift</option>
+                        <option value="Evening Shift">🌆 Evening Shift</option>
+                        <option value="Night Shift">🌙 Night Shift (Cross-Day)</option>
+                        <option value="Double Shift (Day-to-Night)">⚡ Double Shift (Day-to-Night)</option>
+                        <option value="Double Shift (Night-to-Day)">⚡ Double Shift (Night-to-Day)</option>
+                        <option value="Single Punch">⚠️ Single Punch (Missing Out)</option>
+                    </select>
+                </div>
+
+                <div class="form-row" style="display: flex; gap: 0.75rem;">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Check-In Time</label>
+                        <input type="text" id="editInTime" placeholder="YYYY-MM-DD HH:MM" class="ctrl-input" style="width: 100%;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Check-Out Time</label>
+                        <input type="text" id="editOutTime" placeholder="YYYY-MM-DD HH:MM" class="ctrl-input" style="width: 100%;">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select id="editStatus" class="ctrl-select" style="width: 100%;">
+                        <option value="Present">Present</option>
+                        <option value="Late">Late Entry</option>
+                        <option value="Night Duty">Night Duty</option>
+                        <option value="Double Shift">Double Shift</option>
+                        <option value="Early Exit">Early Exit</option>
+                        <option value="Missing Out">Missing Out</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Remarks / Adjustment Reason</label>
+                    <input type="text" id="editRemarks" placeholder="e.g. Regularized by Manager" class="ctrl-input" style="width: 100%;">
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn-ui btn-ui-dark" onclick="closeEditModal()">Cancel</button>
+                <button type="submit" class="btn-ui btn-ui-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- =========================================================================
+     MODAL: SHIFT RULES & SETTINGS
+     ========================================================================= -->
+<div class="modal-backdrop" id="settingsModal" onclick="if(event.target === this) closeSettingsModal()">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h3>⚙️ Shift Rules &amp; Timing Configuration</h3>
+            <button type="button" class="btn-close-modal" onclick="closeSettingsModal()">✕</button>
+        </div>
+        <form action="{{ url_for('update_attendance_settings') }}" method="POST" class="modal-form">
+            <div class="modal-body">
+                <div class="form-row" style="display: flex; gap: 0.75rem;">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Day Shift Start</label>
+                        <input type="time" name="day_start_time" value="{{ shift_settings.day_start_time or '09:00' }}" class="ctrl-input" style="width: 100%;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Day Shift End</label>
+                        <input type="time" name="day_end_time" value="{{ shift_settings.day_end_time or '18:00' }}" class="ctrl-input" style="width: 100%;">
+                    </div>
+                </div>
+
+                <div class="form-row" style="display: flex; gap: 0.75rem;">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Late Grace Period (Mins)</label>
+                        <input type="number" name="grace_period_mins" value="{{ shift_settings.grace_period_mins or 15 }}" class="ctrl-input" style="width: 100%;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Standard Hours per Shift</label>
+                        <input type="number" step="0.5" name="standard_hours" value="{{ shift_settings.standard_hours or 8.0 }}" class="ctrl-input" style="width: 100%;">
+                    </div>
+                </div>
+
+                <div class="form-row" style="display: flex; gap: 0.75rem;">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Night Shift Start Threshold</label>
+                        <input type="time" name="night_start_threshold" value="{{ shift_settings.night_start_threshold or '18:00' }}" class="ctrl-input" style="width: 100%;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Night Shift End Threshold</label>
+                        <input type="time" name="night_end_threshold" value="{{ shift_settings.night_end_threshold or '10:00' }}" class="ctrl-input" style="width: 100%;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn-ui btn-ui-dark" onclick="closeSettingsModal()">Cancel</button>
+                <button type="submit" class="btn-ui btn-ui-primary">Save Rules</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    /* Premium Design System for Biometric Attendance Module */
+    :root {
+        --att-bg: #f8fafc;
+        --att-card-bg: #ffffff;
+        --att-border: #e2e8f0;
+        --att-primary: #059669;
+        --att-primary-dark: #047857;
+        --att-night: #6366f1;
+        --att-night-bg: #e0e7ff;
+        --att-double: #d97706;
+        --att-double-bg: #fef3c7;
+        --att-late: #ea580c;
+        --att-late-bg: #ffedd5;
+    }
+
+    .attendance-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 1.5rem 0.5rem 3rem 0.5rem;
+    }
+
+    /* Header Card */
+    .module-header-card {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        border-radius: 14px;
+        padding: 1.8rem 2rem;
+        color: #ffffff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1.5rem;
+        box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.3);
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .header-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: rgba(16, 185, 129, 0.15);
+        color: #34d399;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        padding: 0.25rem 0.65rem;
+        border-radius: 20px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.6rem;
+    }
+
+    .pulsing-dot {
+        width: 8px;
+        height: 8px;
+        background: #10b981;
+        border-radius: 50%;
+        box-shadow: 0 0 8px #10b981;
+        animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .header-title {
+        font-size: 1.7rem;
+        font-weight: 800;
+        color: #ffffff;
+        margin-bottom: 0.35rem;
+        letter-spacing: -0.02em;
+    }
+
+    .header-subtitle {
+        font-size: 0.88rem;
+        color: #94a3b8;
+        max-width: 650px;
+        line-height: 1.45;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 0.65rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-action {
+        font-family: inherit;
+        font-size: 0.84rem;
+        font-weight: 600;
+        padding: 0.6rem 1.1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        border: 1px solid transparent;
+        white-space: nowrap;
+    }
+
+    .btn-import {
+        background: #059669;
+        color: #ffffff;
+        box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
+    }
+    .btn-import:hover {
+        background: #047857;
+        transform: translateY(-1px);
+    }
+
+    .btn-matrix {
+        background: #3b82f6;
+        color: #ffffff;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+    }
+    .btn-matrix:hover {
+        background: #2563eb;
+        transform: translateY(-1px);
+    }
+
+    .btn-settings {
+        background: rgba(255, 255, 255, 0.1);
+        color: #e2e8f0;
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+    .btn-settings:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+    }
+
+    /* KPI Grid */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .kpi-card {
+        background: #ffffff;
+        border: 1px solid var(--att-border);
+        border-radius: 10px;
+        padding: 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.06);
+    }
+
+    .kpi-icon {
+        font-size: 1.8rem;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        background: #f1f5f9;
+        flex-shrink: 0;
+    }
+
+    .kpi-info {
+        display: flex;
+        flex-direction: column;
+    }
+    .kpi-label {
+        font-size: 0.74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: #64748b;
+        letter-spacing: 0.04em;
+    }
+    .kpi-value {
+        font-size: 1.45rem;
+        font-weight: 800;
+        color: #0f172a;
+        line-height: 1.2;
+    }
+    .kpi-sub {
+        font-size: 0.7rem;
+        color: #94a3b8;
+        margin-top: 2px;
+    }
+
+    .kpi-night .kpi-icon { background: #ede9fe; color: #7c3aed; }
+    .kpi-double .kpi-icon { background: #fef3c7; color: #d97706; }
+    .kpi-day .kpi-icon { background: #ecfdf5; color: #059669; }
+    .kpi-late .kpi-icon { background: #ffedd5; color: #ea580c; }
+    .kpi-hours .kpi-icon { background: #e0f2fe; color: #0284c7; }
+
+    /* Control Toolbar */
+    .toolbar-card {
+        background: #ffffff;
+        border: 1px solid var(--att-border);
+        border-radius: 10px;
+        padding: 0.9rem 1.25rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    }
+
+    .toolbar-form {
+        display: flex;
+        align-items: flex-end;
+        gap: 0.85rem;
+        flex-wrap: wrap;
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    .filter-group label {
+        font-size: 0.74rem;
+        font-weight: 700;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .ctrl-input, .ctrl-select {
+        padding: 0.42rem 0.65rem;
+        font-size: 0.84rem;
+        font-family: inherit;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        color: #0f172a;
+        background: #ffffff;
+        outline: none;
+        transition: border-color 0.15s ease;
+    }
+    .ctrl-input:focus, .ctrl-select:focus {
+        border-color: #059669;
+        box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15);
+    }
+
+    .search-box {
+        display: flex;
+    }
+    .search-box .ctrl-input {
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+        border-right: none;
+        width: 100%;
+    }
+    .btn-search {
+        background: #0f172a;
+        color: #ffffff;
+        border: 1px solid #0f172a;
+        border-top-right-radius: 6px;
+        border-bottom-right-radius: 6px;
+        padding: 0 0.75rem;
+        cursor: pointer;
+    }
+
+    /* Table Card */
+    .table-card {
+        background: #ffffff;
+        border: 1px solid var(--att-border);
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+        overflow: hidden;
+    }
+
+    .table-header {
+        padding: 1rem 1.4rem;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #f8fafc;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .table-title {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .table-title h3 {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0;
+    }
+    .count-pill {
+        background: #0f172a;
+        color: #ffffff;
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 0.18rem 0.55rem;
+        border-radius: 12px;
+    }
+
+    .btn-subtle {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #059669;
+        text-decoration: none;
+        padding: 0.35rem 0.7rem;
+        border-radius: 6px;
+        background: #ecfdf5;
+        border: 1px solid #a7f3d0;
+        transition: all 0.15s ease;
+    }
+    .btn-subtle:hover {
+        background: #d1fae5;
+    }
+
+    .table-responsive {
+        overflow-x: auto;
+    }
+
+    .att-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.84rem;
+    }
+    .att-table th {
+        background: #f1f5f9;
+        color: #475569;
+        font-size: 0.74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 0.65rem 0.8rem;
+        border-bottom: 1px solid #cbd5e1;
+        text-align: left;
+    }
+    .att-table td {
+        padding: 0.7rem 0.8rem;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+        color: #1e293b;
+    }
+
+    .att-row:hover {
+        background-color: #f8fafc;
+    }
+
+    .row-night {
+        background-color: rgba(99, 102, 241, 0.03);
+    }
+    .row-double {
+        background-color: rgba(217, 119, 6, 0.03);
+    }
+
+    .cell-id strong {
+        font-family: 'JetBrains Mono', monospace;
+        color: #0f172a;
+        font-size: 0.86rem;
+    }
+
+    .emp-profile-cell {
+        display: flex;
+        flex-direction: column;
+    }
+    .emp-name-link {
+        font-weight: 700;
+        color: #0f172a;
+        text-decoration: none;
+        font-size: 0.88rem;
+    }
+    .emp-name-link:hover {
+        color: #059669;
+        text-decoration: underline;
+    }
+    .emp-desig-sub {
+        font-size: 0.74rem;
+        color: #64748b;
+    }
+
+    .dept-badge {
+        font-size: 0.74rem;
+        color: #475569;
+        background: #f1f5f9;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        border: 1px solid #e2e8f0;
+    }
+
+    /* Shift Pills */
+    .shift-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-size: 0.74rem;
+        font-weight: 700;
+        padding: 0.2rem 0.55rem;
+        border-radius: 6px;
+        white-space: nowrap;
+    }
+    .pill-day { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+    .pill-night { background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; }
+    .pill-double { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+    .pill-evening { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+
+    .cross-day-tag {
+        font-size: 0.65rem;
+        font-weight: 800;
+        background: #4338ca;
+        color: #ffffff;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        margin-left: 0.25rem;
+        vertical-align: middle;
+    }
+
+    .cell-time {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.82rem;
+        color: #0f172a;
+    }
+
+    .missing-badge {
+        background: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fca5a5;
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 0.12rem 0.4rem;
+        border-radius: 4px;
+    }
+
+    .ot-badge {
+        background: #ecfdf5;
+        color: #047857;
+        font-weight: 700;
+        font-size: 0.76rem;
+        padding: 0.12rem 0.45rem;
+        border-radius: 4px;
+        border: 1px solid #a7f3d0;
+    }
+
+    /* Status Pills */
+    .status-pill {
+        display: inline-block;
+        font-size: 0.74rem;
+        font-weight: 700;
+        padding: 0.2rem 0.6rem;
+        border-radius: 12px;
+    }
+    .status-present { background: #dcfce7; color: #15803d; }
+    .status-night { background: #ede9fe; color: #6d28d9; }
+    .status-double { background: #fef3c7; color: #b45309; }
+    .status-late { background: #ffedd5; color: #c2410c; }
+    .status-warning { background: #fee2e2; color: #b91c1c; }
+
+    /* AI Note Box */
+    .ai-note-box {
+        font-size: 0.76rem;
+        color: #334155;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 0.35rem 0.6rem;
+        line-height: 1.35;
+    }
+
+    .btn-row-edit {
+        background: transparent;
+        border: 1px solid #cbd5e1;
+        border-radius: 5px;
+        padding: 0.25rem 0.5rem;
+        cursor: pointer;
+        font-size: 0.8rem;
+        transition: all 0.15s ease;
+    }
+    .btn-row-edit:hover {
+        background: #0f172a;
+        color: #ffffff;
+        border-color: #0f172a;
+    }
+
+    /* Empty State */
+    .empty-state {
+        padding: 4rem 1rem !important;
+        color: #64748b;
+    }
+    .empty-icon {
+        font-size: 3rem;
+        margin-bottom: 0.5rem;
+    }
+    .empty-state h4 {
+        color: #0f172a;
+        font-size: 1.15rem;
+        margin-bottom: 0.4rem;
+    }
+    .empty-state p {
+        font-size: 0.86rem;
+        max-width: 500px;
+        margin: 0 auto;
+    }
+
+    /* Modals */
+    .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.65);
+        backdrop-filter: blur(3px);
+        z-index: 2000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+    }
+    .modal-backdrop.open { display: flex; }
+
+    .modal-dialog {
+        background: #ffffff;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 550px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+        animation: modalIn 0.2s ease-out;
+    }
+    .modal-lg { max-width: 680px; }
+
+    @keyframes modalIn {
+        from { opacity: 0; transform: scale(0.96); }
+        to { opacity: 1; transform: scale(1); }
+    }
+
+    .modal-header {
+        background: #0f172a;
+        color: #ffffff;
+        padding: 1.1rem 1.4rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .modal-header h3 {
+        font-size: 1.05rem;
+        font-weight: 700;
+        margin: 0;
+    }
+    .btn-close-modal {
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        font-size: 1.3rem;
+        cursor: pointer;
+    }
+    .btn-close-modal:hover { color: #ffffff; }
+
+    .modal-body {
+        padding: 1.4rem;
+        max-height: calc(85vh - 120px);
+        overflow-y: auto;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.4rem;
+        background: #f8fafc;
+        border-top: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+    .form-label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #334155;
+        margin-bottom: 0.35rem;
+    }
+
+    .file-drop-input {
+        width: 100%;
+        padding: 0.8rem;
+        border: 2px dashed #059669;
+        border-radius: 8px;
+        background: #f0fdf4;
+        font-size: 0.82rem;
+    }
+
+    .or-separator {
+        text-align: center;
+        margin: 0.85rem 0;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #94a3b8;
+    }
+
+    .text-paste-area {
+        width: 100%;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.78rem;
+        padding: 0.7rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        outline: none;
+        color: #0f172a;
+    }
+    .text-paste-area:focus {
+        border-color: #059669;
+        box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15);
+    }
+
+    .ai-features-callout {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.85rem;
+        font-size: 0.78rem;
+        color: #475569;
+        line-height: 1.45;
+    }
+    .ai-feat-header {
+        color: #0f172a;
+        margin-bottom: 0.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .ai-feat-list {
+        margin-left: 1.25rem;
+    }
+    .ai-feat-list li {
+        margin-bottom: 0.25rem;
+    }
+
+    .btn-ui {
+        font-family: inherit;
+        font-size: 0.84rem;
+        font-weight: 600;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        cursor: pointer;
+        border: 1px solid transparent;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .btn-ui-primary {
+        background: #059669;
+        color: #ffffff;
+    }
+    .btn-ui-primary:hover { background: #047857; }
+    .btn-ui-dark {
+        background: #334155;
+        color: #ffffff;
+    }
+    .btn-ui-dark:hover { background: #475569; }
+</style>
+
+<script>
+    function openImportModal() {
+        document.getElementById('importModal').classList.add('open');
+    }
+    function closeImportModal() {
+        document.getElementById('importModal').classList.remove('open');
+    }
+
+    function openSettingsModal() {
+        document.getElementById('settingsModal').classList.add('open');
+    }
+    function closeSettingsModal() {
+        document.getElementById('settingsModal').classList.remove('open');
+    }
+
+    function openEditModal(attId, empName, shiftType, inTime, outTime, status, remarks) {
+        document.getElementById('editAttId').value = attId;
+        document.getElementById('modalEmpName').innerText = empName;
+        document.getElementById('editShiftType').value = shiftType;
+        document.getElementById('editInTime').value = inTime;
+        document.getElementById('editOutTime').value = outTime;
+        document.getElementById('editStatus').value = status;
+        document.getElementById('editRemarks').value = remarks;
+        document.getElementById('editModal').classList.add('open');
+    }
+    function closeEditModal() {
+        document.getElementById('editModal').classList.remove('open');
+    }
+
+    async function saveAttendanceEdit(e) {
+        e.preventDefault();
+        const attId = document.getElementById('editAttId').value;
+        const payload = {
+            shift_type: document.getElementById('editShiftType').value,
+            in_time: document.getElementById('editInTime').value,
+            out_time: document.getElementById('editOutTime').value,
+            status: document.getElementById('editStatus').value,
+            remarks: document.getElementById('editRemarks').value
+        };
+
+        try {
+            const res = await fetch(`/attendance/edit/${attId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                location.reload();
+            } else {
+                alert('Error updating attendance: ' + (data.message || 'Unknown error'));
+            }
+        } catch (err) {
+            alert('Network error: ' + err.message);
+        }
+    }
+</script>
+{% endblock %}
+
+<!-- =========================================================================
+     MODAL: GOVERNMENT HOLIDAY CALENDAR & ATTENDANCE INTELLIGENCE
+     ========================================================================= -->
+<div class="modal-backdrop" id="holidayModal" onclick="if(event.target === this) closeHolidayModal()">
+    <div class="modal-dialog modal-lg" style="max-width: 840px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #ffffff; padding: 1.1rem 1.4rem;">
+            <div style="display: flex; align-items: center; gap: 0.65rem;">
+                <span style="font-size: 1.5rem;">🎉</span>
+                <div>
+                    <h3 style="margin: 0; color: #ffffff; font-size: 1.15rem; font-weight: 800;">Government Holiday Calendar &amp; Attendance Engine</h3>
+                    <p style="margin: 0.15rem 0 0; color: #94a3b8; font-size: 0.78rem;">Upload PDF / Excel gazette list or sync official Bangladesh public holidays.</p>
+                </div>
+            </div>
+            <button type="button" class="btn-close-modal" onclick="closeHolidayModal()" style="color: #ffffff; font-size: 1.3rem;">✕</button>
+        </div>
+        <div class="modal-body" style="padding: 1.25rem 1.5rem; background: #f8fafc;">
+            <!-- Modal Tabs -->
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 1.15rem; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 0.5rem;">
+                <button type="button" class="h-tab active" id="btnTabUpload" onclick="switchHolidayTab('tab-upload', this)" style="padding: 0.45rem 0.95rem; font-size: 0.82rem; font-weight: 700; border-radius: 6px; border: 1.5px solid #cbd5e1; background: #0284c7; color: #ffffff; cursor: pointer;">
+                    📥 Upload File (PDF / Excel)
+                </button>
+                <button type="button" class="h-tab" id="btnTabManual" onclick="switchHolidayTab('tab-manual', this)" style="padding: 0.45rem 0.95rem; font-size: 0.82rem; font-weight: 700; border-radius: 6px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer;">
+                    ➕ Manual Add
+                </button>
+                <button type="button" class="h-tab" id="btnTabList" onclick="switchHolidayTab('tab-list', this)" style="padding: 0.45rem 0.95rem; font-size: 0.82rem; font-weight: 700; border-radius: 6px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer;">
+                    📋 Current Holidays ({{ holidays_count_year|default(0) }})
+                </button>
+            </div>
+
+            <!-- Tab 1: Upload File & Instant Official Load -->
+            <div id="tab-upload" class="h-tab-pane">
+                <div style="background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 2px 6px rgba(0,0,0,0.03);">
+                    <h4 style="margin: 0 0 0.5rem; color: #0f172a; font-size: 0.95rem; font-weight: 800; display: flex; align-items: center; gap: 0.4rem;">
+                        <span>📄</span> Option 1: Upload Government Holiday PDF or Excel File
+                    </h4>
+                    <p style="margin: 0 0 1rem; color: #64748b; font-size: 0.8rem; line-height: 1.45;">
+                        Upload the official Ministry of Public Administration Gazette (PDF) or corporate holiday schedule (.xlsx / .xls / .csv). The AI engine automatically extracts dates, multi-day ranges (e.g. Eid 4 days), and holiday titles, and updates all employee attendance registers instantly.
+                    </p>
+                    <form action="{{ url_for('upload_govt_holidays') }}" method="POST" enctype="multipart/form-data">
+                        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                            <input type="file" name="holiday_file" accept=".pdf, .xlsx, .xls, .csv" required style="flex: 1; min-width: 240px; padding: 0.5rem 0.75rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; background: #ffffff;">
+                            <select name="year" style="padding: 0.52rem 0.85rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; background: #ffffff; font-weight: 700; color: #0f172a;">
+                                <option value="2026" selected>Year: 2026</option>
+                                <option value="2025">Year: 2025</option>
+                                <option value="2027">Year: 2027</option>
+                            </select>
+                            <button type="submit" class="btn-ui btn-ui-primary" style="background: #0284c7; border-color: #0284c7; padding: 0.55rem 1.25rem; font-size: 0.82rem; font-weight: 800; border-radius: 6px; box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35);">
+                                🤖 Analyze &amp; Apply to Attendance
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div style="background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%); border: 1.5px solid #fde68a; border-radius: 10px; padding: 1.15rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 260px;">
+                        <div style="font-weight: 800; color: #92400e; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+                            <span>🇧🇩</span> Option 2: 1-Click Load Official Bangladesh Govt Holidays 2026
+                        </div>
+                        <div style="font-size: 0.78rem; color: #b45309; margin-top: 0.25rem; line-height: 1.4;">
+                            Instantly populates all 17+ official Bangladesh Gazette holidays (Shaheed Day, Independence Day, Eid-ul-Fitr, Pahela Baishakh, May Day, Eid-ul-Azha, Durga Puja, Victory Day, etc.).
+                        </div>
+                    </div>
+                    <form action="{{ url_for('upload_govt_holidays') }}" method="POST" style="margin: 0;">
+                        <input type="hidden" name="action" value="load_official_2026">
+                        <button type="submit" class="btn-ui" style="background: #d97706; color: #ffffff; font-weight: 800; border: none; padding: 0.6rem 1.25rem; border-radius: 6px; box-shadow: 0 3px 10px rgba(217, 119, 6, 0.35); font-size: 0.82rem; cursor: pointer;">
+                            ✨ Load 2026 Official Holidays
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Tab 2: Manual Add -->
+            <div id="tab-manual" class="h-tab-pane" style="display: none;">
+                <form action="{{ url_for('add_manual_govt_holiday') }}" method="POST" style="background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 1.25rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.85rem; margin-bottom: 0.85rem;">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 700;">Holiday Name *</label>
+                            <input type="text" name="holiday_name" placeholder="e.g. Shab-e-Barat or Special Public Holiday" required class="ctrl-input" style="width: 100%; font-size: 0.82rem;">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 700;">Holiday Type</label>
+                            <select name="holiday_type" class="ctrl-select" style="width: 100%; font-size: 0.82rem;">
+                                <option value="General Holiday">General Holiday (সাধারণ ছুটি)</option>
+                                <option value="Executive Order">Executive Order (নির্বাহী আদেশে ছুটি)</option>
+                                <option value="Public Holiday">Public Holiday</option>
+                                <option value="Optional Holiday">Optional Holiday</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.85rem; margin-bottom: 0.85rem;">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 700;">Start Date *</label>
+                            <input type="date" name="start_date" required class="ctrl-input" style="width: 100%; font-size: 0.82rem;">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 700;">End Date (For multi-day)</label>
+                            <input type="date" name="end_date" class="ctrl-input" style="width: 100%; font-size: 0.82rem;">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 700;">Remarks / Notes</label>
+                            <input type="text" name="notes" placeholder="Optional notes" class="ctrl-input" style="width: 100%; font-size: 0.82rem;">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-ui btn-ui-primary" style="background: #059669; border-color: #059669; font-weight: 800; font-size: 0.82rem; padding: 0.55rem 1.25rem;">
+                        ➕ Save Holiday to Calendar
+                    </button>
+                </form>
+            </div>
+
+            <!-- Tab 3: Current Holidays List -->
+            <div id="tab-list" class="h-tab-pane" style="display: none;">
+                <div style="max-height: 380px; overflow-y: auto; border: 1.5px solid #e2e8f0; border-radius: 8px; background: #ffffff;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                        <thead>
+                            <tr style="background: #0f172a; color: #ffffff; text-align: left;">
+                                <th style="padding: 0.6rem 0.75rem;">Holiday Name</th>
+                                <th style="padding: 0.6rem 0.75rem;">Date(s)</th>
+                                <th style="padding: 0.6rem 0.75rem; text-align: center;">Days</th>
+                                <th style="padding: 0.6rem 0.75rem;">Type</th>
+                                <th style="padding: 0.6rem 0.75rem; text-align: center;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if holidays_in_year %}
+                                {% for h in holidays_in_year %}
+                                <tr style="border-bottom: 1px solid #f1f5f9;">
+                                    <td style="padding: 0.55rem 0.75rem; font-weight: 700; color: #0f172a;">{{ h.name }}</td>
+                                    <td style="padding: 0.55rem 0.75rem; color: #475569;">
+                                        {{ h.holiday_date.strftime('%d %b, %Y') }}
+                                        {% if h.end_date and h.end_date > h.holiday_date %}
+                                            &rarr; {{ h.end_date.strftime('%d %b, %Y') }}
+                                        {% endif %}
+                                        <span style="font-size: 0.72rem; color: #64748b;">({{ h.day_name }})</span>
+                                    </td>
+                                    <td style="padding: 0.55rem 0.75rem; font-weight: 800; color: #0369a1; text-align: center;">{{ h.days_count }}</td>
+                                    <td style="padding: 0.55rem 0.75rem;">
+                                        <span class="badge" style="background: #ecfdf5; color: #047857; font-size: 0.72rem; font-weight: 700;">{{ h.holiday_type }}</span>
+                                    </td>
+                                    <td style="padding: 0.55rem 0.75rem; text-align: center;">
+                                        <form action="{{ url_for('delete_govt_holiday', holiday_id=h.id) }}" method="POST" onsubmit="return confirm('Delete this holiday?')" style="margin: 0; display: inline;">
+                                            <button type="submit" style="background: none; border: none; cursor: pointer; color: #ef4444; font-size: 0.95rem;" title="Delete Holiday">🗑️</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" style="padding: 2rem; text-align: center; color: #64748b;">
+                                        No holidays recorded for this year yet. Upload a PDF/Excel file or load the official 2026 calendar above!
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer" style="background: #ffffff; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 1.4rem;">
+            <div style="font-size: 0.76rem; color: #64748b;">
+                ✨ Holidays automatically credit all employees with <strong>Paid Holiday (H)</strong> and prevent false absences.
+            </div>
+            <button type="button" class="btn-ui btn-ui-dark" onclick="closeHolidayModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openHolidayModal() {
+    const m = document.getElementById('holidayModal');
+    if (m) m.classList.add('active');
+}
+function closeHolidayModal() {
+    const m = document.getElementById('holidayModal');
+    if (m) m.classList.remove('active');
+}
+function switchHolidayTab(tabId, btn) {
+    document.querySelectorAll('.h-tab').forEach(b => {
+        b.style.background = '#ffffff';
+        b.style.color = '#475569';
+    });
+    document.querySelectorAll('.h-tab-pane').forEach(p => p.style.display = 'none');
+    if (btn) {
+        btn.style.background = '#0284c7';
+        btn.style.color = '#ffffff';
+    }
+    const pane = document.getElementById(tabId);
+    if (pane) pane.style.display = 'block';
+}
+</script>

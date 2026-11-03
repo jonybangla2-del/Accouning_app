@@ -1,0 +1,1242 @@
+{% extends "base.html" %}
+
+{% block title %}Monthly Attendance Register (31-Day) &bull; ZR-ERP{% endblock %}
+
+{% block content %}
+<div class="matrix-container">
+
+    <!-- Top Navigation & Header -->
+    <div class="matrix-header-card">
+        <div class="header-left">
+            <div class="matrix-badge">
+                <span class="pulsing-dot"></span>
+                <span>MONTHLY ROSTER &bull; 31-DAY MATRIX</span>
+            </div>
+            <h1 class="matrix-title">
+                Monthly Attendance Register &mdash; 
+                <span class="text-accent">{{ "%02d"|format(month) }}/{{ year }}</span>
+            </h1>
+            <p class="matrix-subtitle">
+                Comprehensive 31-day duty calendar with automated cross-day night duty pairing, day-night classification, total hours, and overtime computation.
+            </p>
+        </div>
+
+        <div class="header-actions">
+            <button type="button" class="btn-matrix-action btn-holiday" onclick="openHolidayModal()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff; font-weight: 700; border: none; box-shadow: 0 4px 10px rgba(217, 119, 6, 0.35); cursor: pointer;">
+                🎉 Govt Holidays (PDF / Excel)
+            </button>
+            <a href="{{ url_for('export_attendance_excel', year=year, month=month) }}" class="btn-matrix-action btn-excel" title="Download Excel Sheet">
+                📥 Export Excel (.xlsx)
+            </a>
+            <button type="button" class="btn-matrix-action btn-print" onclick="window.print()" title="Print Monthly Sheet">
+                🖨️ Print Sheet
+            </button>
+            <a href="{{ url_for('attendance_dashboard') }}" class="btn-matrix-action btn-datewise">
+                📅 Date-wise View
+            </a>
+            <button type="button" class="btn-matrix-action btn-sync" onclick="openSyncModal()">
+                ⚡ Sync to Payroll
+            </button>
+        </div>
+    </div>
+
+    <!-- Filter Toolbar -->
+    <div class="matrix-toolbar">
+        <form method="GET" action="{{ url_for('attendance_month_matrix') }}" class="toolbar-form" id="matrixFilterForm">
+            <!-- Year Selector -->
+            <div class="filter-item">
+                <label for="selYear">Year:</label>
+                <select name="year" id="selYear" onchange="this.form.submit()" class="ctrl-select">
+                    {% for y in year_options %}
+                    <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Month Selector -->
+            <div class="filter-item">
+                <label for="selMonth">Month:</label>
+                <select name="month" id="selMonth" onchange="this.form.submit()" class="ctrl-select">
+                    {% set months = [
+                        (1, 'January'), (2, 'February'), (3, 'March'), (4, 'April'),
+                        (5, 'May'), (6, 'June'), (7, 'July'), (8, 'August'),
+                        (9, 'September'), (10, 'October'), (11, 'November'), (12, 'December')
+                    ] %}
+                    {% for m_num, m_name in months %}
+                    <option value="{{ m_num }}" {% if m_num == month %}selected{% endif %}>
+                        {{ "%02d"|format(m_num) }} - {{ m_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Department Filter -->
+            <div class="filter-item">
+                <label for="selDept">Department:</label>
+                <select name="department" id="selDept" onchange="this.form.submit()" class="ctrl-select">
+                    <option value="All" {% if dept_filter == 'All' %}selected{% endif %}>All Departments</option>
+                    {% for dept in departments %}
+                    <option value="{{ dept }}" {% if dept_filter == dept %}selected{% endif %}>{{ dept }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Search Filter -->
+            <div class="filter-item filter-search">
+                <label for="inpSearch">Search:</label>
+                <div class="search-input-wrap">
+                    <input type="text" name="q" id="inpSearch" value="{{ search_q }}" placeholder="Employee name or ID..." class="ctrl-input">
+                    <button type="submit" class="btn-search-icon">🔍</button>
+                    {% if search_q or dept_filter != 'All' %}
+                    <a href="{{ url_for('attendance_month_matrix', year=year, month=month) }}" class="btn-clear-filter" title="Clear Filters">&times;</a>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+
+        <!-- Legend -->
+        <div class="matrix-legend">
+            <span class="legend-title">Legend:</span>
+            <span class="legend-badge legend-day"><span class="badge-pill pill-day">D</span> Day Shift</span>
+            <span class="legend-badge legend-night"><span class="badge-pill pill-night">N</span> Night Shift</span>
+            <span class="legend-badge legend-double"><span class="badge-pill pill-double">DN</span> Double Duty</span>
+            <span class="legend-badge legend-late"><span class="badge-pill pill-late">L</span> Late</span>
+            <span class="legend-badge legend-missing"><span class="badge-pill pill-missing">?</span> Missing Out</span>
+            <span class="legend-badge legend-holiday"><span class="badge-pill pill-holiday">H</span> Govt Holiday (Paid)</span>
+            <span class="legend-badge legend-holiday-work"><span class="badge-pill pill-holiday-work">H*</span> Holiday Duty</span>
+            <span class="legend-badge legend-weekend"><span class="badge-pill pill-weekend">W</span> Weekend</span>
+            <span class="legend-badge legend-absent"><span class="badge-pill pill-absent">A</span> Absent</span>
+        </div>
+    </div>
+
+    <!-- Monthly Attendance Matrix Table Container -->
+    <div class="table-responsive-card">
+        <div class="table-scroll-container">
+            <table class="matrix-table" id="matrixTable">
+                <thead>
+                    <tr>
+                        <th class="sticky-col col-no" rowspan="2">#</th>
+                        <th class="sticky-col col-id" rowspan="2">Emp ID</th>
+                        <th class="sticky-col col-name" rowspan="2">Employee Name</th>
+                        <th class="sticky-col col-dept" rowspan="2">Department</th>
+                        
+                        <!-- 1 to 31 Day Headers -->
+                        {% for d in matrix_data.date_list %}
+                        {% set weekday = d.strftime('%a') %}
+                        {% set is_weekend = (d.weekday() in [4, 5]) %}
+                        {% set is_holiday = (matrix_data.holiday_map and d in matrix_data.holiday_map) %}
+                        {% set h_obj = matrix_data.holiday_map.get(d) if matrix_data.holiday_map else None %}
+                        <th class="day-col-header {% if is_holiday %}holiday-header{% elif is_weekend %}weekend-header{% endif %}" {% if is_holiday %}title="🎉 Govt Holiday: {{ h_obj.name }}"{% endif %}>
+                            <span class="day-num">{{ d.day }}</span>
+                            <span class="day-name">{% if is_holiday %}🎉 H{% else %}{{ weekday }}{% endif %}</span>
+                        </th>
+                        {% endfor %}
+
+                        <!-- Summary Headers -->
+                        <th class="summary-col col-present" rowspan="2" title="Total Present Days">Pres</th>
+                        <th class="summary-col col-holiday" rowspan="2" title="Paid Govt Holidays (H)">Hol (H)</th>
+                        <th class="summary-col col-weekend" rowspan="2" title="Weekend Off Days (W)">Wkd (W)</th>
+                        <th class="summary-col col-absent" rowspan="2" title="Unexcused Absent Days (A)">Abs (A)</th>
+                        <th class="summary-col col-payable" rowspan="2" title="Total Payable Days (Present + Holiday + Weekend)">Payable</th>
+                        <th class="summary-col col-day" rowspan="2" title="Day Duty Count">Day</th>
+                        <th class="summary-col col-night" rowspan="2" title="Night Duty Count">Night</th>
+                        <th class="summary-col col-double" rowspan="2" title="Double Duty Count">Dbl</th>
+                        <th class="summary-col col-hours" rowspan="2" title="Total Worked Hours">Total Hrs</th>
+                        <th class="summary-col col-ot" rowspan="2" title="Total Overtime Hours">OT Hrs</th>
+                        <th class="summary-col col-late" rowspan="2" title="Late Occurrences">Late</th>
+                        <th class="summary-col col-action" rowspan="2">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if matrix_data.matrix %}
+                        {% for row in matrix_data.matrix %}
+                        {% set emp = row.employee %}
+                        <tr class="emp-row">
+                            <td class="sticky-col col-no">{{ loop.index }}</td>
+                            <td class="sticky-col col-id">
+                                <span class="emp-id-badge">{{ emp.employee_id }}</span>
+                            </td>
+                            <td class="sticky-col col-name">
+                                <a href="{{ url_for('employee_attendance_card', emp_id=emp.id) }}" class="emp-name-link" title="View Duty Profile">
+                                    {{ emp.name }}
+                                </a>
+                                {% if emp.designation %}
+                                <div class="emp-desig-sub">{{ emp.designation }}</div>
+                                {% endif %}
+                            </td>
+                            <td class="sticky-col col-dept">
+                                <span class="dept-tag">{{ emp.department or '-' }}</span>
+                            </td>
+
+                            <!-- 1 to 31 Day Cells -->
+                            {% for d in matrix_data.date_list %}
+                            {% set day_info = row.days.get(d.day) %}
+                            {% set is_weekend = (d.weekday() in [4, 5]) %}
+                            <td class="day-cell {% if is_weekend %}cell-weekend{% endif %}">
+                                {% if day_info %}
+                                    <div class="day-pill-wrap" 
+                                         data-tooltip="📅 {{ d.strftime('%d %b, %Y') }} - {{ day_info.shift_type }}&#10;In: {{ day_info.in_time|default('--:--') }} | Out: {{ day_info.out_time|default('--:--') }}&#10;Hours: {{ day_info.hours|default(0) }}h (OT: {{ day_info.ot|default(0) }}h)&#10;Status: {{ day_info.status }}&#10;{{ day_info.ai_analysis|default('') }}">
+                                        
+                                        {% if day_info.badge == 'H' %}
+                                            <span class="badge-pill pill-holiday" title="Govt Holiday: {{ day_info.holiday_name|default('Holiday') }}">H</span>
+                                        {% elif day_info.badge == 'H*' %}
+                                            <span class="badge-pill pill-holiday-work" title="Govt Holiday Duty: {{ day_info.holiday_name|default('Holiday') }} ({{ day_info.hours }}h)">H*</span>
+                                        {% elif day_info.badge == 'D' %}
+                                            <span class="badge-pill pill-day" title="Day Duty: {{ day_info.hours }}h">D</span>
+                                        {% elif day_info.badge == 'N' %}
+                                            <span class="badge-pill pill-night" title="Night Duty (Cross-Day): {{ day_info.hours }}h">N</span>
+                                        {% elif day_info.badge == 'DN' %}
+                                            <span class="badge-pill pill-double" title="Double Shift (Day & Night): {{ day_info.hours }}h">DN</span>
+                                        {% elif day_info.badge == 'L' %}
+                                            <span class="badge-pill pill-late" title="Late Day Shift: {{ day_info.hours }}h">L</span>
+                                        {% elif day_info.badge == '?' %}
+                                            <span class="badge-pill pill-missing" title="Missing Out Punch">?</span>
+                                        {% elif day_info.badge == 'W' %}
+                                            <span class="badge-pill pill-weekend" title="Weekend">W</span>
+                                        {% else %}
+                                            <span class="badge-pill pill-absent" title="Absent">&bull;</span>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <span class="badge-pill pill-absent">&bull;</span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+
+                            <!-- Summary Columns -->
+                            <td class="summary-col col-present font-bold text-success">{{ row.total_present }}</td>
+                            <td class="summary-col col-holiday font-bold text-amber" title="{{ row.total_holidays }} Govt Holidays" style="color: #b45309; background: #fffbeb;">{{ row.total_holidays }}</td>
+                            <td class="summary-col col-weekend text-slate" title="{{ row.total_weekends }} Weekend Days">{{ row.total_weekends }}</td>
+                            <td class="summary-col col-absent text-danger font-bold" title="{{ row.total_absent }} Absent Days">
+                                {% if row.total_absent > 0 %}
+                                    <span style="color: #ef4444; font-weight: 700;">{{ row.total_absent }}</span>
+                                {% else %}
+                                    <span style="color: #94a3b8;">0</span>
+                                {% endif %}
+                            </td>
+                            <td class="summary-col col-payable font-bold" style="color: #047857; background: #ecfdf5; font-weight: 800;" title="Total Payable Days">{{ row.total_payable_days }}</td>
+                            <td class="summary-col col-day text-info">{{ row.total_day }}</td>
+                            <td class="summary-col col-night text-purple font-bold">{{ row.total_night }}</td>
+                            <td class="summary-col col-double text-amber">{{ row.total_double }}</td>
+                            <td class="summary-col col-hours font-mono">{{ row.total_hours }}h</td>
+                            <td class="summary-col col-ot font-mono text-warning">
+                                {% if row.total_ot > 0 %}
+                                    +{{ row.total_ot }}h
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td class="summary-col col-late text-danger">
+                                {% if row.late_days > 0 %}
+                                    {{ row.late_days }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td class="summary-col col-action">
+                                <a href="{{ url_for('employee_attendance_card', emp_id=emp.id) }}" class="btn-view-card" title="View Duty Profile">
+                                    👤
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="{{ matrix_data.days_in_month + 12 }}" class="empty-state">
+                                <div class="empty-box">
+                                    <span class="empty-icon">📂</span>
+                                    <h4>No Employee Attendance Found</h4>
+                                    <p>No biometric punches or attendance records logged for {{ "%02d"|format(month) }}/{{ year }}.</p>
+                                    <a href="{{ url_for('attendance_dashboard') }}" class="btn-action btn-import">
+                                        Go to Attendance Dashboard &amp; Import Log
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Monthly Summary Bar -->
+    {% if matrix_data.matrix %}
+    <div class="matrix-footer-summary">
+        <div class="summary-stat-chip">
+            <span class="chip-label">Total Employees:</span>
+            <span class="chip-val">{{ matrix_data.matrix|length }}</span>
+        </div>
+        <div class="summary-stat-chip">
+            <span class="chip-label">Total Duty Shifts Logged:</span>
+            <span class="chip-val">{{ matrix_data.matrix|sum(attribute='total_present') }}</span>
+        </div>
+        <div class="summary-stat-chip">
+            <span class="chip-label">Night Duties:</span>
+            <span class="chip-val text-purple">{{ matrix_data.matrix|sum(attribute='total_night') }}</span>
+        </div>
+        <div class="summary-stat-chip">
+            <span class="chip-label">Total Overtime:</span>
+            <span class="chip-val text-warning">{{ "%.1f"|format(matrix_data.matrix|sum(attribute='total_ot')) }} hrs</span>
+        </div>
+        <div class="summary-stat-chip">
+            <span class="chip-label">Total Hours:</span>
+            <span class="chip-val text-info">{{ "%.1f"|format(matrix_data.matrix|sum(attribute='total_hours')) }} hrs</span>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- Sync to Payroll Modal -->
+<div id="syncPayrollModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚡ Sync Attendance Data to Payroll</h3>
+                <button type="button" class="btn-close" onclick="closeSyncModal()">&times;</button>
+            </div>
+            <form action="{{ url_for('sync_attendance_to_payroll') }}" method="POST">
+                <div class="modal-body">
+                    <p class="modal-desc">
+                        This action computes total present days, night duties, and late days from the biometric attendance matrix and synchronizes them directly into the Monthly Salary Register for payroll calculation.
+                    </p>
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label for="sync_month_year" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #cbd5e1;">Select Month / Year:</label>
+                        <input type="month" id="sync_month_year" name="month_year" value="{{ year }}-{{ '%02d'|format(month) }}" required class="form-control" style="width: 100%; padding: 0.6rem 0.8rem; background: #0f172a; border: 1px solid #334155; color: #f8fafc; border-radius: 6px;">
+                    </div>
+                    <div style="background: rgba(56, 189, 248, 0.1); border-left: 4px solid #38bdf8; padding: 0.75rem 1rem; border-radius: 4px; font-size: 0.85rem; color: #bae6fd;">
+                        ℹ️ <strong>Safe Operation:</strong> Existing custom bonus/deduction entries in the salary sheets remain intact. Working days and late days are refreshed.
+                    </div>
+                </div>
+                <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem; padding: 1rem 1.5rem; border-top: 1px solid #334155;">
+                    <button type="button" class="btn-cancel" onclick="closeSyncModal()" style="padding: 0.6rem 1.2rem; background: #334155; color: #f8fafc; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
+                    <button type="submit" class="btn-primary-action" style="padding: 0.6rem 1.5rem; background: #2563eb; color: #ffffff; font-weight: 600; border: none; border-radius: 6px; cursor: pointer;">⚡ Confirm &amp; Sync to Payroll</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+/* CSS Styles for Monthly Attendance Register */
+.matrix-container {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 1rem 1.5rem 3rem 1.5rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #e2e8f0;
+}
+
+/* Header Card */
+.matrix-header-card {
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-bottom: 1.25rem;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+}
+
+.matrix-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(147, 51, 234, 0.15);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    color: #c084fc;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 0.3rem 0.75rem;
+    border-radius: 9999px;
+    margin-bottom: 0.5rem;
+}
+
+.pulsing-dot {
+    width: 8px;
+    height: 8px;
+    background-color: #a855f7;
+    border-radius: 50%;
+    animation: pulseGlow 1.8s infinite;
+}
+
+@keyframes pulseGlow {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.7); }
+    70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(168, 85, 247, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(168, 85, 247, 0); }
+}
+
+.matrix-title {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #ffffff;
+    margin: 0 0 0.4rem 0;
+    letter-spacing: -0.02em;
+}
+
+.matrix-title .text-accent {
+    color: #38bdf8;
+}
+
+.matrix-subtitle {
+    font-size: 0.88rem;
+    color: #94a3b8;
+    margin: 0;
+    max-width: 650px;
+    line-height: 1.45;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.btn-matrix-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.65rem 1.15rem;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.btn-excel {
+    background: #10b981;
+    color: #ffffff;
+}
+.btn-excel:hover {
+    background: #059669;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.btn-print {
+    background: #475569;
+    color: #ffffff;
+}
+.btn-print:hover {
+    background: #334155;
+    transform: translateY(-1px);
+}
+
+.btn-datewise {
+    background: #6366f1;
+    color: #ffffff;
+}
+.btn-datewise:hover {
+    background: #4f46e5;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.btn-sync {
+    background: #0284c7;
+    color: #ffffff;
+}
+.btn-sync:hover {
+    background: #0369a1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+}
+
+/* Filter Toolbar */
+.matrix-toolbar {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+}
+
+.toolbar-form {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.filter-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.ctrl-select, .ctrl-input {
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #f8fafc;
+    border-radius: 6px;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.ctrl-select:focus, .ctrl-input:focus {
+    border-color: #38bdf8;
+}
+
+.search-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.btn-search-icon {
+    position: absolute;
+    right: 6px;
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.btn-clear-filter {
+    margin-left: 0.5rem;
+    color: #ef4444;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+/* Legend */
+.matrix-legend {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    flex-wrap: wrap;
+    font-size: 0.78rem;
+    color: #94a3b8;
+}
+
+.legend-title {
+    font-weight: 700;
+    color: #cbd5e1;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.legend-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+/* Day Pills */
+.badge-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 4px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    user-select: none;
+    cursor: default;
+}
+
+.pill-day {
+    background: #065f46;
+    color: #34d399;
+    border: 1px solid #10b981;
+}
+
+.pill-night {
+    background: #4c1d95;
+    color: #e9d5ff;
+    border: 1px solid #a855f7;
+    box-shadow: 0 0 6px rgba(168, 85, 247, 0.35);
+}
+
+.pill-double {
+    background: #78350f;
+    color: #fde68a;
+    border: 1px solid #f59e0b;
+}
+
+.pill-late {
+    background: #713f12;
+    color: #fed7aa;
+    border: 1px solid #ea580c;
+}
+
+.pill-missing {
+    background: #881337;
+    color: #fecdd3;
+    border: 1px dashed #f43f5e;
+}
+
+.pill-weekend {
+    background: #1e293b;
+    color: #64748b;
+    border: 1px solid #334155;
+}
+
+.pill-absent {
+    background: #27272a;
+    color: #71717a;
+    border: 1px solid #3f3f46;
+}
+
+/* Matrix Table Styling */
+.table-responsive-card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+}
+
+.table-scroll-container {
+    overflow-x: auto;
+    max-height: 72vh;
+}
+
+.matrix-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.8rem;
+}
+
+.matrix-table th {
+    background: #1e293b;
+    color: #cbd5e1;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    padding: 0.5rem 0.35rem;
+    text-align: center;
+    border-bottom: 2px solid #334155;
+    border-right: 1px solid #1e293b;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.matrix-table td {
+    padding: 0.35rem 0.25rem;
+    border-bottom: 1px solid #1e293b;
+    border-right: 1px solid #1e293b;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.emp-row:hover td {
+    background: rgba(30, 41, 59, 0.8);
+}
+
+/* Sticky Columns for Employee Info */
+.sticky-col {
+    position: sticky;
+    background: #0f172a;
+    z-index: 5;
+}
+
+.matrix-table th.sticky-col {
+    z-index: 20;
+    background: #1e293b;
+}
+
+.col-no {
+    left: 0;
+    width: 38px;
+    min-width: 38px;
+}
+
+.col-id {
+    left: 38px;
+    width: 75px;
+    min-width: 75px;
+}
+
+.col-name {
+    left: 113px;
+    width: 160px;
+    min-width: 160px;
+    text-align: left !important;
+    padding-left: 0.75rem !important;
+    border-right: 2px solid #334155 !important;
+}
+
+.col-dept {
+    display: none; /* keep matrix compact; shown in tooltip or name sub */
+}
+
+.emp-row:hover .sticky-col {
+    background: #1e293b;
+}
+
+.emp-id-badge {
+    background: #1e293b;
+    color: #93c5fd;
+    font-family: ui-monospace, monospace;
+    font-size: 0.75rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    border: 1px solid #334155;
+}
+
+.emp-name-link {
+    color: #f1f5f9;
+    text-decoration: none;
+    font-weight: 600;
+    display: block;
+    line-height: 1.2;
+}
+
+.emp-name-link:hover {
+    color: #38bdf8;
+    text-decoration: underline;
+}
+
+.emp-desig-sub {
+    font-size: 0.68rem;
+    color: #94a3b8;
+    margin-top: 2px;
+}
+
+.dept-tag {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    background: #1e293b;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+}
+
+/* Day Column Headers */
+.day-col-header {
+    width: 32px;
+    min-width: 32px;
+    max-width: 36px;
+    padding: 0.4rem 0.15rem !important;
+}
+
+.day-num {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 800;
+    color: #f8fafc;
+}
+
+.day-name {
+    display: block;
+    font-size: 0.62rem;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.weekend-header {
+    background: #334155 !important;
+}
+.weekend-header .day-name {
+    color: #f87171;
+}
+
+.day-cell {
+    width: 32px;
+    min-width: 32px;
+    max-width: 36px;
+    padding: 2px !important;
+}
+
+.cell-weekend {
+    background: rgba(30, 41, 59, 0.4);
+}
+
+.day-pill-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    cursor: pointer;
+}
+
+/* Tooltip on Day Pill */
+.day-pill-wrap[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #020617;
+    color: #f8fafc;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    white-space: pre-line;
+    z-index: 100;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.7);
+    border: 1px solid #334155;
+    pointer-events: none;
+    min-width: 170px;
+    line-height: 1.35;
+    text-align: left;
+}
+
+/* Summary Columns */
+.summary-col {
+    width: 48px;
+    min-width: 48px;
+    font-size: 0.78rem;
+}
+
+.col-present {
+    border-left: 2px solid #334155 !important;
+}
+
+.font-bold { font-weight: 700; }
+.font-mono { font-family: ui-monospace, monospace; }
+.text-success { color: #34d399; }
+.text-info { color: #38bdf8; }
+.text-purple { color: #c084fc; }
+.text-warning { color: #fbbf24; }
+.text-danger { color: #f87171; }
+.text-amber { color: #f59e0b; }
+
+.btn-view-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #38bdf8;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 0.75rem;
+    display: inline-block;
+    transition: background 0.2s;
+}
+.btn-view-card:hover {
+    background: #334155;
+}
+
+/* Empty State */
+.empty-state {
+    padding: 4rem 2rem !important;
+    text-align: center;
+}
+
+.empty-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+}
+
+.empty-icon {
+    font-size: 3rem;
+    opacity: 0.6;
+}
+
+.empty-box h4 {
+    color: #f1f5f9;
+    font-size: 1.2rem;
+    margin: 0;
+}
+
+.empty-box p {
+    color: #94a3b8;
+    font-size: 0.9rem;
+    margin: 0 0 1rem 0;
+}
+
+/* Footer Summary Chips */
+.matrix-footer-summary {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    padding: 1rem 1.5rem;
+    margin-top: 1.25rem;
+}
+
+.summary-stat-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.chip-label {
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.chip-val {
+    font-weight: 700;
+    color: #f8fafc;
+    font-size: 0.95rem;
+}
+
+/* Modal styles */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-dialog {
+    width: 90%;
+    max-width: 520px;
+}
+
+.modal-content {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    color: #f8fafc;
+    overflow: hidden;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #334155;
+    background: #0f172a;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    color: #ffffff;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+.btn-close:hover {
+    color: #ffffff;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.modal-desc {
+    color: #94a3b8;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    margin-top: 0;
+    margin-bottom: 1.25rem;
+}
+
+/* Print Styles */
+@media print {
+    body {
+        background: #ffffff !important;
+        color: #000000 !important;
+    }
+    .navbar, .matrix-header-card, .matrix-toolbar, .matrix-footer-summary, .btn-matrix-action, .btn-view-card {
+        display: none !important;
+    }
+    .table-scroll-container {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+    .matrix-table {
+        color: #000000 !important;
+        border: 1px solid #000 !important;
+    }
+    .matrix-table th {
+        background: #f1f5f9 !important;
+        color: #000000 !important;
+        border: 1px solid #ccc !important;
+    }
+    .matrix-table td {
+        border: 1px solid #eee !important;
+        color: #000000 !important;
+    }
+    .sticky-col {
+        position: static !important;
+        background: transparent !important;
+    }
+}
+</style>
+
+<script>
+function openSyncModal() {
+    document.getElementById('syncPayrollModal').style.display = 'flex';
+}
+function closeSyncModal() {
+    document.getElementById('syncPayrollModal').style.display = 'none';
+}
+window.onclick = function(event) {
+    var modal = document.getElementById('syncPayrollModal');
+    if (event.target == modal) {
+        modal.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}
+
+<style>
+.pill-holiday {
+    background: #fef3c7 !important;
+    color: #92400e !important;
+    border: 1px solid #fde68a !important;
+    font-weight: 800 !important;
+}
+.pill-holiday-work {
+    background: #fde68a !important;
+    color: #78350f !important;
+    border: 1.5px solid #f59e0b !important;
+    font-weight: 800 !important;
+}
+.holiday-header {
+    background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%) !important;
+    color: #92400e !important;
+    border-bottom: 2.5px solid #f59e0b !important;
+}
+.holiday-header .day-num {
+    color: #78350f !important;
+    font-weight: 800 !important;
+}
+.holiday-header .day-name {
+    color: #b45309 !important;
+    font-weight: 700 !important;
+}
+.legend-holiday .badge-pill {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+}
+.legend-holiday-work .badge-pill {
+    background: #fde68a;
+    color: #78350f;
+    border: 1px solid #f59e0b;
+}
+</style>
+
+<!-- =========================================================================
+     MODAL: GOVERNMENT HOLIDAY CALENDAR & ATTENDANCE INTELLIGENCE
+     ========================================================================= -->
+<div class="modal-backdrop" id="holidayModal" onclick="if(event.target === this) closeHolidayModal()">
+    <div class="modal-dialog modal-lg" style="max-width: 840px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #ffffff; padding: 1.1rem 1.4rem;">
+            <div style="display: flex; align-items: center; gap: 0.65rem;">
+                <span style="font-size: 1.5rem;">🎉</span>
+                <div>
+                    <h3 style="margin: 0; color: #ffffff; font-size: 1.15rem; font-weight: 800;">Government Holiday Calendar &amp; Attendance Engine</h3>
+                    <p style="margin: 0.15rem 0 0; color: #94a3b8; font-size: 0.78rem;">Upload PDF / Excel gazette list or sync official Bangladesh public holidays.</p>
+                </div>
+            </div>
+            <button type="button" class="btn-close-modal" onclick="closeHolidayModal()" style="color: #ffffff; font-size: 1.3rem;">✕</button>
+        </div>
+        <div class="modal-body" style="padding: 1.25rem 1.5rem; background: #f8fafc;">
+            <!-- Modal Tabs -->
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 1.15rem; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 0.5rem;">
+                <button type="button" class="h-tab active" id="mBtnTabUpload" onclick="switchHolidayTab('m-tab-upload', this)" style="padding: 0.45rem 0.95rem; font-size: 0.82rem; font-weight: 700; border-radius: 6px; border: 1.5px solid #cbd5e1; background: #0284c7; color: #ffffff; cursor: pointer;">
+                    📥 Upload File (PDF / Excel)
+                </button>
+                <button type="button" class="h-tab" id="mBtnTabManual" onclick="switchHolidayTab('m-tab-manual', this)" style="padding: 0.45rem 0.95rem; font-size: 0.82rem; font-weight: 700; border-radius: 6px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer;">
+                    ➕ Manual Add
+                </button>
+                <button type="button" class="h-tab" id="mBtnTabList" onclick="switchHolidayTab('m-tab-list', this)" style="padding: 0.45rem 0.95rem; font-size: 0.82rem; font-weight: 700; border-radius: 6px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer;">
+                    📋 Current Holidays ({{ holidays_in_year|length }})
+                </button>
+            </div>
+
+            <!-- Tab 1: Upload File & Instant Official Load -->
+            <div id="m-tab-upload" class="h-tab-pane">
+                <div style="background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 2px 6px rgba(0,0,0,0.03);">
+                    <h4 style="margin: 0 0 0.5rem; color: #0f172a; font-size: 0.95rem; font-weight: 800; display: flex; align-items: center; gap: 0.4rem;">
+                        <span>📄</span> Option 1: Upload Government Holiday PDF or Excel File
+                    </h4>
+                    <p style="margin: 0 0 1rem; color: #64748b; font-size: 0.8rem; line-height: 1.45;">
+                        Upload official Ministry of Public Administration Gazette (PDF) or corporate holiday schedule (.xlsx / .xls / .csv). The AI engine automatically extracts dates, multi-day ranges (e.g. Eid 4 days), and holiday titles, and updates all employee attendance registers instantly.
+                    </p>
+                    <form action="{{ url_for('upload_govt_holidays') }}" method="POST" enctype="multipart/form-data">
+                        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                            <input type="file" name="holiday_file" accept=".pdf, .xlsx, .xls, .csv" required style="flex: 1; min-width: 240px; padding: 0.5rem 0.75rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; background: #ffffff;">
+                            <select name="year" style="padding: 0.52rem 0.85rem; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; background: #ffffff; font-weight: 700; color: #0f172a;">
+                                <option value="{{ year }}" selected>Year: {{ year }}</option>
+                                <option value="{{ year - 1 }}">Year: {{ year - 1 }}</option>
+                                <option value="{{ year + 1 }}">Year: {{ year + 1 }}</option>
+                            </select>
+                            <button type="submit" class="btn-ui btn-ui-primary" style="background: #0284c7; border-color: #0284c7; padding: 0.55rem 1.25rem; font-size: 0.82rem; font-weight: 800; border-radius: 6px; box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35); cursor: pointer;">
+                                🤖 Analyze &amp; Apply to Attendance
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div style="background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%); border: 1.5px solid #fde68a; border-radius: 10px; padding: 1.15rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 260px;">
+                        <div style="font-weight: 800; color: #92400e; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+                            <span>🇧🇩</span> Option 2: 1-Click Load Official Bangladesh Govt Holidays 2026
+                        </div>
+                        <div style="font-size: 0.78rem; color: #b45309; margin-top: 0.25rem; line-height: 1.4;">
+                            Instantly populates all 17+ official Bangladesh Gazette holidays (Shaheed Day, Independence Day, Eid-ul-Fitr, Pahela Baishakh, May Day, Eid-ul-Azha, Durga Puja, Victory Day, etc.).
+                        </div>
+                    </div>
+                    <form action="{{ url_for('upload_govt_holidays') }}" method="POST" style="margin: 0;">
+                        <input type="hidden" name="action" value="load_official_2026">
+                        <button type="submit" class="btn-ui" style="background: #d97706; color: #ffffff; font-weight: 800; border: none; padding: 0.6rem 1.25rem; border-radius: 6px; box-shadow: 0 3px 10px rgba(217, 119, 6, 0.35); font-size: 0.82rem; cursor: pointer;">
+                            ✨ Load 2026 Official Holidays
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Tab 2: Manual Add -->
+            <div id="m-tab-manual" class="h-tab-pane" style="display: none;">
+                <form action="{{ url_for('add_manual_govt_holiday') }}" method="POST" style="background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 1.25rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.85rem; margin-bottom: 0.85rem;">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 700;">Holiday Name *</label>
+                            <input type="text" name="holiday_name" placeholder="e.g. Shab-e-Barat or Special Public Holiday" required class="ctrl-input" style="width: 100%; font-size: 0.82rem;">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 700;">Holiday Type</label>
+                            <select name="holiday_type" class="ctrl-select" style="width: 100%; font-size: 0.82rem;">
+                                <option value="General Holiday">General Holiday (সাধারণ ছুটি)</option>
+                                <option value="Executive Order">Executive Order (নির্বাহী আদেশে ছুটি)</option>
+                                <option value="Public Holiday">Public Holiday</option>
+                                <option value="Optional Holiday">Optional Holiday</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.85rem; margin-bottom: 0.85rem;">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 700;">Start Date *</label>
+                            <input type="date" name="start_date" required class="ctrl-input" style="width: 100%; font-size: 0.82rem;">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 700;">End Date (For multi-day)</label>
+                            <input type="date" name="end_date" class="ctrl-input" style="width: 100%; font-size: 0.82rem;">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 700;">Remarks / Notes</label>
+                            <input type="text" name="notes" placeholder="Optional notes" class="ctrl-input" style="width: 100%; font-size: 0.82rem;">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-ui btn-ui-primary" style="background: #059669; border-color: #059669; font-weight: 800; font-size: 0.82rem; padding: 0.55rem 1.25rem; cursor: pointer;">
+                        ➕ Save Holiday to Calendar
+                    </button>
+                </form>
+            </div>
+
+            <!-- Tab 3: Current Holidays List -->
+            <div id="m-tab-list" class="h-tab-pane" style="display: none;">
+                <div style="max-height: 380px; overflow-y: auto; border: 1.5px solid #e2e8f0; border-radius: 8px; background: #ffffff;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                        <thead>
+                            <tr style="background: #0f172a; color: #ffffff; text-align: left;">
+                                <th style="padding: 0.6rem 0.75rem;">Holiday Name</th>
+                                <th style="padding: 0.6rem 0.75rem;">Date(s)</th>
+                                <th style="padding: 0.6rem 0.75rem; text-align: center;">Days</th>
+                                <th style="padding: 0.6rem 0.75rem;">Type</th>
+                                <th style="padding: 0.6rem 0.75rem; text-align: center;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if holidays_in_year %}
+                                {% for h in holidays_in_year %}
+                                <tr style="border-bottom: 1px solid #f1f5f9;">
+                                    <td style="padding: 0.55rem 0.75rem; font-weight: 700; color: #0f172a;">{{ h.name }}</td>
+                                    <td style="padding: 0.55rem 0.75rem; color: #475569;">
+                                        {{ h.holiday_date.strftime('%d %b, %Y') }}
+                                        {% if h.end_date and h.end_date > h.holiday_date %}
+                                            &rarr; {{ h.end_date.strftime('%d %b, %Y') }}
+                                        {% endif %}
+                                        <span style="font-size: 0.72rem; color: #64748b;">({{ h.day_name }})</span>
+                                    </td>
+                                    <td style="padding: 0.55rem 0.75rem; font-weight: 800; color: #0369a1; text-align: center;">{{ h.days_count }}</td>
+                                    <td style="padding: 0.55rem 0.75rem;">
+                                        <span class="badge" style="background: #ecfdf5; color: #047857; font-size: 0.72rem; font-weight: 700;">{{ h.holiday_type }}</span>
+                                    </td>
+                                    <td style="padding: 0.55rem 0.75rem; text-align: center;">
+                                        <form action="{{ url_for('delete_govt_holiday', holiday_id=h.id) }}" method="POST" onsubmit="return confirm('Delete this holiday?')" style="margin: 0; display: inline;">
+                                            <button type="submit" style="background: none; border: none; cursor: pointer; color: #ef4444; font-size: 0.95rem;" title="Delete Holiday">🗑️</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" style="padding: 2rem; text-align: center; color: #64748b;">
+                                        No holidays recorded for this year yet. Upload a PDF/Excel file or load the official 2026 calendar above!
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer" style="background: #ffffff; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 1.4rem;">
+            <div style="font-size: 0.76rem; color: #64748b;">
+                ✨ Holidays automatically credit all employees with <strong>Paid Holiday (H)</strong> and prevent false absences.
+            </div>
+            <button type="button" class="btn-ui btn-ui-dark" onclick="closeHolidayModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openHolidayModal() {
+    const m = document.getElementById('holidayModal');
+    if (m) m.classList.add('active');
+}
+function closeHolidayModal() {
+    const m = document.getElementById('holidayModal');
+    if (m) m.classList.remove('active');
+}
+function switchHolidayTab(tabId, btn) {
+    document.querySelectorAll('.h-tab').forEach(b => {
+        b.style.background = '#ffffff';
+        b.style.color = '#475569';
+    });
+    document.querySelectorAll('.h-tab-pane').forEach(p => p.style.display = 'none');
+    if (btn) {
+        btn.style.background = '#0284c7';
+        btn.style.color = '#ffffff';
+    }
+    const pane = document.getElementById(tabId);
+    if (pane) pane.style.display = 'block';
+}
+</script>

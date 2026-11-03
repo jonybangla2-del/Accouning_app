@@ -2406,6 +2406,37 @@ class AttendanceShiftSetting(db.Model):
             self.created_at = created_at
 
 
+
+class GovtHoliday(db.Model):
+    __tablename__ = 'govt_holiday'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    holiday_date = db.Column(db.Date, nullable=False, index=True)
+    end_date = db.Column(db.Date, nullable=True, index=True)
+    holiday_type = db.Column(db.String(100), default='General Holiday')
+    year = db.Column(db.Integer, nullable=False, index=True)
+    day_name = db.Column(db.String(50), nullable=True)
+    days_count = db.Column(db.Integer, default=1)
+    notes = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __init__(self, name="", holiday_date=None, end_date=None, holiday_type="General Holiday", year=None, day_name=None, days_count=1, notes=None, created_at=None, **kwargs):
+        super().__init__(**kwargs)
+        self.name = name
+        self.holiday_date = holiday_date
+        self.end_date = end_date or holiday_date
+        self.holiday_type = holiday_type
+        self.year = year or (holiday_date.year if holiday_date else 2026)
+        self.day_name = day_name or (holiday_date.strftime('%A') if holiday_date else '')
+        self.days_count = days_count
+        self.notes = notes
+        if created_at is not None:
+            self.created_at = created_at
+
+    def __repr__(self):
+        return f'<GovtHoliday {self.name} ({self.holiday_date})>'
+
+
 class MonthlyBudget(db.Model):
     __tablename__ = 'monthly_budget'
     id = db.Column(db.Integer, primary_key=True)
@@ -16619,6 +16650,14 @@ def attendance_dashboard():
     if not shift_settings:
         shift_settings = AttendanceShiftSetting()
 
+    # Govt Holiday intelligence for selected date
+    holiday_today = GovtHoliday.query.filter(
+        GovtHoliday.holiday_date <= selected_date,
+        GovtHoliday.end_date >= selected_date
+    ).first()
+    holidays_count_year = GovtHoliday.query.filter_by(year=selected_date.year).count()
+    holidays_in_year = GovtHoliday.query.filter_by(year=selected_date.year).order_by(GovtHoliday.holiday_date.asc()).all()
+
     return render_template(
         'attendance/dashboard.html',
         records=records,
@@ -16639,7 +16678,10 @@ def attendance_dashboard():
         departments=departments,
         available_dates=available_dates,
         shift_settings=shift_settings,
-        all_employees=all_employees
+        all_employees=all_employees,
+        holiday_today=holiday_today,
+        holidays_count_year=holidays_count_year,
+        holidays_in_year=holidays_in_year
     )
 
 
@@ -16846,6 +16888,8 @@ def attendance_month_matrix():
     # Available years & months
     year_options = [year - 1, year, year + 1]
 
+    holidays_in_year = GovtHoliday.query.filter_by(year=year).order_by(GovtHoliday.holiday_date.asc()).all()
+
     return render_template(
         'attendance/month_matrix.html',
         matrix_data=matrix_data,
@@ -16854,7 +16898,8 @@ def attendance_month_matrix():
         dept_filter=dept_filter,
         search_q=search_q,
         departments=departments,
-        year_options=year_options
+        year_options=year_options,
+        holidays_in_year=holidays_in_year
     )
 
 
@@ -17025,6 +17070,144 @@ def sync_attendance_to_payroll():
         flash(f"❌ Error syncing to payroll: {str(e)}", "danger")
 
     return redirect(url_for('attendance_dashboard'))
+
+
+# ==============================================================================
+# GOVERNMENT HOLIDAY INTELLIGENCE & ATTENDANCE INTEGRATION ROUTES
+# ==============================================================================
+
+@app.route('/attendance/holidays')
+@login_required
+def get_attendance_holidays():
+    try:
+        year = int(request.args.get('year', date.today().year))
+    except (ValueError, TypeError):
+        year = date.today().year
+    holidays = GovtHoliday.query.filter_by(year=year).order_by(GovtHoliday.holiday_date.asc()).all()
+    res = []
+    for h in holidays:
+        res.append({
+            'id': h.id,
+            'name': h.name,
+            'start_date': h.holiday_date.strftime('%Y-%m-%d'),
+            'end_date': (h.end_date or h.holiday_date).strftime('%Y-%m-%d'),
+            'type': h.holiday_type,
+            'day_name': h.day_name,
+            'days': h.days_count,
+            'notes': h.notes or ''
+        })
+    return jsonify({'success': True, 'year': year, 'holidays': res})
+
+
+@app.route('/attendance/holidays/upload', methods=['POST'])
+@login_required
+def upload_govt_holidays():
+    from govt_holiday_manager import govt_holiday_manager, OFFICIAL_BD_GOVT_HOLIDAYS_2026
+    action = request.form.get('action')
+    try:
+        year = int(request.form.get('year', date.today().year))
+    except (ValueError, TypeError):
+        year = date.today().year
+
+    if action == 'load_official_2026':
+        ins, upd = govt_holiday_manager.load_or_sync_holidays_to_db(db.session, OFFICIAL_BD_GOVT_HOLIDAYS_2026, year=2026)
+        flash(f"🎉 Successfully loaded {ins} Official Bangladesh Government Holidays for 2026! ({upd} updated). All employee attendance sheets have been refreshed.", "success")
+        return redirect(request.referrer or url_for('attendance_dashboard'))
+
+    file = request.files.get('holiday_file')
+    if not file or not file.filename:
+        flash("⚠️ Please select a valid PDF (.pdf) or Excel (.xlsx / .xls) holiday file.", "danger")
+        return redirect(request.referrer or url_for('attendance_dashboard'))
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    holidays_data = []
+
+    try:
+        if ext in ('.xlsx', '.xls'):
+            holidays_data = govt_holiday_manager.parse_excel_holiday_file(file, default_year=year)
+        elif ext == '.pdf':
+            holidays_data = govt_holiday_manager.parse_pdf_holiday_file(file, default_year=year)
+        elif ext == '.csv':
+            content = file.read().decode('utf-8', errors='ignore')
+            holidays_data = govt_holiday_manager.parse_holiday_text_content(content, default_year=year)
+        else:
+            flash("⚠️ Unsupported format. Please upload a PDF (.pdf) or Excel (.xlsx, .xls) file.", "danger")
+            return redirect(request.referrer or url_for('attendance_dashboard'))
+
+        if not holidays_data:
+            flash(f"⚠️ No holiday records could be recognized from '{file.filename}'. Please verify file contents or use the manual add form.", "warning")
+            return redirect(request.referrer or url_for('attendance_dashboard'))
+
+        ins, upd = govt_holiday_manager.load_or_sync_holidays_to_db(db.session, holidays_data, year=year)
+        flash(f"🎉 Successfully analyzed '{file.filename}': {ins} new government holidays added, {upd} updated! Every employee attendance sheet has been recalculated.", "success")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error parsing holiday file: {e}", exc_info=True)
+        flash(f"❌ Error analyzing holiday file: {str(e)}", "danger")
+
+    return redirect(request.referrer or url_for('attendance_dashboard'))
+
+
+@app.route('/attendance/holidays/add-manual', methods=['POST'])
+@login_required
+def add_manual_govt_holiday():
+    name = request.form.get('holiday_name', '').strip()
+    s_date_str = request.form.get('start_date')
+    e_date_str = request.form.get('end_date') or s_date_str
+    h_type = request.form.get('holiday_type', 'General Holiday')
+    notes = request.form.get('notes', '').strip()
+
+    if not name or not s_date_str:
+        flash("⚠️ Please provide holiday name and date.", "danger")
+        return redirect(request.referrer or url_for('attendance_dashboard'))
+
+    try:
+        s_date = datetime.strptime(s_date_str, '%Y-%m-%d').date()
+        e_date = datetime.strptime(e_date_str, '%Y-%m-%d').date() if e_date_str else s_date
+        days = (e_date - s_date).days + 1 if e_date >= s_date else 1
+
+        new_h = GovtHoliday(
+            name=name,
+            holiday_date=s_date,
+            end_date=e_date,
+            holiday_type=h_type,
+            year=s_date.year,
+            day_name=s_date.strftime('%A'),
+            days_count=max(1, days),
+            notes=notes
+        )
+        db.session.add(new_h)
+        db.session.commit()
+        flash(f"🎉 Added Government Holiday '{name}' ({s_date_str}) successfully! Attendance sheets recalculated.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"❌ Error adding holiday: {str(e)}", "danger")
+
+    return redirect(request.referrer or url_for('attendance_dashboard'))
+
+
+@app.route('/attendance/holidays/<int:holiday_id>/delete', methods=['POST'])
+@login_required
+def delete_govt_holiday(holiday_id):
+    h = GovtHoliday.query.get_or_404(holiday_id)
+    h_name = h.name
+    db.session.delete(h)
+    db.session.commit()
+    flash(f"🗑️ Government Holiday '{h_name}' deleted.", "info")
+    return redirect(request.referrer or url_for('attendance_dashboard'))
+
+
+@app.route('/attendance/holidays/clear', methods=['POST'])
+@login_required
+def clear_govt_holidays():
+    try:
+        year = int(request.form.get('year', date.today().year))
+    except (ValueError, TypeError):
+        year = date.today().year
+    deleted = GovtHoliday.query.filter_by(year=year).delete()
+    db.session.commit()
+    flash(f"🗑️ Cleared {deleted} government holidays for year {year}.", "info")
+    return redirect(request.referrer or url_for('attendance_dashboard'))
 
 
 @app.route('/employees/<int:emp_id>/experience-certificate')
