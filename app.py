@@ -25,6 +25,8 @@ import tempfile
 import uuid
 import ipaddress
 import leave_manager
+import logging
+logger = logging.getLogger(__name__)
 
 # ==============================================================================
 # BANGLADESH STANDARD TIME (BST, UTC+6) CONFIGURATION
@@ -3013,6 +3015,19 @@ def ensure_attendance_modules_tables():
         LeaveMonthlyLedger.__table__.create(db.engine, checkfirst=True)
     except Exception:
         pass
+
+_attendance_tables_ensured = False
+
+@app.before_request
+def ensure_attendance_tables_auto():
+    global _attendance_tables_ensured
+    if not _attendance_tables_ensured:
+        try:
+            ensure_attendance_modules_tables()
+        except Exception:
+            pass
+        _attendance_tables_ensured = True
+
 
 
 class GovtHoliday(db.Model):
@@ -19782,29 +19797,39 @@ def download_leave_template_excel():
     return safe_excel_response(excel_io, "Leave_Ledger_Import_Template.xlsx")
 
 
-@app.route('/attendance/leave/import-excel', methods=['POST'])
+@app.route('/attendance/leave/import-excel', methods=['GET', 'POST'])
 @login_required
 def import_leave_excel_file():
-    """Parses custom block-format Excel files and loads historical records and opening balances into DB."""
+    """Parses custom block-format Excel (.xlsx, .xlsm, .xls) and CSV files and loads historical records and opening balances into DB."""
+    if request.method == 'GET':
+        return redirect(url_for('view_all_staff_leave_summary'))
+
     file = request.files.get('excel_file')
     if not file or not file.filename:
-        flash("⚠️ Please select an Excel file (.xlsx) to import.", "warning")
+        flash("⚠️ Please select an Excel (.xlsx, .xls) or CSV file to import.", "warning")
         return redirect(request.referrer or url_for('view_all_staff_leave_summary'))
 
-    if not file.filename.lower().endswith(('.xlsx', '.xlsm')):
-        flash("⚠️ Unsupported format. Please upload an Excel workbook (.xlsx).", "danger")
+    fn_low = file.filename.lower()
+    if not fn_low.endswith(('.xlsx', '.xlsm', '.xls', '.csv')):
+        flash("⚠️ Unsupported file format. Please upload an Excel workbook (.xlsx, .xls) or CSV file (.csv).", "danger")
         return redirect(request.referrer or url_for('view_all_staff_leave_summary'))
 
     cid = session.get('active_company_id', 1)
     models = get_leave_models_dict()
 
     try:
-        res = leave_manager.parse_custom_block_leave_excel(file.stream, db.session, models, company_id=cid)
+        raw_bytes = file.read()
+        file_io = io.BytesIO(raw_bytes)
+        res = leave_manager.parse_custom_block_leave_excel(file_io, db.session, models, company_id=cid)
         count = res.get('total_blocks_found', 0)
-        flash(f"🎉 Successfully imported {count} employee leave blocks from '{file.filename}'! Historical records and opening balances loaded.", "success")
+        if count > 0:
+            flash(f"🎉 Successfully imported {count} employee leave blocks from '{file.filename}'! Historical records and opening balances loaded.", "success")
+        else:
+            flash(f"⚠️ No employee leave blocks were recognized in '{file.filename}'. Please verify file contents.", "warning")
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error importing leave Excel file: {e}", exc_info=True)
+        import logging
+        logging.error(f"Error importing leave Excel file: {e}", exc_info=True)
         flash(f"❌ Error importing leave file: {str(e)}", "danger")
 
     return redirect(url_for('view_all_staff_leave_summary'))

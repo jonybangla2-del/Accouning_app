@@ -362,21 +362,64 @@ def close_leave_year(emp_id: int, year: int, db_session, models):
 
 def parse_custom_block_leave_excel(file_stream_or_path, db_session, models, company_id=1):
     """
-    Parses multi-employee custom block-format Excel spreadsheets:
+    Parses multi-employee custom block-format Excel (.xlsx, .xlsm, .xls) and CSV spreadsheets:
     - Block Header: Name, ID, Designation, Organization, Date of Joining, Year, Opening Balance.
-    - Monthly Grid Table (Jan to Dec): Month, Leave Bank, General PTO, Holiday PTO,
+    - Monthly Grid Table (Jan to Dec): Month (or ISO date 2026-01-01), Leave Bank, General PTO, Holiday PTO,
       Sick Leave, General Leave, Parental Leave, Marriage Leave, Adjustment, Balance, Remarks.
-    Stores and cascades records into LeaveBank and LeaveMonthlyLedger.
+    Handles consecutive header rows, Opening Bank row under table header, 'NaN' strings,
+    and Python 3.10 SpooledTemporaryFile seekable compatibility.
     """
+    import math
+    import csv
+
     LeaveBank = models['LeaveBank']
     LeaveMonthlyLedger = models['LeaveMonthlyLedger']
     Employee = models['Employee']
 
-    wb = openpyxl.load_workbook(file_stream_or_path, data_only=True)
+    # 1. Safely extract bytes from any stream, path, or file object
+    raw_bytes = None
+    if hasattr(file_stream_or_path, 'read'):
+        raw_bytes = file_stream_or_path.read()
+    elif isinstance(file_stream_or_path, str) and os.path.isfile(file_stream_or_path):
+        with open(file_stream_or_path, 'rb') as f:
+            raw_bytes = f.read()
+    elif isinstance(file_stream_or_path, (bytes, bytearray)):
+        raw_bytes = bytes(file_stream_or_path)
+    else:
+        try:
+            raw_bytes = bytes(file_stream_or_path)
+        except Exception:
+            raw_bytes = b""
+
+    # 2. Load openpyxl Workbook: support real .xlsx or fallback to CSV/TSV
+    wb = None
+    if raw_bytes and raw_bytes.startswith(b'PK\x03\x04'):
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(raw_bytes), data_only=True)
+        except Exception:
+            wb = None
+
+    if wb is None:
+        # Parse as CSV/TSV text into an in-memory openpyxl Workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Imported"
+        text_content = ""
+        try:
+            text_content = raw_bytes.decode('utf-8', errors='replace')
+        except Exception:
+            text_content = str(raw_bytes)
+
+        sample_line = text_content.splitlines()[0] if text_content.splitlines() else ""
+        delim = '\t' if '\t' in sample_line and ',' not in sample_line else ','
+        reader = csv.reader(io.StringIO(text_content), delimiter=delim)
+        for r_idx, row in enumerate(reader, 1):
+            for c_idx, val in enumerate(row, 1):
+                ws.cell(row=r_idx, column=c_idx, value=val)
+
     imported_employees = []
     total_blocks_found = 0
 
-    # Clean helper
     def clean_val(v):
         if v is None:
             return ""
@@ -386,121 +429,144 @@ def parse_custom_block_leave_excel(file_stream_or_path, db_session, models, comp
         if v is None:
             return default
         try:
-            # Handle string numbers with comma
-            cleaned = str(v).replace(',', '').strip()
-            return float(cleaned)
+            s = str(v).replace(',', '').strip()
+            if s.lower() in ('nan', 'none', 'null', '-', ''):
+                return default
+            val = float(s)
+            if math.isnan(val) or math.isinf(val):
+                return default
+            return val
         except (ValueError, TypeError):
             return default
+
+    def parse_month_number(m_val, default_idx):
+        if m_val is None:
+            return None
+        if hasattr(m_val, 'month'):
+            return m_val.month
+        s = str(m_val).strip()
+        if not s or s.lower() in ('nan', 'none', 'null', '-'):
+            return None
+        # ISO YYYY-MM-DD
+        m_iso = re.match(r'^\d{4}[\-\/](\d{1,2})[\-\/]', s)
+        if m_iso:
+            try:
+                return int(m_iso.group(1))
+            except ValueError:
+                pass
+        # DD-MM-YYYY
+        m_dmy = re.match(r'^\d{1,2}[\-\/](\d{1,2})[\-\/]\d{4}', s)
+        if m_dmy:
+            try:
+                return int(m_dmy.group(1))
+            except ValueError:
+                pass
+        # Month name
+        s_low = s.lower()
+        for idx, mn in enumerate(MONTH_NAMES, 1):
+            if s_low.startswith(mn.lower()):
+                return idx
+        try:
+            v = int(float(s))
+            if 1 <= v <= 12:
+                return v
+        except ValueError:
+            pass
+        return default_idx
+
+    def extract_year_from_val(val, default_year=2026):
+        if val is None:
+            return default_year
+        if hasattr(val, 'year'):
+            return val.year
+        s = str(val).strip()
+        m = re.search(r'\b(202\d)\b', s)
+        if m:
+            try:
+                return int(m.group(1))
+            except ValueError:
+                pass
+        return default_year
 
     for sheet in wb.worksheets:
         max_r = sheet.max_row
         r = 1
         while r <= max_r:
-            # Look for employee block indicator: row with "Name" or "Employee Name" or "ID"
-            row_vals = [clean_val(sheet.cell(row=r, column=c).value) for c in range(1, 15)]
-            row_str = " ".join(row_vals).lower()
-
-            if ('name:' in row_str or 'name' in row_str) and ('id:' in row_str or 'id' in row_str or 'employee' in row_str):
-                # We detected a candidate header!
-                # Extract header fields by scanning this row and neighboring 3 rows
+            row_txt = " ".join(clean_val(sheet.cell(row=r, column=c).value).lower() for c in range(1, 15))
+            if 'name:' in row_txt or row_txt.startswith('name'):
                 block_info = {
                     'name': '',
                     'emp_code': '',
                     'designation': '',
                     'organization': '',
-                    'joining_date': None,
                     'year': 2026,
                     'opening_balance': 0.0
                 }
 
-                for hr in range(r, min(r + 5, max_r + 1)):
+                # Scan up to 7 rows for employee block metadata
+                for hr in range(r, min(r + 8, max_r + 1)):
                     for c in range(1, sheet.max_column + 1):
-                        cell_txt = clean_val(sheet.cell(row=hr, column=c).value).lower()
-                        cell_raw = sheet.cell(row=hr, column=c).value
+                        raw = sheet.cell(row=hr, column=c).value
+                        c_txt = clean_val(raw).lower()
+                        if not c_txt:
+                            continue
 
                         # Name
-                        if re.search(r'^(name|employee\s*name)\s*[:\-]?', cell_txt):
-                            next_val = sheet.cell(row=hr, column=c + 1).value
-                            if next_val:
-                                block_info['name'] = clean_val(next_val)
-                            elif ':' in clean_val(cell_raw):
-                                block_info['name'] = clean_val(cell_raw).split(':', 1)[1].strip()
+                        if re.search(r'^(name|employee\s*name)\s*[:\-]?', c_txt):
+                            nxt = sheet.cell(row=hr, column=c + 1).value
+                            if nxt and clean_val(nxt):
+                                block_info['name'] = clean_val(nxt)
+                            elif ':' in clean_val(raw):
+                                block_info['name'] = clean_val(raw).split(':', 1)[1].strip()
 
                         # ID
-                        if re.search(r'^(id|emp\s*id|employee\s*id)\s*[:\-]?', cell_txt):
-                            next_val = sheet.cell(row=hr, column=c + 1).value
-                            if next_val:
-                                block_info['emp_code'] = clean_val(next_val)
-                            elif ':' in clean_val(cell_raw):
-                                block_info['emp_code'] = clean_val(cell_raw).split(':', 1)[1].strip()
+                        if re.search(r'^(id|emp\s*id|employee\s*id)\s*[:\-]?', c_txt):
+                            nxt = sheet.cell(row=hr, column=c + 1).value
+                            if nxt and clean_val(nxt):
+                                block_info['emp_code'] = clean_val(nxt)
+                            elif ':' in clean_val(raw):
+                                block_info['emp_code'] = clean_val(raw).split(':', 1)[1].strip()
 
                         # Designation
-                        if 'designation' in cell_txt:
-                            next_val = sheet.cell(row=hr, column=c + 1).value
-                            if next_val:
-                                block_info['designation'] = clean_val(next_val)
-                            elif ':' in clean_val(cell_raw):
-                                block_info['designation'] = clean_val(cell_raw).split(':', 1)[1].strip()
+                        if 'designation' in c_txt:
+                            nxt = sheet.cell(row=hr, column=c + 1).value
+                            if nxt and clean_val(nxt):
+                                block_info['designation'] = clean_val(nxt)
+                            elif ':' in clean_val(raw):
+                                block_info['designation'] = clean_val(raw).split(':', 1)[1].strip()
 
                         # Organization
-                        if 'organization' in cell_txt or 'company' in cell_txt:
-                            next_val = sheet.cell(row=hr, column=c + 1).value
-                            if next_val:
-                                block_info['organization'] = clean_val(next_val)
+                        if 'organization' in c_txt or 'company' in c_txt:
+                            nxt = sheet.cell(row=hr, column=c + 1).value
+                            if nxt and clean_val(nxt):
+                                block_info['organization'] = clean_val(nxt)
 
                         # Year
-                        if 'year' in cell_txt:
-                            next_val = sheet.cell(row=hr, column=c + 1).value
-                            try:
-                                if next_val:
-                                    block_info['year'] = int(str(next_val).strip()[:4])
-                            except (ValueError, TypeError):
-                                pass
+                        if 'year' in c_txt:
+                            nxt = sheet.cell(row=hr, column=c + 1).value
+                            if nxt:
+                                block_info['year'] = extract_year_from_val(nxt, block_info['year'])
 
-                        # Opening Balance / Remaining Leave Bank
-                        if any(term in cell_txt for term in ['opening balance', 'remaining leave bank', 'leave bank', 'opening bank']):
-                            next_val = sheet.cell(row=hr, column=c + 1).value
-                            if next_val is not None:
-                                block_info['opening_balance'] = to_float(next_val, 0.0)
+                        # Opening Balance in header card
+                        if any(k in c_txt for k in ['remaining leave', 'leave bank', 'opening balance']):
+                            nxt = sheet.cell(row=hr, column=c + 1).value
+                            if nxt is not None and clean_val(nxt) and to_float(nxt, None) is not None:
+                                block_info['opening_balance'] = to_float(nxt, 0.0)
 
-                # Normalize emp_code
-                emp_code = str(block_info['emp_code']).strip()
-                emp_code_clean = re.sub(r'^(emp[\-_]?)', '', emp_code, flags=re.I).strip()
-                emp_name = block_info['name'] or f"Employee {emp_code}"
+                # Clean name and code
+                emp_name = block_info['name'].strip(' ,:;-\t\r\n')
+                emp_code = block_info['emp_code'].strip(' ,:;-\t\r\n')
+                if ',' in emp_code:
+                    emp_code = emp_code.split(',')[0].strip()
 
-                if not emp_code and not emp_name:
+                # Skip invalid or NaN dummy blocks
+                if (not emp_name or emp_name.lower() in ('nan', 'none', 'null')) and (not emp_code or emp_code.lower() in ('nan', 'none', 'null')):
                     r += 1
                     continue
 
-                # Find employee in DB or create stub
-                emp = None
-                if emp_code:
-                    emp = Employee.query.filter(
-                        (Employee.employee_id == emp_code) |
-                        (Employee.employee_id == f"EMP-{emp_code_clean}") |
-                        (Employee.employee_id == emp_code_clean)
-                    ).first()
-                if not emp and emp_name:
-                    emp = Employee.query.filter(Employee.name.ilike(f"%{emp_name}%")).first()
-
-                if not emp:
-                    # Create new active employee record
-                    new_code = emp_code if emp_code else f"EMP-{emp_code_clean or 'NEW'}"
-                    emp = Employee(
-                        employee_id=new_code,
-                        name=emp_name,
-                        designation=block_info['designation'] or 'Staff',
-                        department='General',
-                        status='Active'
-                    )
-                    db_session.add(emp)
-                    db_session.flush()
-
-                target_year = block_info['year'] or 2026
-
                 # Search downward for table header row containing "month"
                 table_header_row = None
-                for tr in range(r, min(r + 10, max_r + 1)):
+                for tr in range(r, min(r + 12, max_r + 1)):
                     r_txts = [clean_val(sheet.cell(row=tr, column=c).value).lower() for c in range(1, 15)]
                     if any('month' in t or 'মাস' in t for t in r_txts):
                         table_header_row = tr
@@ -510,21 +576,21 @@ def parse_custom_block_leave_excel(file_stream_or_path, db_session, models, comp
                     r += 1
                     continue
 
-                # Map column indices from the table header row
+                # Map column positions from table header row
                 col_map = {}
                 for c in range(1, sheet.max_column + 1):
-                    c_txt = clean_val(sheet.cell(row=table_header_row, column=c).value).lower()
+                    c_txt = clean_val(sheet.cell(row=table_header_row, column=c).value).lower().replace('\n', ' ')
                     if 'month' in c_txt or 'মাস' in c_txt:
                         col_map['month'] = c
-                    elif 'opening' in c_txt or 'leave bank' in c_txt or 'bank' in c_txt:
+                    elif 'leave bank' in c_txt or 'opening' in c_txt or 'bank' in c_txt:
                         col_map.setdefault('opening_balance', c)
-                    elif 'general pto' in c_txt or 'pto' in c_txt or 'gen pto' in c_txt:
+                    elif 'general' in c_txt and 'pto' in c_txt:
                         col_map['general_pto'] = c
                     elif 'holiday' in c_txt or 'hol' in c_txt:
                         col_map['holiday_pto'] = c
                     elif 'sick' in c_txt:
                         col_map['sick_leave'] = c
-                    elif 'general' in c_txt or 'casual' in c_txt:
+                    elif 'general leave' in c_txt or 'casual' in c_txt:
                         col_map['general_leave'] = c
                     elif 'parental' in c_txt or 'maternity' in c_txt or 'paternity' in c_txt:
                         col_map['parental_leave'] = c
@@ -536,6 +602,43 @@ def parse_custom_block_leave_excel(file_stream_or_path, db_session, models, comp
                         col_map['balance'] = c
                     elif 'remark' in c_txt or 'note' in c_txt:
                         col_map['remarks'] = c
+
+                month_cur = table_header_row + 1
+                months_read = 0
+                target_year = block_info['year'] or 2026
+
+                # Check if row right below table header is the Opening Leave Bank row (empty Month, valid float in Leave Bank)
+                first_m_val = sheet.cell(row=month_cur, column=col_map.get('month', 1)).value
+                open_bank_val = sheet.cell(row=month_cur, column=col_map.get('opening_balance', 2)).value
+                if (not first_m_val or str(first_m_val).strip() == '') and open_bank_val is not None:
+                    parsed_open = to_float(open_bank_val, None)
+                    if parsed_open is not None:
+                        block_info['opening_balance'] = parsed_open
+                    month_cur += 1
+
+                # Match employee in DB or create active employee record
+                emp = None
+                emp_code_clean = re.sub(r'^(emp[\-_]?)', '', emp_code, flags=re.I).strip()
+                if emp_code:
+                    emp = Employee.query.filter(
+                        (Employee.employee_id == emp_code) |
+                        (Employee.employee_id == f"EMP-{emp_code_clean}") |
+                        (Employee.employee_id == emp_code_clean)
+                    ).first()
+                if not emp and emp_name:
+                    emp = Employee.query.filter(Employee.name.ilike(f"%{emp_name}%")).first()
+
+                if not emp:
+                    new_code = emp_code if emp_code else f"EMP-{emp_code_clean or 'NEW'}"
+                    emp = Employee(
+                        employee_id=new_code,
+                        name=emp_name or f"Employee {new_code}",
+                        designation=block_info['designation'] or 'Staff',
+                        department='General',
+                        status='Active'
+                    )
+                    db_session.add(emp)
+                    db_session.flush()
 
                 # Create or fetch LeaveBank
                 bank = LeaveBank.query.filter_by(employee_id=emp.id, year=target_year).first()
@@ -556,32 +659,24 @@ def parse_custom_block_leave_excel(file_stream_or_path, db_session, models, comp
                     if block_info['opening_balance'] > 0:
                         bank.opening_balance = block_info['opening_balance']
 
-                # Read 12 monthly rows
-                month_cur = table_header_row + 1
-                months_read = 0
                 running_balance = float(bank.opening_balance or 0.0)
 
                 while month_cur <= max_r and months_read < 12:
-                    m_label = clean_val(sheet.cell(row=month_cur, column=col_map.get('month', 1)).value)
-                    if not m_label or 'total' in m_label.lower() or 'sub' in m_label.lower() or 'carry' in m_label.lower():
+                    m_raw = sheet.cell(row=month_cur, column=col_map.get('month', 1)).value
+                    m_label = clean_val(m_raw)
+
+                    if not m_label or any(k in m_label.lower() for k in ['name:', 'total', 'sub', 'carry', 'leave bank calculation']):
                         break
 
-                    # Match month number (1 to 12)
-                    m_num = None
-                    m_norm = m_label[:3].lower()
-                    for idx, mn in enumerate(MONTH_NAMES, 1):
-                        if mn.lower() == m_norm or m_label.lower().startswith(mn.lower()):
-                            m_num = idx
-                            break
-                    if not m_num:
-                        try:
-                            m_num = int(m_label)
-                        except ValueError:
-                            m_num = months_read + 1
-
-                    if not (1 <= m_num <= 12):
+                    m_num = parse_month_number(m_raw, months_read + 1)
+                    if not m_num or not (1 <= m_num <= 12):
                         month_cur += 1
                         continue
+
+                    row_yr = extract_year_from_val(m_raw, target_year)
+                    if row_yr != target_year and target_year == 2026:
+                        target_year = row_yr
+                        bank.year = target_year
 
                     # Fetch or create ledger row
                     ledger_row = LeaveMonthlyLedger.query.filter_by(
@@ -602,47 +697,38 @@ def parse_custom_block_leave_excel(file_stream_or_path, db_session, models, comp
                         )
                         db_session.add(ledger_row)
 
-                    # Extract row values
-                    if 'opening_balance' in col_map:
-                        sheet_open = sheet.cell(row=month_cur, column=col_map['opening_balance']).value
-                        if sheet_open is not None and str(sheet_open).strip() != '':
-                            ledger_row.opening_balance = to_float(sheet_open, running_balance)
-                        else:
-                            ledger_row.opening_balance = running_balance
+                    # Extract values with safe float handling (turns 'NaN' to 0.0)
+                    gen_pto = to_float(sheet.cell(row=month_cur, column=col_map.get('general_pto', 3)).value, 0.0) if 'general_pto' in col_map else 0.0
+                    hol_pto = to_float(sheet.cell(row=month_cur, column=col_map.get('holiday_pto', 4)).value, 0.0) if 'holiday_pto' in col_map else 0.0
+                    sick = to_float(sheet.cell(row=month_cur, column=col_map.get('sick_leave', 5)).value, 0.0) if 'sick_leave' in col_map else 0.0
+                    gen_l = to_float(sheet.cell(row=month_cur, column=col_map.get('general_leave', 6)).value, 0.0) if 'general_leave' in col_map else 0.0
+                    parental = to_float(sheet.cell(row=month_cur, column=col_map.get('parental_leave', 7)).value, 0.0) if 'parental_leave' in col_map else 0.0
+                    marriage = to_float(sheet.cell(row=month_cur, column=col_map.get('marriage_leave', 8)).value, 0.0) if 'marriage_leave' in col_map else 0.0
+                    adj = to_float(sheet.cell(row=month_cur, column=col_map.get('adjustment', 9)).value, 0.0) if 'adjustment' in col_map else 0.0
+                    rem = clean_val(sheet.cell(row=month_cur, column=col_map.get('remarks', 11)).value) if 'remarks' in col_map else ''
+
+                    sheet_open = sheet.cell(row=month_cur, column=col_map.get('opening_balance', 2)).value if 'opening_balance' in col_map else None
+                    if sheet_open is not None and clean_val(sheet_open) and to_float(sheet_open, None) is not None:
+                        ledger_row.opening_balance = to_float(sheet_open, running_balance)
                     else:
                         ledger_row.opening_balance = running_balance
 
-                    if 'general_pto' in col_map:
-                        ledger_row.general_pto = to_float(sheet.cell(row=month_cur, column=col_map['general_pto']).value, 0.0)
-                    if 'holiday_pto' in col_map:
-                        ledger_row.holiday_pto = to_float(sheet.cell(row=month_cur, column=col_map['holiday_pto']).value, 0.0)
-                    if 'sick_leave' in col_map:
-                        ledger_row.sick_leave = to_float(sheet.cell(row=month_cur, column=col_map['sick_leave']).value, 0.0)
-                    if 'general_leave' in col_map:
-                        ledger_row.general_leave = to_float(sheet.cell(row=month_cur, column=col_map['general_leave']).value, 0.0)
-                    if 'parental_leave' in col_map:
-                        ledger_row.parental_leave = to_float(sheet.cell(row=month_cur, column=col_map['parental_leave']).value, 0.0)
-                    if 'marriage_leave' in col_map:
-                        ledger_row.marriage_leave = to_float(sheet.cell(row=month_cur, column=col_map['marriage_leave']).value, 0.0)
-                    if 'adjustment' in col_map:
-                        ledger_row.adjustment = to_float(sheet.cell(row=month_cur, column=col_map['adjustment']).value, 0.0)
-                    if 'remarks' in col_map:
-                        ledger_row.remarks = clean_val(sheet.cell(row=month_cur, column=col_map['remarks']).value)
+                    ledger_row.general_pto = gen_pto
+                    ledger_row.holiday_pto = hol_pto
+                    ledger_row.sick_leave = sick
+                    ledger_row.general_leave = gen_l
+                    ledger_row.parental_leave = parental
+                    ledger_row.marriage_leave = marriage
+                    ledger_row.adjustment = adj
+                    ledger_row.remarks = rem
 
-                    # Compute closing balance
-                    tot_deduct = (
-                        float(ledger_row.sick_leave or 0.0) + float(ledger_row.general_leave or 0.0) +
-                        float(ledger_row.parental_leave or 0.0) + float(ledger_row.marriage_leave or 0.0) +
-                        float(ledger_row.other_leave or 0.0) + float(ledger_row.adjustment or 0.0)
-                    )
-                    ledger_row.closing_balance = round(
-                        float(ledger_row.opening_balance or 0.0) +
-                        float(ledger_row.general_pto or 0.0) +
-                        float(ledger_row.holiday_pto or 0.0) - tot_deduct,
-                        2
-                    )
+                    tot_deduct = sick + gen_l + parental + marriage + adj
+                    sheet_bal = sheet.cell(row=month_cur, column=col_map.get('balance', 10)).value if 'balance' in col_map else None
+                    if sheet_bal is not None and clean_val(sheet_bal) and to_float(sheet_bal, None) is not None:
+                        ledger_row.closing_balance = to_float(sheet_bal, round(ledger_row.opening_balance + gen_pto + hol_pto - tot_deduct, 2))
+                    else:
+                        ledger_row.closing_balance = round(ledger_row.opening_balance + gen_pto + hol_pto - tot_deduct, 2)
 
-                    # Lock row to preserve imported Excel values
                     ledger_row.is_manually_locked = True
                     running_balance = ledger_row.closing_balance
 
